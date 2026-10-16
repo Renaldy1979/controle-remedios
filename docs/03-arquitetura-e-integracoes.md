@@ -39,6 +39,19 @@ Se houver mais de uma dose pendente possível, responder com botões listando as
 
 ### Receitas
 Upload no painel (câmera/galeria) → Appwrite Storage com permissão do Team → registros de `prescriptions`/`files`/`items`. Compartilhar no WhatsApp envia a mídia via adaptador usando URL temporária. Foto recebida no WhatsApp (fase 2): fluxo pergunta o paciente por botões e salva como `awaiting_review`.
+- **Upload resiliente:** as fotos ficam no aparelho até o envio terminar; envio retomável por página, com progresso e "enviar quando a conexão voltar". Miniaturas em resolução reduzida; imagem completa sob demanda; URLs assinadas de curta duração. Cada visualização, compartilhamento, anexo, troca e exclusão vai para `audit_log`/`prescription_views`.
+- **Salvar receita nova:** marca como `superseded` as `expired`/`awaiting_new` do mesmo paciente que tenham remédios em comum e avança a reposição desses remédios para "receita recebida"/"comprado" conforme o caso. Concluir "estoque atualizado" soma a compra ao estoque e encerra a reposição.
+
+### Login por código no WhatsApp
+1. Usuário informa o celular → API cria `login_codes` (hash, expira em minutos, limite de envios e tentativas) e enfileira a mensagem na outbox. Resposta idêntica para número desconhecido.
+2. Usuário digita os 6 dígitos → API valida, consome o código e abre sessão (Appwrite Auth via token customizado). Reenvio permitido com intervalo mínimo.
+3. A mensagem de código nunca entra em log legível; só o hash fica salvo.
+
+### Grupo da família no WhatsApp
+Avisos coletivos (estoque baixo com "Eu cuido disso", resumo diário às 20:00) podem ir ao grupo configurado em `families.whatsapp_group_id` ou individualmente, conforme a configuração. O adaptador expõe `sendToGroup`. Respostas de botão no grupo identificam quem respondeu pelo telefone do remetente; remetente fora da família é ignorado.
+
+### Resumo diário
+O agendador monta às `daily_summary_time` o resumo (tomadas, esquecidas, estoque crítico, reposições abertas) e enfileira para a família. Idempotente por `dedupe_key = summary:<family>:<data>`.
 
 ### Consultas
 Intenções: `stock_status`, `next_doses`, `dose_status(medication)`. Resposta filtrada pelas permissões do membro. Intenção desconhecida → mensagem de ajuda com exemplos.

@@ -8,21 +8,25 @@ Fonte da verdade do modelo. Mudou aqui, muda em `packages/shared` (tipos + zod) 
 - Datas em UTC (ISO). Enums em minúsculas.
 
 ## Identidade e acesso
-**families**: name, timezone (default America/Sao_Paulo), settings (json: default_low_stock_days, default_reminder_lead_min, default_reminder_retry_min (padrão 15), missed_after_min, reminder_recipients_mode (`all_members|assignments_only|assignments_plus_family`, padrão `all_members`), transcription_provider (padrão `gemini`))
+**families**: name, timezone (default America/Sao_Paulo), settings (json: default_low_stock_days, default_reminder_lead_min, default_reminder_retry_min (padrão 15), late_after_min (padrão 15), missed_after_min (padrão 120), repeat_reminder_options_min ([15,30,60]), daily_summary_time (padrão `20:00`), whatsapp_group_id (opcional, grupo da família), reminder_recipients_mode (`all_members|assignments_only|assignments_plus_family`, padrão `all_members`), transcription_provider (padrão `gemini`))
 `patients.reminder_recipients_mode` (opcional) sobrescreve o da família.
 
-**members**: family_id, user_id (Appwrite Auth, opcional se só usa WhatsApp), name, phone_e164 (único por família), profile_id, active, receives_family_alerts (bool)
+**members**: family_id, user_id (Appwrite Auth, opcional se só usa WhatsApp), name, phone_e164 (único por família), profile_id, active, receives_family_alerts (bool), whatsapp_status (`unverified|verified|failed`), role_label (texto livre, ex.: "filha", "cuidadora")
 
-**profiles**: family_id, name, permissions (json). Chaves de permissão:
+**profiles**: family_id, name, permissions (json), is_system (bool). Perfis iniciais: Administrador (sempre total, não editável), Familiar, Cuidadora, Confirmador. Chaves de permissão:
 `dashboard.view, patients.view, patients.manage, doses.confirm, doses.history.view, medications.manage, treatments.manage, stock.view, stock.adjust, prescriptions.view, prescriptions.upload, prescriptions.share, prescriptions.delete, replenishment.manage, members.manage, profiles.manage, settings.manage, whatsapp.query`
+A matriz do painel agrupa isto em 11 funcionalidades (ver `design/design.md` 5.6); o mapeamento grupo → chaves fica em `packages/shared`.
+Padrão de receitas: Administrador, Familiar e Cuidadora veem; Confirmador não.
+
+**login_codes**: phone_e164, code_hash, expires_at, attempts, consumed_at, created_at. Código de 6 dígitos, uso único, expira em minutos, limite de tentativas e de envios por telefone.
 
 ## Pacientes e cuidados
-**patients**: family_id, name, birth_date, notes, can_use_phone (bool), active
+**patients**: family_id, name, birth_date, notes, can_use_phone (bool), self_member_id (opcional: o paciente também confirma doses), reminder_recipients_mode (opcional), active
 
 **care_assignments** (escala): family_id, patient_id, member_id, weekdays (int[] 0-6), start_time (HH:mm), end_time (HH:mm), priority (int). Quem recebe o lembrete = assignments cobrindo o horário, por prioridade. Sem cobertura → vai para membros com `receives_family_alerts`.
 
 ## Remédios e tratamentos
-**medications**: family_id, name, alternative_names (string[]), route (`drops|tablet|powder|liquid|ointment|other`), control_unit (`unit|ml|drop|gram`), drops_per_ml (number, só para gotas), package_size (number, na unidade de controle), notes
+**medications**: family_id, name, alternative_names (string[]), route (`drops|tablet|powder|liquid|ointment|other`), control_unit (`unit|ml|drop|gram`), drops_per_ml (number, só para gotas), package_size (number, na unidade de controle), requires_prescription (bool, padrão true), notes
 
 **treatments** (demanda de uso): family_id, patient_id, medication_id, start_date, end_date (opcional), status (`active|paused|finished`), low_stock_days (opcional, sobrescreve o padrão), notes
 
@@ -40,7 +44,8 @@ Exemplo: fase 1 = dias 1–15, interval 3h; fase 2 = dias 16–20, interval 6h.
 Saldo = soma de `quantity`. `cached_balance` é só otimização e pode ser recomputado.
 
 ## Receitas
-**prescriptions**: family_id, patient_id, doctor_name, specialty, issued_on, valid_until, status (`valid|expired|awaiting_new|superseded`), superseded_by_id, notes, uploaded_by_member_id
+**prescriptions**: family_id, patient_id, doctor_name, specialty, issued_on, valid_until, status (`valid|expired|awaiting_new|superseded`), superseded_by_id, is_controlled (bool, controle especial), copies (int, número de vias), notes, uploaded_by_member_id
+Situação (derivada, regra no domínio): 1) tem substituta → `superseded`; 2) tem pedido pendente → `awaiting_new`; 3) `issued_on + validade < hoje` → `expired`; 4) senão `valid` ("vence em X dias" se faltam ≤ 15); sem validade = `valid`.
 **prescription_files**: family_id, prescription_id, storage_file_id (Appwrite Storage), page, mime, size
 **prescription_items**: family_id, prescription_id, medication_id
 **prescription_shares**: family_id, prescription_id, shared_by_member_id, channel (`internal|whatsapp`), target_member_id/target_phone, shared_at

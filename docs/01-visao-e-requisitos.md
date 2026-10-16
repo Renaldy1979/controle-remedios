@@ -18,13 +18,20 @@ Perfis são configuráveis: cada funcionalidade liga/desliga por perfil.
 
 ## Requisitos funcionais
 
+### RF0 Acesso
+- RF0.1 Login por **código de 6 dígitos enviado no WhatsApp** para o número cadastrado, com erro e reenvio. Código expira em poucos minutos, uso único, limite de tentativas.
+- RF0.2 Só entram números cadastrados em alguma família; resposta igual para número desconhecido.
+
 ### RF1 Cadastros
 - RF1.1 Famílias, usuários (nome, telefone WhatsApp, perfil) e pacientes.
 - RF1.2 Remédios: nome, marcas alternativas ("Facoba ou Vigadexa ou Zypred, só uma"), via de uso (pingar, comprimido, pó dissolvido, líquido, pomada), unidade de controle (unidade, ml, gota, grama), conversão gotas por ml.
 - RF1.3 Tratamentos (demandas de uso): remédio + paciente + início + fim opcional.
 - RF1.4 Fases do tratamento: periodicidade (de X em X horas ou horários fixos), dia inicial e final da fase, quantidade por dose. Uma fase "até acabar" é permitida. Exemplo: de 3 em 3 h do dia 1 ao 15; de 6 em 6 h do dia 16 ao 20.
 - RF1.5 Escala de responsáveis: quem cuida de qual paciente em quais dias e horários (cuidadora de dia, sogro à noite e fins de semana).
-- RF1.6 Perfis e permissões por funcionalidade.
+- RF1.6 Perfis e permissões por funcionalidade. Perfis iniciais: Administrador (sempre total), Familiar, Cuidadora e Confirmador (ex.: sogro).
+- RF1.7 Remédio pode ser marcado como **sem receita** (ex.: Metamucil): não gera pedido de receita na reposição.
+- RF1.8 O paciente pode ser também quem confirma (Adelino confirma sozinho as doses da manhã). Maria, sem celular, é confirmada por quem estiver com ela.
+- RF1.9 Remover pessoa que consta na escala exige confirmação digitando `REMOVER`.
 
 ### RF2 Doses
 - RF2.1 O sistema gera os eventos de dose de cada dia a partir das fases.
@@ -33,6 +40,9 @@ Perfis são configuráveis: cada funcionalidade liga/desliga por perfil.
 - RF2.4 Aviso à família quando a dose se aproxima (configurável) e quando é esquecida.
 - RF2.5 Estados da dose: pendente, tomada, atrasada, esquecida, pulada (com motivo).
 - RF2.6 Confirmação manual pelo painel, com registro de quem e quando.
+- RF2.7 **Desfazer** a confirmação por 8 s (devolve o estoque); **Registrar que tomou depois** para dose esquecida; **Lembrar em 15 min** (15/30/60 configurável).
+- RF2.8 Prazos configuráveis por família: atrasada após 15 min, esquecida após 2 h.
+- RF2.9 **Resumo diário** às 20:00 para a família (tomadas, esquecidas, estoque). Horário configurável.
 
 ### RF3 Estoque
 - RF3.1 Saldo por paciente e remédio via livro-razão (compra, dose, ajuste).
@@ -41,7 +51,7 @@ Perfis são configuráveis: cada funcionalidade liga/desliga por perfil.
 - RF3.4 Ajuste manual (olhando o frasco); colírio sinalizado como estimativa.
 
 ### RF4 Receitas
-- RF4.1 Anexar fotos/PDFs (várias páginas), com paciente, data, médico, validade, remédios vinculados e observações.
+- RF4.1 Anexar fotos/PDFs (várias páginas), com paciente, data, médico, validade, remédios vinculados e observações. Obrigatórios: paciente, data (não futura) e pelo menos 1 remédio. Validade com atalhos (30 dias, 60 dias, 6 meses, sem validade). Marcar **controle especial** (número de vias) quando for o caso.
 - RF4.2 Situações: vigente, vencida, aguardando nova, substituída. Histórico em linha do tempo.
 - RF4.3 Compartilhar dentro do sistema e pelo WhatsApp; registrar quem visualizou.
 - RF4.4 Aviso "receita vence em X dias" e "sem receita vigente".

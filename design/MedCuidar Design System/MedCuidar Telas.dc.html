@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&display=block" rel="stylesheet">
+<style>
+body{margin:0;background:#E9EDF5;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,sans-serif;color:#0E1A33;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+button,input{font-family:inherit;font-size:16px}
+a{color:#1F56E0}
+a:hover{color:#1742B8}
+</style>
+</helmet>
+
+<section data-screen-label="Mobile" style="padding:48px 48px 40px;border-bottom:1px solid rgba(14,26,51,.1)">
+  <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px"><span style="font:700 12px ui-monospace,Menlo,monospace;padding:4px 8px;background:#0E1A33;color:#fff;border-radius:6px">1</span><h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.02em">Mobile · 390 px</h2><span style="color:#4A5670">Cada tela é o app real: dá para navegar, confirmar doses, filtrar e trocar o tema.</span></div>
+  <div style="display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start">
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">1.1 · Início</div><div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.18)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="inicio" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">1.2 · Pacientes · Adelino</div><div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.18)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="pacientes" patient="ad" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">1.3 · Pacientes · Maria</div><div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.18)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="pacientes" patient="ma" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">1.4 · Histórico</div><div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.18)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="historico" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">1.5 · Configurações</div><div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.18)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="config" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">1.6 · Remédios</div><div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.18)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="config" cfg="remedios" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">1.7 · Esquemas de uso</div><div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.18)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="config" cfg="esquemas" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">1.8 · Estoque</div><div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.18)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="config" cfg="estoque" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">1.9 · Usuários e telefones</div><div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.18)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="config" cfg="usuarios" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">1.10 · Perfis e permissões</div><div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.18)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="config" cfg="perfis" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">1.11 · Avisos</div><div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.18)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="config" cfg="avisos" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">1.12 · Início · modo escuro</div><div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#0B1222;box-shadow:0 20px 50px rgba(23,66,184,.18)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="inicio" theme="escuro" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+  </div>
+</section>
+
+<section data-screen-label="Desktop" style="padding:48px 48px 40px;border-bottom:1px solid rgba(14,26,51,.1)">
+  <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px"><span style="font:700 12px ui-monospace,Menlo,monospace;padding:4px 8px;background:#0E1A33;color:#fff;border-radius:6px">2</span><h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.02em">Desktop · painel 1280 px</h2><span style="color:#4A5670">Mesmos componentes; menu lateral e colunas.</span></div>
+  <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start">
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">2.1 · Início</div><div style="width:1280px;height:860px;border-radius:14px;overflow:hidden;border:1px solid #C9D2E3;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.14)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="inicio" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">2.2 · Pacientes</div><div style="width:1280px;height:860px;border-radius:14px;overflow:hidden;border:1px solid #C9D2E3;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.14)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="pacientes" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">2.3 · Histórico</div><div style="width:1280px;height:860px;border-radius:14px;overflow:hidden;border:1px solid #C9D2E3;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.14)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="historico" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">2.4 · Configurações · Remédios</div><div style="width:1280px;height:860px;border-radius:14px;overflow:hidden;border:1px solid #C9D2E3;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.14)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="config" cfg="remedios" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">2.5 · Configurações · Esquemas</div><div style="width:1280px;height:860px;border-radius:14px;overflow:hidden;border:1px solid #C9D2E3;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.14)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="config" cfg="esquemas" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">2.6 · Configurações · Perfis · modo escuro</div><div style="width:1280px;height:860px;border-radius:14px;overflow:hidden;border:1px solid #C9D2E3;background:#0B1222;box-shadow:0 20px 50px rgba(23,66,184,.14)"><dc-import name="MedCuidar App" embedded="{{ true }}" screen="config" cfg="perfis" theme="escuro" hint-size="100%,100%" style="width:100%;height:100%"></dc-import></div></div>
+  </div>
+</section>
+
+<section data-screen-label="Apoio" style="padding:48px 48px 40px;border-bottom:1px solid rgba(14,26,51,.1)">
+  <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px"><span style="font:700 12px ui-monospace,Menlo,monospace;padding:4px 8px;background:#0E1A33;color:#fff;border-radius:6px">3</span><h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.02em">Telas de apoio</h2></div>
+  <div style="display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start">
+
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">3.1 · Login · mobile</div>
+      <div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;display:flex;flex-direction:column;padding:56px 24px 32px;gap:28px">
+        <div style="display:flex;align-items:center;gap:10px"><div style="width:48px;height:48px;border-radius:14px;background:#1F56E0;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:28px;line-height:1;color:#fff;font-variation-settings:'FILL' 1">medication</span></div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:24px;letter-spacing:-.02em">Med<span style="color:#1F56E0">Cuidar</span></div></div>
+        <div><h1 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:30px;line-height:1.15;letter-spacing:-.02em;text-wrap:balance">Os remédios da família, em dia.</h1><p style="margin:10px 0 0;color:#4A5670;font-size:17px">Entre com o número de WhatsApp cadastrado. Enviamos um código de 6 dígitos.</p></div>
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font-weight:700">Celular com DDD</span><span style="display:flex;gap:8px"><span style="flex:none;height:52px;padding:0 12px;border:1.5px solid #C9D2E3;border-radius:12px;background:#fff;display:flex;align-items:center;font-weight:700">+55</span><input value="(11) 98765-4321" style="flex:1;min-width:0;height:52px;padding:0 14px;border:1.5px solid #1F56E0;border-radius:12px;background:#fff;color:#0E1A33;font-size:18px;box-shadow:0 0 0 3px rgba(31,86,224,.2);outline:none"></span></label>
+        <button style="height:56px;border:0;border-radius:14px;background:#1F56E0;color:#fff;font-weight:700;font-size:18px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer" style-hover="background:#1742B8"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">chat</span>Receber código no WhatsApp</button>
+        <div style="flex:1"></div>
+        <div style="display:flex;gap:10px;padding:14px;border-radius:14px;background:#EAF0FF;color:#1742B8"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1.2;font-variation-settings:'FILL' 1">lock</span><span style="font-size:15px">Cuidadoras e familiares só entram se a administradora da família tiver cadastrado o número.</span></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">3.2 · Código de acesso · erro</div>
+      <div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;display:flex;flex-direction:column;padding:24px 24px 32px;gap:24px">
+        <button style="align-self:flex-start;display:flex;align-items:center;gap:4px;height:44px;padding:0 12px 0 4px;border:0;border-radius:12px;background:transparent;color:#1F56E0;font-weight:700;font-size:16px;cursor:pointer;margin-top:24px"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1">chevron_left</span>Voltar</button>
+        <div><h1 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.02em">Digite o código</h1><p style="margin:8px 0 0;color:#4A5670;font-size:17px">Enviado para (11) 98765-4321 às 14:08.</p></div>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px">
+          <span style="height:60px;border:1.5px solid #B4232A;border-radius:12px;background:#FFF8F8;display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:26px">4</span>
+          <span style="height:60px;border:1.5px solid #B4232A;border-radius:12px;background:#FFF8F8;display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:26px">8</span>
+          <span style="height:60px;border:1.5px solid #B4232A;border-radius:12px;background:#FFF8F8;display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:26px">1</span>
+          <span style="height:60px;border:1.5px solid #B4232A;border-radius:12px;background:#FFF8F8;display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:26px">0</span>
+          <span style="height:60px;border:1.5px solid #B4232A;border-radius:12px;background:#FFF8F8;display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:26px">2</span>
+          <span style="height:60px;border:1.5px solid #B4232A;border-radius:12px;background:#FFF8F8;display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:26px">7</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;color:#B4232A;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1.1;font-variation-settings:'FILL' 1">error</span>Código incorreto. Confira a última mensagem do MedCuidar no WhatsApp. Restam 2 tentativas.</div>
+        <button style="height:56px;border:0;border-radius:14px;background:#1F56E0;color:#fff;font-weight:700;font-size:18px;cursor:pointer">Entrar</button>
+        <button style="height:48px;border:0;border-radius:12px;background:transparent;color:#1F56E0;font-weight:700;font-size:16px;cursor:pointer">Reenviar código em 0:42</button>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">3.3 · Login · desktop</div>
+      <div style="width:1100px;height:680px;border-radius:14px;overflow:hidden;border:1px solid #C9D2E3;background:#fff;display:grid;grid-template-columns:1fr 1fr">
+        <div style="background:#1F56E0;color:#fff;padding:48px;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:44px;height:44px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:26px;line-height:1;color:#1F56E0;font-variation-settings:'FILL' 1">medication</span></div><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:22px">MedCuidar</span></div>
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:40px;line-height:1.1;letter-spacing:-.025em;text-wrap:balance">Ninguém fica sem remédio por esquecimento.</div>
+            <div style="display:flex;flex-direction:column;gap:10px;font-size:18px">
+              <span style="display:flex;gap:10px;align-items:center"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-variation-settings:'FILL' 1">chat</span>Lembrete no WhatsApp com botão "Tomei"</span>
+              <span style="display:flex;gap:10px;align-items:center"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-variation-settings:'FILL' 1">groups</span>A família vê quem deu cada dose</span>
+              <span style="display:flex;gap:10px;align-items:center"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-variation-settings:'FILL' 1">inventory_2</span>Aviso antes do estoque acabar</span>
+            </div>
+          </div>
+          <div style="font-size:15px;opacity:.9">Feito para famílias que cuidam juntas.</div>
+        </div>
+        <div style="padding:48px 64px;display:flex;flex-direction:column;justify-content:center;gap:22px">
+          <h1 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:30px;letter-spacing:-.02em">Entrar</h1>
+          <label style="display:flex;flex-direction:column;gap:6px"><span style="font-weight:700">Celular com DDD</span><input placeholder="(11) 90000-0000" style="height:52px;padding:0 14px;border:1.5px solid #C9D2E3;border-radius:12px;background:#fff;color:#0E1A33;font-size:18px" style-focus="outline:none;border-color:#1F56E0;box-shadow:0 0 0 3px rgba(31,86,224,.2)"></label>
+          <button style="height:52px;border:0;border-radius:12px;background:#1F56E0;color:#fff;font-weight:700;font-size:17px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer" style-hover="background:#1742B8"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">chat</span>Receber código no WhatsApp</button>
+          <div style="display:flex;align-items:center;gap:12px;color:#5E6A84;font-size:14px"><span style="flex:1;height:1px;background:#E3E8F2"></span>ou<span style="flex:1;height:1px;background:#E3E8F2"></span></div>
+          <button style="height:52px;border:1.5px solid #C9D2E3;border-radius:12px;background:#fff;color:#1F56E0;font-weight:700;font-size:17px;cursor:pointer" style-hover="background:#EAF0FF">Entrar com e-mail e senha</button>
+          <div style="font-size:15px;color:#4A5670">Primeira vez? <a href="#">Criar a conta da família</a></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">3.4 · Estado vazio · paciente sem remédios</div>
+      <div style="width:390px;height:560px;border-radius:24px;overflow:hidden;border:1px solid #C9D2E3;background:#F3F6FC;padding:24px 16px;display:flex;flex-direction:column;gap:16px">
+        <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:22px">Maria</div>
+        <div style="flex:1;background:#fff;border:1.5px dashed #C9D2E3;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center">
+          <span style="width:72px;height:72px;border-radius:22px;background:#EAF0FF;color:#1F56E0;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:36px;line-height:1;font-variation-settings:'FILL' 1">medication</span>
+          <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:20px">Nenhum remédio cadastrado</div>
+          <div style="color:#4A5670;max-width:280px">Cadastre o primeiro remédio da Maria para começar os lembretes e o controle de estoque.</div>
+          <button style="height:52px;padding:0 22px;border:0;border-radius:12px;background:#1F56E0;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px;cursor:pointer" style-hover="background:#1742B8"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">add</span>Cadastrar remédio</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">3.5 · Carregando</div>
+      <x-import component-from-global-scope="mc-skeleton" from="./mc-skeleton.js" hint-size="390px,560px"></x-import>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">3.6 · Erro de conexão</div>
+      <div style="width:390px;height:560px;border-radius:24px;overflow:hidden;border:1px solid #C9D2E3;background:#F3F6FC;padding:24px 16px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;background:#FDECEC;border:1px solid #F2B8BA;color:#8F1A20"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1.1;font-variation-settings:'FILL' 1">wifi_off</span><span><strong>Sem conexão.</strong> Mostrando dados de 14:02. Confirmações feitas agora serão enviadas quando a internet voltar.</span></div>
+        <div style="flex:1;background:#fff;border:1px solid #E3E8F2;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center">
+          <span style="width:72px;height:72px;border-radius:22px;background:#FDECEC;color:#B4232A;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:36px;line-height:1;font-variation-settings:'FILL' 1">cloud_off</span>
+          <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:20px">Não foi possível carregar o histórico</div>
+          <div style="color:#4A5670;max-width:280px">Os lembretes pelo WhatsApp continuam funcionando normalmente.</div>
+          <button style="height:52px;padding:0 22px;border:0;border-radius:12px;background:#1F56E0;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px;cursor:pointer" style-hover="background:#1742B8"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">refresh</span>Tentar de novo</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">3.7 · Confirmação destrutiva · remover pessoa</div>
+      <div style="width:390px;height:560px;border-radius:24px;overflow:hidden;border:1px solid #C9D2E3;background:rgba(14,26,51,.5);display:flex;align-items:flex-end;padding:12px">
+        <div style="width:100%;background:#fff;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:16px">
+          <span style="width:52px;height:52px;border-radius:14px;background:#FDECEC;color:#B4232A;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-variation-settings:'FILL' 1">person_remove</span>
+          <div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:22px">Remover Lúcia?</div><div style="color:#4A5670;margin-top:6px">Ela deixa de receber lembretes. As doses das 14h às 22h ficam <strong>sem ninguém responsável</strong> até você escolher outra pessoa.</div></div>
+          <label style="display:flex;flex-direction:column;gap:6px"><span style="font-weight:700">Digite REMOVER para confirmar</span><input value="REMO" style="height:48px;padding:0 14px;border:1.5px solid #C9D2E3;border-radius:12px;font-size:16px;color:#0E1A33"></label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button style="height:48px;border:1.5px solid #C9D2E3;border-radius:12px;background:#fff;color:#0E1A33;font-weight:700;font-size:16px;cursor:pointer">Cancelar</button>
+            <button disabled style="height:48px;border:0;border-radius:12px;background:#E3E8F2;color:#7C869C;font-weight:700;font-size:16px;cursor:not-allowed">Remover</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="WhatsApp" style="padding:48px 48px 64px">
+  <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px"><span style="font:700 12px ui-monospace,Menlo,monospace;padding:4px 8px;background:#0E1A33;color:#fff;border-radius:6px">4</span><h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.02em">Mensagens de WhatsApp</h2><span style="color:#4A5670">Texto curto, nome do paciente sempre, uma ação por botão.</span></div>
+  <div style="display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start">
+    <sc-for list="{{ chats }}" as="c" hint-placeholder-count="4">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-weight:700">{{ c.label }}</div>
+        <div style="width:360px;height:680px;border-radius:32px;overflow:hidden;border:8px solid #0E1A33;background:#EFEAE2;display:flex;flex-direction:column">
+          <div style="flex:none;display:flex;align-items:center;gap:10px;padding:14px 14px;background:#F6F6F6;border-bottom:1px solid #DDD">
+            <span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;color:#0E1A33">arrow_back</span>
+            <div style="width:40px;height:40px;border-radius:50%;background:#1F56E0;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;color:#fff;font-variation-settings:'FILL' 1">medication</span></div>
+            <div style="flex:1"><div style="font-weight:700;display:flex;align-items:center;gap:4px">MedCuidar<span style="font-family:'Material Symbols Rounded';font-size:16px;line-height:1;color:#1F56E0;font-variation-settings:'FILL' 1">verified</span></div><div style="font-size:13px;color:#5E6A84">conta comercial · para {{ c.to }}</div></div>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:14px 12px;display:flex;flex-direction:column;gap:8px;justify-content:flex-end">
+            <div style="align-self:center;font-size:13px;color:#4A5670;background:#fff;border-radius:8px;padding:3px 10px">HOJE</div>
+            <sc-for list="{{ c.msgs }}" as="m" hint-placeholder-count="2">
+              <div style="align-self:{{ m.align }};max-width:86%;display:flex;flex-direction:column;gap:4px">
+                <div style="background:{{ m.bg }};border-radius:12px;padding:8px 10px 6px;box-shadow:0 1px 1px rgba(0,0,0,.08);font-size:16px;line-height:1.4">
+                  <sc-if value="{{ m.hasTitle }}" hint-placeholder-val="{{ false }}"><div style="font-weight:700;display:flex;align-items:center;gap:6px;color:{{ m.titleFg }}"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">{{ m.icon }}</span>{{ m.title }}</div></sc-if>
+                  <sc-for list="{{ m.lines }}" as="l" hint-placeholder-count="2"><div style="white-space:pre-wrap;color:#0E1A33">{{ l }}</div></sc-for>
+                  <div style="text-align:right;font-size:12px;color:#5E6A84;margin-top:2px">{{ m.time }}</div>
+                </div>
+                <sc-for list="{{ m.buttons }}" as="b" hint-placeholder-count="0">
+                  <div style="background:#fff;border-radius:12px;min-height:44px;display:flex;align-items:center;justify-content:center;gap:6px;color:#1F56E0;font-weight:700;box-shadow:0 1px 1px rgba(0,0,0,.08)"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1">{{ b.icon }}</span>{{ b.label }}</div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex:none;display:flex;align-items:center;gap:8px;padding:10px 10px 14px;background:#EFEAE2"><div style="flex:1;height:44px;border-radius:22px;background:#fff;display:flex;align-items:center;padding:0 16px;color:#5E6A84">Mensagem</div><div style="width:44px;height:44px;border-radius:50%;background:#1F56E0;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;color:#fff;font-variation-settings:'FILL' 1">mic</span></div></div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const bot = (time, title, icon, titleFg, lines, buttons = []) => ({ align: 'flex-start', bg: '#fff', time, title, icon, titleFg, hasTitle: !!title, lines, buttons: buttons.map(([icon, label]) => ({ icon, label })) });
+    const me = (time, text) => ({ align: 'flex-end', bg: '#D9FDD3', time: time + ' ✓✓', hasTitle: false, lines: [text], buttons: [] });
+    return {
+      chats: [
+        { label: '4.1 · Lembrete de dose com "Tomei"', to: 'Rosa', msgs: [
+          bot('13:00', 'Hora do remédio da Maria', 'alarm', '#1742B8', ['13:00 · Metamucil', '1 sachê dissolvido em 200 ml de água.'], [['check_circle', 'Tomei'], ['schedule', 'Lembrar em 15 min']]),
+          me('13:04', 'Tomei'),
+          bot('13:04', 'Registrado', 'check_circle', '#0B6B4A', ['Metamucil da Maria confirmado por Rosa às 13:04. Obrigado!']),
+        ] },
+        { label: '4.2 · Aviso à família · dose esquecida', to: 'Beatriz', msgs: [
+          bot('10:01', 'Dose esquecida', 'cancel', '#B4232A', ['A Losartana 50 mg do Adelino, das 08:00, não foi confirmada até 10:00.', 'Quem deveria confirmar: o próprio Adelino.', 'Vale ligar para ele.'], [['call', 'Ligar para o Adelino'], ['check_circle', 'Ele já tomou']]),
+        ] },
+        { label: '4.3 · Aviso de estoque baixo', to: 'Ana', msgs: [
+          bot('09:00', 'Estoque acabando', 'report', '#B4232A', ['Zypred do Adelino acaba em 6 dias, hora de pedir a receita.', 'Previsão: qua, 21/10 · restam ≈ 2,4 ml.', 'Alternativas aceitas: Facoba ou Vigadexa.'], [['shopping_bag', 'Já comprei'], ['schedule', 'Lembrar amanhã']]),
+        ] },
+        { label: '4.4 · "como está o estoque?"', to: 'Beatriz', msgs: [
+          me('09:32', 'como está o estoque?'),
+          bot('09:32', 'Estoque · hoje, 15/10', 'inventory_2', '#1742B8', ['Adelino', '• Zypred: 6 dias (acaba 21/10) — pedir receita', '• Omeprazol: 9 dias', '• Losartana: 24 dias', '• Sinvastatina: 31 dias', '', 'Maria', '• Metamucil: 8 dias', '• Donepezila: 11 dias', '• Lactulose: 12 dias', '• Memantina: 19 dias'], [['open_in_new', 'Abrir no painel']]),
+        ] },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

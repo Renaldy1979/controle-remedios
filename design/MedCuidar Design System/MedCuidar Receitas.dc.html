@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&display=block" rel="stylesheet">
+<style>
+body{margin:0;background:#E9EDF5;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,sans-serif;color:#0E1A33;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:#1F56E0}
+a:hover{color:#1742B8}
+</style>
+</helmet>
+
+<section data-screen-label="Receitas · resumo" style="padding:48px 48px 32px;border-bottom:1px solid rgba(14,26,51,.1)">
+  <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:16px"><span style="font:700 12px ui-monospace,Menlo,monospace;padding:4px 8px;background:#0E1A33;color:#fff;border-radius:6px">5</span><h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.02em">Receitas e reposição</h2></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;max-width:1400px">
+    <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Componentes novos (mesmos tokens)</div>
+      <sc-for list="{{ newComps }}" as="c" hint-placeholder-count="8"><div style="display:flex;gap:10px;padding-top:8px;border-top:1px solid #EEF1F7"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1.25;color:#1F56E0;font-variation-settings:'FILL' 1">{{ c.icon }}</span><span><strong>{{ c.name }}</strong> <span style="color:#4A5670">· {{ c.desc }}</span></span></div></sc-for>
+    </div>
+    <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Situação da receita · cor + ícone + texto</div>
+      <sc-for list="{{ states }}" as="s" hint-placeholder-count="5"><div style="display:flex;align-items:center;gap:12px;padding-top:8px;border-top:1px solid #EEF1F7;flex-wrap:wrap"><span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px 0 8px;border-radius:999px;background:{{ s.bg }};color:{{ s.fg }};font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">{{ s.icon }}</span>{{ s.label }}</span><span style="color:#4A5670;flex:1;min-width:160px">{{ s.desc }}</span></div></sc-for>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="Receitas · mobile" style="padding:40px 48px;border-bottom:1px solid rgba(14,26,51,.1)">
+  <h3 style="margin:0 0 20px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:22px">Mobile · 390 px</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start">
+    <sc-for list="{{ mobile }}" as="f" hint-placeholder-count="6">
+      <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">{{ f.label }}</div>
+        <div style="width:390px;height:844px;border-radius:36px;overflow:hidden;border:8px solid #0E1A33;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.18)">
+          <dc-import name="MedCuidar App" embedded="{{ true }}" screen="{{ f.screen }}" rx="{{ f.rx }}" overlay="{{ f.overlay }}" repo="{{ f.repo }}" patient="{{ f.patient }}" cfg="{{ f.cfg }}" sem-receitas="{{ f.empty }}" foto-erro="{{ f.err }}" hint-size="100%,100%" style="width:100%;height:100%"></dc-import>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+
+<section data-screen-label="Receitas · desktop" style="padding:40px 48px;border-bottom:1px solid rgba(14,26,51,.1)">
+  <h3 style="margin:0 0 20px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:22px">Desktop · 1280 px</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start">
+    <sc-for list="{{ desktop }}" as="f" hint-placeholder-count="3">
+      <div style="display:flex;flex-direction:column;gap:10px"><div style="font-weight:700">{{ f.label }}</div>
+        <div style="width:1280px;height:860px;border-radius:14px;overflow:hidden;border:1px solid #C9D2E3;background:#F3F6FC;box-shadow:0 20px 50px rgba(23,66,184,.14)">
+          <dc-import name="MedCuidar App" embedded="{{ true }}" screen="{{ f.screen }}" rx="{{ f.rx }}" overlay="{{ f.overlay }}" repo="{{ f.repo }}" hint-size="100%,100%" style="width:100%;height:100%"></dc-import>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+
+<section data-screen-label="Receitas · WhatsApp" style="padding:40px 48px 64px">
+  <h3 style="margin:0 0 20px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:22px">WhatsApp · novos</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start">
+    <sc-for list="{{ chats }}" as="c" hint-placeholder-count="3">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-weight:700">{{ c.label }}</div>
+        <div style="width:360px;height:720px;border-radius:32px;overflow:hidden;border:8px solid #0E1A33;background:#EFEAE2;display:flex;flex-direction:column">
+          <div style="flex:none;display:flex;align-items:center;gap:10px;padding:14px;background:#F6F6F6;border-bottom:1px solid #DDD">
+            <span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1">arrow_back</span>
+            <div style="width:40px;height:40px;border-radius:50%;background:{{ c.avBg }};display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;color:#fff;font-variation-settings:'FILL' 1">{{ c.avIcon }}</span></div>
+            <div style="flex:1;min-width:0"><div style="font-weight:700">{{ c.chat }}</div><div style="font-size:13px;color:#5E6A84">{{ c.chatSub }}</div></div>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:14px 12px;display:flex;flex-direction:column;gap:8px;justify-content:flex-end">
+            <div style="align-self:center;font-size:13px;color:#4A5670;background:#fff;border-radius:8px;padding:3px 10px">HOJE</div>
+            <sc-for list="{{ c.msgs }}" as="m" hint-placeholder-count="2">
+              <div style="align-self:{{ m.align }};max-width:86%;display:flex;flex-direction:column;gap:4px">
+                <div style="background:{{ m.bg }};border-radius:12px;padding:6px 8px 6px;box-shadow:0 1px 1px rgba(0,0,0,.08);font-size:16px;line-height:1.4;display:flex;flex-direction:column;gap:4px">
+                  <sc-if value="{{ m.hasFrom }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;font-weight:700;color:#9A3D12;padding:0 2px">{{ m.from }}</div></sc-if>
+                  <sc-if value="{{ m.hasImg }}" hint-placeholder-val="{{ false }}"><div style="position:relative;width:240px;aspect-ratio:4/3;border-radius:8px;overflow:hidden;background-color:#FBFAF6;background-image:repeating-linear-gradient(180deg,transparent 0 11px,#E7E3D9 11px 12px)"><span style="position:absolute;left:8px;top:8px;font:600 11px/1.2 ui-monospace,Menlo,monospace;color:#5E5A4E;background:#FBFAF6">{{ m.img }}</span></div></sc-if>
+                  <sc-if value="{{ m.hasTitle }}" hint-placeholder-val="{{ false }}"><div style="font-weight:700;display:flex;align-items:center;gap:6px;color:{{ m.titleFg }};padding:0 2px"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">{{ m.icon }}</span>{{ m.title }}</div></sc-if>
+                  <sc-for list="{{ m.lines }}" as="l" hint-placeholder-count="2"><div style="white-space:pre-wrap;color:#0E1A33;padding:0 2px">{{ l }}</div></sc-for>
+                  <div style="text-align:right;font-size:12px;color:#5E6A84">{{ m.time }}</div>
+                </div>
+                <sc-for list="{{ m.buttons }}" as="b" hint-placeholder-count="0">
+                  <div style="background:#fff;border-radius:12px;min-height:44px;display:flex;align-items:center;justify-content:center;gap:6px;color:#1F56E0;font-weight:700;box-shadow:0 1px 1px rgba(0,0,0,.08)"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1">{{ b.icon }}</span>{{ b.label }}</div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex:none;display:flex;align-items:center;gap:8px;padding:10px 10px 14px"><div style="flex:1;height:44px;border-radius:22px;background:#fff;display:flex;align-items:center;padding:0 16px;color:#5E6A84">Mensagem</div><div style="width:44px;height:44px;border-radius:50%;background:#1F56E0;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;color:#fff;font-variation-settings:'FILL' 1">photo_camera</span></div></div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const F = (label, o) => ({ label, screen: 'receitas', rx: null, overlay: null, repo: null, patient: null, cfg: null, empty: false, err: false, ...o });
+    const bot = (time, title, icon, titleFg, lines, buttons = [], img) => ({ align: 'flex-start', bg: '#fff', time, title, icon, titleFg, hasTitle: !!title, lines, hasImg: !!img, img, hasFrom: false, buttons: buttons.map(([icon, label]) => ({ icon, label })) });
+    const me = (time, lines, img, from) => ({ align: 'flex-end', bg: '#D9FDD3', time: time + ' ✓✓', hasTitle: false, lines, hasImg: !!img, img, hasFrom: !!from, from, buttons: [] });
+    return {
+      newComps: [
+        ['image', 'Miniatura de receita', 'papel com contador de páginas; carregando e erro'],
+        ['star', 'Cartão de receita em destaque', 'vigente mais recente, borda da marca'],
+        ['search', 'Campo de busca', '52 px, ícone e botão de limpar'],
+        ['fullscreen', 'Visualizador em tela cheia', 'zoom, páginas, alta resolução com carregando e erro'],
+        ['add_a_photo', 'Captura e pré-visualização', 'botão de câmera de 64 px, girar, recortar, tira de páginas'],
+        ['progress_activity', 'Barra de progresso de envio', 'percentual, páginas e MB; estado de falha'],
+        ['checklist', 'Etapas de reposição', 'passo a passo vertical + barra compacta de 4 segmentos'],
+        ['lock', 'Indicador de acesso restrito', 'pílula discreta que abre quem pode ver'],
+        ['how_to_reg', 'Lista de pessoas com seleção', 'caixa de seleção, sem permissão bloqueado, visto/não visto'],
+        ['vertical_split', 'Bottom sheet', 'compartilhar e reposição; vira diálogo no desktop'],
+      ].map(([icon, name, desc]) => ({ icon, name, desc })),
+      states: [
+        ['verified', 'Vigente', '#E3F5EC', '#0B6B4A', 'Dentro da validade.'],
+        ['event_upcoming', 'Vence em 10 dias', '#FFF1DF', '#9A4A00', 'Vigente, faltam 15 dias ou menos. Texto, não chip.'],
+        ['event_busy', 'Vencida', '#FDECEC', '#B4232A', 'Passou da validade: pedir ao médico.'],
+        ['hourglass_top', 'Aguardando nova', '#EAF0FF', '#1742B8', 'Alguém já pediu ao médico.'],
+        ['swap_horiz', 'Substituída', '#EEF1F7', '#4A5670', 'Trocada por outra; fica no histórico.'],
+      ].map(([icon, label, bg, fg, desc]) => ({ icon, label, bg, fg, desc })),
+      mobile: [
+        F('5.1 · Lista de receitas'),
+        F('5.2 · Detalhe · Zypred do Adelino', { rx: 'rx1' }),
+        F('5.3 · Foto em tela cheia', { rx: 'rx1', overlay: 'viewer' }),
+        F('5.4 · Compartilhar · na família', { rx: 'rx1', overlay: 'compartilhar' }),
+        F('5.5 · Compartilhar · WhatsApp', { rx: 'rx1', overlay: 'compartilhar-whatsapp' }),
+        F('5.6 · Anexar · câmera', { overlay: 'anexar-captura' }),
+        F('5.7 · Anexar · pré-visualização', { overlay: 'anexar-previa' }),
+        F('5.8 · Anexar · dados', { overlay: 'anexar-form' }),
+        F('5.9 · Anexar · enviando', { overlay: 'anexar-envio' }),
+        F('5.10 · Anexar · falha no envio', { overlay: 'anexar-erro' }),
+        F('5.11 · Anexar · receita salva', { overlay: 'anexar-ok' }),
+        F('5.12 · Início · estoque com receita e reposição', { screen: 'inicio' }),
+        F('5.13 · Reposição · passo a passo', { screen: 'inicio', overlay: 'reposicao', repo: 'zyp' }),
+        F('5.14 · Pacientes · link e alerta de receita', { screen: 'pacientes', patient: 'ad' }),
+        F('5.15 · Estado vazio', { empty: true }),
+        F('5.16 · Foto não carregou (conexão lenta)', { rx: 'rx1', err: true }),
+      ],
+      desktop: [
+        { label: '5.17 · Receitas', screen: 'receitas', rx: null, overlay: null, repo: null },
+        { label: '5.18 · Detalhe da receita', screen: 'receitas', rx: 'rx1', overlay: null, repo: null },
+        { label: '5.19 · Reposição do Omeprazol', screen: 'inicio', rx: null, overlay: 'reposicao', repo: 'ome' },
+      ],
+      chats: [
+        { label: '5.20 · Estoque baixo com "Eu cuido disso"', chat: 'Família Souza', chatSub: 'grupo · MedCuidar, Ana, Beatriz e mais 5', avBg: '#5B3CC4', avIcon: 'groups', msgs: [
+          bot('09:00', 'Estoque acabando', 'report', '#B4232A', ['Zypred do Adelino acaba em 6 dias (ter, 21/10).', 'Receita: vigente, vence em 10 dias.', 'Quem pode cuidar da compra?'], [['front_hand', 'Eu cuido disso'], ['description', 'Ver receita']]),
+          me('09:40', ['Eu cuido disso'], null, 'Beatriz'),
+          bot('09:40', 'Combinado', 'check_circle', '#0B6B4A', ['Beatriz vai comprar o Zypred. Avisamos a família para ninguém comprar em dobro.']),
+        ] },
+        { label: '5.21 · Pedido da foto da receita', chat: 'MedCuidar', chatSub: 'conta comercial · para Cláudia', avBg: '#1F56E0', avIcon: 'medication', msgs: [
+          bot('16:10', 'Receita do Omeprazol', 'description', '#1742B8', ['Você ficou de pedir a receita do Omeprazol do Adelino.', 'Mande a foto da receita aqui. Pode mandar mais de uma página.']),
+          me('16:22', [], 'foto da receita · Omeprazol'),
+          bot('16:22', 'Receita do Adelino salva', 'check_circle', '#0B6B4A', ['Omeprazol 20 mg · Dra. Paula Mendes · 15/10/2026', 'Válida até 13/04/2027. A receita vencida foi marcada como substituída.', 'Próxima etapa: comprar.'], [['front_hand', 'Eu compro'], ['open_in_new', 'Ver no MedCuidar']]),
+        ] },
+        { label: '5.22 · Receita compartilhada na conversa', chat: 'MedCuidar', chatSub: 'conta comercial · para Beatriz', avBg: '#1F56E0', avIcon: 'medication', msgs: [
+          bot('14:12', 'Ana compartilhou uma receita', 'share', '#1742B8', ['Zypred · Adelino', 'Dra. Helena Prado · emitida em 25/09/2026', 'Vence em 10 dias (25/10).', 'Só quem tem permissão na família vê esta receita.'], [['download', 'Baixar'], ['forward', 'Encaminhar para a farmácia']], 'foto da receita · pág. 1 de 2'),
+          me('14:15', ['Obrigada! Passo na farmácia amanhã cedo.']),
+        ] },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&display=block" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F6FC;color:#0E1A33;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,sans-serif;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:#1F56E0;text-decoration:underline;text-underline-offset:3px}
+a:hover{color:#1742B8}
+button{font-family:inherit}
+</style>
+</helmet>
+
+<div style="min-height:100vh">
+  <header style="position:sticky;top:0;z-index:5;background:rgba(243,246,252,.92);backdrop-filter:blur(10px);border-bottom:1px solid #E3E8F2">
+    <div style="max-width:1200px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:40px;height:40px;border-radius:12px;background:#1F56E0;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(31,86,224,.3)"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;color:#fff;font-variation-settings:'FILL' 1">medication</span></div>
+        <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:20px;letter-spacing:-.02em">Med<span style="color:#1F56E0">Cuidar</span></div>
+      </div>
+      <span style="font-size:14px;font-weight:700;color:#4A5670;background:#fff;border:1px solid #E3E8F2;border-radius:999px;padding:4px 12px">Design system · v0.1 · para aprovação</span>
+      <nav style="margin-left:auto;display:flex;gap:4px;flex-wrap:wrap">
+        <a href="#referencia" style="padding:10px 12px;border-radius:10px;color:#4A5670;text-decoration:none;font-weight:700;font-size:15px">Referência</a>
+        <a href="#cores" style="padding:10px 12px;border-radius:10px;color:#4A5670;text-decoration:none;font-weight:700;font-size:15px">Cores</a>
+        <a href="#tipografia" style="padding:10px 12px;border-radius:10px;color:#4A5670;text-decoration:none;font-weight:700;font-size:15px">Tipografia</a>
+        <a href="#componentes" style="padding:10px 12px;border-radius:10px;color:#4A5670;text-decoration:none;font-weight:700;font-size:15px">Componentes</a>
+        <a href="#escuro" style="padding:10px 12px;border-radius:10px;color:#4A5670;text-decoration:none;font-weight:700;font-size:15px">Modo escuro</a>
+        <a href="#guia" style="padding:10px 12px;border-radius:10px;color:#4A5670;text-decoration:none;font-weight:700;font-size:15px">Guia</a>
+      </nav>
+    </div>
+  </header>
+
+  <main style="max-width:1200px;margin:0 auto;padding:32px 20px 80px;display:flex;flex-direction:column;gap:56px">
+
+    <!-- INTRO -->
+    <section id="referencia" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:24px;scroll-margin-top:90px">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <h1 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:clamp(32px,5vw,44px);line-height:1.1;letter-spacing:-.025em;text-wrap:balance">Calmo, confiável e legível em 3 segundos.</h1>
+        <p style="margin:0;font-size:18px;line-height:1.6;color:#4A5670;text-wrap:pretty">Tokens extraídos da referência: azul royal vibrante como cor de marca, fundo azul-acinzentado muito claro, cartões brancos com cantos generosos (16px), sombras azuladas e suaves, ícones arredondados preenchidos e títulos em sans geométrica pesada. A personalidade foi mantida; o que prejudicava leitura foi ajustado.</p>
+      </div>
+      <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:24px;box-shadow:0 1px 2px rgba(16,40,100,.06);display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center;gap:8px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;color:#9A4A00;font-variation-settings:'FILL' 1">tune</span>O que ajustei da referência</div>
+        <div style="display:flex;gap:12px"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1.3;color:#1F56E0">arrow_right_alt</span><div><strong>Texto pequeno (11–12px) → mínimo 16px.</strong> <span style="color:#4A5670">Metadados secundários podem usar 14px, nunca informação essencial.</span></div></div>
+        <div style="display:flex;gap:12px"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1.3;color:#1F56E0">arrow_right_alt</span><div><strong>Vermelho para "próxima dose" → azul.</strong> <span style="color:#4A5670">Vermelho fica só para dose esquecida e estoque crítico. Evita alarme falso.</span></div></div>
+        <div style="display:flex;gap:12px"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1.3;color:#1F56E0">arrow_right_alt</span><div><strong>Verde claro do "Taken" → verde escuro #0B6B4A.</strong> <span style="color:#4A5670">O original ficava abaixo de 3:1 no fundo branco.</span></div></div>
+        <div style="display:flex;gap:12px"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1.3;color:#1F56E0">arrow_right_alt</span><div><strong>Gradiente e ilustrações 3D → fora da interface.</strong> <span style="color:#4A5670">Reservados para marketing. No app, cor chapada.</span></div></div>
+        <div style="display:flex;gap:12px"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1.3;color:#1F56E0">arrow_right_alt</span><div><strong>Azul de marca escurecido para #1F56E0.</strong> <span style="color:#4A5670">Texto branco sobre ele: 6,1:1 (AA). O azul vivo #3B74F6 fica para áreas decorativas.</span></div></div>
+      </div>
+    </section>
+
+    <!-- CORES -->
+    <section id="cores" style="display:flex;flex-direction:column;gap:24px;scroll-margin-top:90px">
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;color:#1F56E0;font-size:16px">01</span><h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.02em">Cores</h2></div>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Marca</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">
+          <sc-for list="{{ brand }}" as="c" hint-placeholder-count="6">
+            <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;overflow:hidden">
+              <div style="height:72px;background:{{ c.hex }};display:flex;align-items:flex-end;padding:8px 10px;color:{{ c.on }};font-weight:700;font-size:14px">{{ c.ratio }}</div>
+              <div style="padding:10px 12px"><div style="font-weight:700">{{ c.name }}</div><div style="font-family:ui-monospace,Menlo,monospace;font-size:14px;color:#4A5670">{{ c.hex }}</div><div style="font-size:14px;color:#5E6A84">{{ c.use }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Neutras</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">
+          <sc-for list="{{ neutrals }}" as="c" hint-placeholder-count="7">
+            <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;overflow:hidden">
+              <div style="height:72px;background:{{ c.hex }};border-bottom:1px solid #E3E8F2;display:flex;align-items:flex-end;padding:8px 10px;color:{{ c.on }};font-weight:700;font-size:14px">{{ c.ratio }}</div>
+              <div style="padding:10px 12px"><div style="font-weight:700">{{ c.name }}</div><div style="font-family:ui-monospace,Menlo,monospace;font-size:14px;color:#4A5670">{{ c.hex }}</div><div style="font-size:14px;color:#5E6A84">{{ c.use }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:24px">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Estados de dose</h3>
+          <sc-for list="{{ doseStates }}" as="s" hint-placeholder-count="4">
+            <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:14px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 10px;border-radius:999px;background:{{ s.bg }};color:{{ s.fg }};font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">{{ s.icon }}</span>{{ s.label }}</span>
+              <div style="flex:1;min-width:160px"><div style="font-size:15px;color:#4A5670">{{ s.desc }}</div><div style="font-family:ui-monospace,Menlo,monospace;font-size:13px;color:#5E6A84">texto {{ s.fg }} · fundo {{ s.bg }} · {{ s.ratio }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Estoque</h3>
+          <sc-for list="{{ stockStates }}" as="s" hint-placeholder-count="3">
+            <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:14px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 10px;border-radius:999px;background:{{ s.bg }};color:{{ s.fg }};font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">{{ s.icon }}</span>{{ s.label }}</span>
+              <div style="flex:1;min-width:160px"><div style="font-size:15px;color:#4A5670">{{ s.desc }}</div><div style="font-family:ui-monospace,Menlo,monospace;font-size:13px;color:#5E6A84">barra {{ s.bar }} · texto {{ s.fg }} · {{ s.ratio }}</div></div>
+            </div>
+          </sc-for>
+          <div style="background:#EAF0FF;border-radius:16px;padding:14px 16px;display:flex;gap:10px;font-size:15px;color:#1742B8"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1.3;font-variation-settings:'FILL' 1">info</span><span><strong>Pendente usa o azul da marca</strong> de propósito: é o estado normal do dia, não deve chamar atenção. Atrasada (âmbar) e esquecida (vermelho) são os únicos que gritam.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TIPOGRAFIA + FUNDAMENTOS -->
+    <section id="tipografia" style="display:flex;flex-direction:column;gap:24px;scroll-margin-top:90px">
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;color:#1F56E0;font-size:16px">02</span><h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.02em">Tipografia</h2></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px">
+        <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px">
+          <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:48px;line-height:1;letter-spacing:-.03em">Aa 08:00</div>
+          <div style="margin-top:12px;font-weight:700">Plus Jakarta Sans</div>
+          <div style="color:#4A5670;font-size:15px">Títulos, horários e números. Geométrica e pesada como na referência. 600–800.</div>
+        </div>
+        <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px">
+          <div style="font-weight:400;font-size:48px;line-height:1;letter-spacing:-.01em">Aa Il1 0O</div>
+          <div style="margin-top:12px;font-weight:700">Atkinson Hyperlegible Next</div>
+          <div style="color:#4A5670;font-size:15px">Texto corrido e interface. Feita para baixa visão: letras ambíguas (I l 1, 0 O) bem distintas. 400 / 700.</div>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;overflow:hidden">
+        <sc-for list="{{ typeScale }}" as="t" hint-placeholder-count="8">
+          <div style="display:grid;grid-template-columns:minmax(120px,180px) minmax(0,1fr);gap:16px;align-items:center;padding:14px 20px;border-bottom:1px solid #EEF1F7">
+            <div><div style="font-weight:700">{{ t.name }}</div><div style="font-family:ui-monospace,Menlo,monospace;font-size:13px;color:#5E6A84">{{ t.spec }}</div></div>
+            <div style="font-family:{{ t.family }};font-size:{{ t.size }};line-height:{{ t.lh }};font-weight:{{ t.weight }};letter-spacing:{{ t.ls }};min-width:0;overflow-wrap:anywhere">{{ t.sample }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px">
+        <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:10px">
+          <h3 style="margin:0 0 4px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Espaçamento · base 4</h3>
+          <sc-for list="{{ spacing }}" as="s" hint-placeholder-count="9">
+            <div style="display:flex;align-items:center;gap:12px"><span style="width:64px;font-family:ui-monospace,Menlo,monospace;font-size:14px;color:#4A5670">{{ s.name }}</span><span style="height:12px;width:{{ s.px }};background:#3B74F6;border-radius:3px"></span><span style="font-size:14px;color:#5E6A84">{{ s.px }}</span></div>
+          </sc-for>
+        </div>
+        <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px">
+          <h3 style="margin:0 0 4px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Raios</h3>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:100%;aspect-ratio:1;background:#EAF0FF;border:2px solid #1F56E0;border-radius:8px"></div><span style="font-size:14px;text-align:center"><strong>sm 8</strong><br><span style="color:#5E6A84">checkbox, tag</span></span></div>
+            <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:100%;aspect-ratio:1;background:#EAF0FF;border:2px solid #1F56E0;border-radius:12px"></div><span style="font-size:14px;text-align:center"><strong>md 12</strong><br><span style="color:#5E6A84">botão, campo</span></span></div>
+            <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:100%;aspect-ratio:1;background:#EAF0FF;border:2px solid #1F56E0;border-radius:16px"></div><span style="font-size:14px;text-align:center"><strong>lg 16</strong><br><span style="color:#5E6A84">cartão</span></span></div>
+            <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:100%;aspect-ratio:1;background:#EAF0FF;border:2px solid #1F56E0;border-radius:24px"></div><span style="font-size:14px;text-align:center"><strong>xl 24</strong><br><span style="color:#5E6A84">modal, sheet</span></span></div>
+            <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:100%;aspect-ratio:1;background:#EAF0FF;border:2px solid #1F56E0;border-radius:999px"></div><span style="font-size:14px;text-align:center"><strong>pill</strong><br><span style="color:#5E6A84">chip, abas</span></span></div>
+          </div>
+        </div>
+        <div style="background:#F3F6FC;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px">
+          <h3 style="margin:0 0 4px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Sombras · tom azulado</h3>
+          <div style="background:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 1px 2px rgba(16,40,100,.06),0 0 0 1px #E3E8F2"><strong>sm</strong> <span style="font-size:14px;color:#5E6A84">cartões em lista</span></div>
+          <div style="background:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 4px 16px rgba(23,66,184,.10)"><strong>md</strong> <span style="font-size:14px;color:#5E6A84">cartão em destaque, dropdown</span></div>
+          <div style="background:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 16px 40px rgba(23,66,184,.18)"><strong>lg</strong> <span style="font-size:14px;color:#5E6A84">modal, toast</span></div>
+          <div style="background:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 0 0 3px #fff,0 0 0 5px #1F56E0"><strong>foco</strong> <span style="font-size:14px;color:#5E6A84">anel duplo 2px, sempre visível</span></div>
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline"><h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Ícones · Material Symbols Rounded, preenchido</h3><span style="font-size:14px;color:#5E6A84">20px em chips, 24px em ações, 28px em blocos de ícone</span></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:8px">
+          <sc-for list="{{ icons }}" as="i" hint-placeholder-count="16">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;border-radius:12px;background:#F7F9FD">
+              <span style="width:44px;height:44px;border-radius:12px;background:#EAF0FF;color:#1F56E0;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:26px;line-height:1;font-variation-settings:'FILL' 1">{{ i.icon }}</span>
+              <span style="font-size:14px;color:#4A5670;text-align:center">{{ i.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMPONENTES -->
+    <section id="componentes" style="display:flex;flex-direction:column;gap:24px;scroll-margin-top:90px">
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;color:#1F56E0;font-size:16px">03</span><h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.02em">Componentes</h2><span style="color:#5E6A84;font-size:15px">Os destacados com "interativo" respondem a clique e hover.</span></div>
+
+      <!-- Botões -->
+      <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px">
+        <h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Botões · altura 48 (mín. 44)</h3>
+        <div style="overflow-x:auto">
+          <div style="display:grid;grid-template-columns:110px repeat(4,minmax(150px,1fr));gap:12px;align-items:center;min-width:760px">
+            <span></span><span style="font-size:14px;font-weight:700;color:#5E6A84">Padrão</span><span style="font-size:14px;font-weight:700;color:#5E6A84">Hover</span><span style="font-size:14px;font-weight:700;color:#5E6A84">Foco</span><span style="font-size:14px;font-weight:700;color:#5E6A84">Desabilitado</span>
+
+            <span style="font-weight:700">Primário</span>
+            <button style="height:48px;padding:0 20px;border:0;border-radius:12px;background:#1F56E0;color:#fff;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">check_circle</span>Tomei</button>
+            <button style="height:48px;padding:0 20px;border:0;border-radius:12px;background:#1742B8;color:#fff;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">check_circle</span>Tomei</button>
+            <button style="height:48px;padding:0 20px;border:0;border-radius:12px;background:#1F56E0;color:#fff;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 0 0 3px #fff,0 0 0 5px #1F56E0"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">check_circle</span>Tomei</button>
+            <button disabled style="height:48px;padding:0 20px;border:0;border-radius:12px;background:#E3E8F2;color:#7C869C;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:not-allowed"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">check_circle</span>Tomei</button>
+
+            <span style="font-weight:700">Secundário</span>
+            <button style="height:48px;padding:0 20px;border:1.5px solid #C9D2E3;border-radius:12px;background:#fff;color:#1F56E0;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">add</span>Registrar compra</button>
+            <button style="height:48px;padding:0 20px;border:1.5px solid #1F56E0;border-radius:12px;background:#EAF0FF;color:#1742B8;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">add</span>Registrar compra</button>
+            <button style="height:48px;padding:0 20px;border:1.5px solid #C9D2E3;border-radius:12px;background:#fff;color:#1F56E0;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 0 0 3px #fff,0 0 0 5px #1F56E0"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">add</span>Registrar compra</button>
+            <button disabled style="height:48px;padding:0 20px;border:1.5px solid #E3E8F2;border-radius:12px;background:#F7F9FD;color:#7C869C;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">add</span>Registrar compra</button>
+
+            <span style="font-weight:700">Fantasma</span>
+            <button style="height:48px;padding:0 16px;border:0;border-radius:12px;background:transparent;color:#1F56E0;font-weight:700;font-size:16px">Ver histórico</button>
+            <button style="height:48px;padding:0 16px;border:0;border-radius:12px;background:#EAF0FF;color:#1742B8;font-weight:700;font-size:16px">Ver histórico</button>
+            <button style="height:48px;padding:0 16px;border:0;border-radius:12px;background:transparent;color:#1F56E0;font-weight:700;font-size:16px;box-shadow:0 0 0 3px #fff,0 0 0 5px #1F56E0">Ver histórico</button>
+            <button disabled style="height:48px;padding:0 16px;border:0;border-radius:12px;background:transparent;color:#7C869C;font-weight:700;font-size:16px">Ver histórico</button>
+
+            <span style="font-weight:700">Perigo</span>
+            <button style="height:48px;padding:0 20px;border:0;border-radius:12px;background:#B4232A;color:#fff;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">delete</span>Excluir</button>
+            <button style="height:48px;padding:0 20px;border:0;border-radius:12px;background:#8F1A20;color:#fff;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">delete</span>Excluir</button>
+            <button style="height:48px;padding:0 20px;border:0;border-radius:12px;background:#B4232A;color:#fff;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 0 0 3px #fff,0 0 0 5px #B4232A"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">delete</span>Excluir</button>
+            <button disabled style="height:48px;padding:0 20px;border:0;border-radius:12px;background:#E3E8F2;color:#7C869C;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">delete</span>Excluir</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding-top:12px;border-top:1px solid #EEF1F7">
+          <span style="font-size:14px;font-weight:700;color:#1742B8;background:#EAF0FF;border-radius:999px;padding:2px 10px">interativo</span>
+          <button style="height:48px;padding:0 20px;border:0;border-radius:12px;background:#1F56E0;color:#fff;font-weight:700;font-size:16px;cursor:pointer;transition:background .15s" style-hover="background:#1742B8" style-focus="outline:none;box-shadow:0 0 0 3px #fff,0 0 0 5px #1F56E0" style-active="transform:scale(.98)">Passe o mouse</button>
+          <button style="height:56px;padding:0 24px;border:0;border-radius:14px;background:#1F56E0;color:#fff;font-weight:700;font-size:18px;cursor:pointer" style-hover="background:#1742B8">Grande · 56 (cuidadora com pressa)</button>
+          <button style="width:48px;height:48px;border:1.5px solid #C9D2E3;border-radius:12px;background:#fff;color:#0E1A33;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:#F3F6FC" aria-label="Configurações"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-variation-settings:'FILL' 1">settings</span></button>
+          <button style="height:48px;padding:0 20px;border:0;border-radius:12px;background:#1F56E0;color:#fff;font-weight:700;font-size:16px;display:inline-flex;align-items:center;gap:10px;opacity:.85"><span style="width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;display:inline-block"></span>Salvando…</button>
+        </div>
+      </div>
+
+      <!-- Campos + seletores -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px">
+        <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:18px">
+          <h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Campos</h3>
+          <label style="display:flex;flex-direction:column;gap:6px"><span style="font-weight:700">Nome do remédio <span style="font-size:14px;font-weight:400;color:#5E6A84">· padrão</span></span><input placeholder="Ex.: Zypred" style="height:48px;padding:0 14px;border:1.5px solid #C9D2E3;border-radius:12px;font:inherit;font-size:16px;color:#0E1A33;background:#fff" style-focus="outline:none;border-color:#1F56E0;box-shadow:0 0 0 3px rgba(31,86,224,.2)"></label>
+          <label style="display:flex;flex-direction:column;gap:6px"><span style="font-weight:700">Marcas alternativas <span style="font-size:14px;font-weight:400;color:#5E6A84">· foco</span></span><input value="Facoba ou Vigadexa ou Zypred" style="height:48px;padding:0 14px;border:1.5px solid #1F56E0;border-radius:12px;font:inherit;font-size:16px;color:#0E1A33;background:#fff;box-shadow:0 0 0 3px rgba(31,86,224,.2);outline:none"><span style="font-size:14px;color:#5E6A84">Só uma delas é usada por vez.</span></label>
+          <label style="display:flex;flex-direction:column;gap:6px"><span style="font-weight:700">Gotas por ml <span style="font-size:14px;font-weight:400;color:#5E6A84">· erro</span></span><input value="0" style="height:48px;padding:0 14px;border:1.5px solid #B4232A;border-radius:12px;font:inherit;font-size:16px;color:#0E1A33;background:#FFF8F8;outline:none"><span style="display:flex;align-items:center;gap:6px;font-size:15px;font-weight:700;color:#B4232A"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">error</span>Informe um número maior que zero (normalmente 20).</span></label>
+          <label style="display:flex;flex-direction:column;gap:6px"><span style="font-weight:700;color:#5E6A84">Telefone (WhatsApp) <span style="font-size:14px;font-weight:400">· desabilitado</span></span><input disabled value="(11) 98765-4321" style="height:48px;padding:0 14px;border:1.5px solid #E3E8F2;border-radius:12px;font:inherit;font-size:16px;color:#7C869C;background:#F3F6FC"></label>
+        </div>
+
+        <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:18px">
+          <h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Seletores</h3>
+          <div style="display:flex;flex-direction:column;gap:6px"><span style="font-weight:700">Unidade de controle</span>
+            <div style="height:48px;padding:0 10px 0 14px;border:1.5px solid #C9D2E3;border-radius:12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" style-hover="border-color:#1F56E0"><span>Gotas</span><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;color:#4A5670">expand_more</span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px"><span style="font-weight:700">Tipo de uso</span>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <sc-for list="{{ usoOpts }}" as="u" hint-placeholder-count="5">
+                <button onClick="{{ u.pick }}" style="height:44px;padding:0 14px;border-radius:999px;border:1.5px solid {{ u.border }};background:{{ u.bg }};color:{{ u.fg }};font-weight:700;font-size:16px;display:inline-flex;align-items:center;gap:6px;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">{{ u.icon }}</span>{{ u.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:20px">
+            <label style="display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer"><span style="width:24px;height:24px;border-radius:8px;background:#1F56E0;color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:20px;line-height:1">check</span>Estoque aproximado</label>
+            <label style="display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer"><span style="width:24px;height:24px;border-radius:8px;border:2px solid #8A94AA;background:#fff"></span>Uso contínuo</label>
+            <label style="display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer"><span style="width:24px;height:24px;border-radius:50%;border:2px solid #1F56E0;display:flex;align-items:center;justify-content:center"><span style="width:12px;height:12px;border-radius:50%;background:#1F56E0"></span></span>Fase única</label>
+            <label style="display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer"><span style="width:24px;height:24px;border-radius:50%;border:2px solid #8A94AA"></span>Várias fases</label>
+          </div>
+          <button onClick="{{ toggleSwitch }}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:8px 14px;border:1.5px solid #E3E8F2;border-radius:12px;background:#fff;cursor:pointer;text-align:left;font-size:16px;color:#0E1A33">
+            <span><strong>Avisar a família por WhatsApp</strong><br><span style="font-size:14px;color:#5E6A84">interativo · {{ switchText }}</span></span>
+            <span style="flex:none;width:52px;height:32px;border-radius:999px;background:{{ switchBg }};position:relative;transition:background .2s"><span style="position:absolute;top:4px;left:{{ switchLeft }};width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .2s;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:16px;line-height:1;color:{{ switchBg }}">{{ switchIcon }}</span></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Chips, abas, avatares -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px">
+        <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px">
+          <h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Chips de status</h3>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <span style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 10px;border-radius:999px;background:#E3F5EC;color:#0B6B4A;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">check_circle</span>Tomada</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 10px;border-radius:999px;background:#EAF0FF;color:#1742B8;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">schedule</span>Pendente</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 10px;border-radius:999px;background:#FFF1DF;color:#9A4A00;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">alarm</span>Atrasada</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 10px;border-radius:999px;background:#FDECEC;color:#B4232A;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">cancel</span>Esquecida</span>
+          </div>
+          <div style="font-size:14px;color:#5E6A84">Versão compacta (tabela) · 28px de altura, texto 14px negrito, ícone obrigatório:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <span style="display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px 0 6px;border-radius:999px;background:#E3F5EC;color:#0B6B4A;font-weight:700;font-size:14px"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-variation-settings:'FILL' 1">inventory_2</span>Estoque ok</span>
+            <span style="display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px 0 6px;border-radius:999px;background:#FFF1DF;color:#9A4A00;font-weight:700;font-size:14px"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-variation-settings:'FILL' 1">hourglass_bottom</span>Atenção</span>
+            <span style="display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px 0 6px;border-radius:999px;background:#FDECEC;color:#B4232A;font-weight:700;font-size:14px"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-variation-settings:'FILL' 1">report</span>Crítico</span>
+            <span style="display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px 0 6px;border-radius:999px;background:#EEF1F7;color:#4A5670;font-weight:700;font-size:14px"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-variation-settings:'FILL' 1">chat</span>WhatsApp</span>
+            <span style="display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px 0 6px;border-radius:999px;background:#EEF1F7;color:#4A5670;font-weight:700;font-size:14px"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-variation-settings:'FILL' 1">computer</span>Painel</span>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:center;gap:8px"><h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Abas</h3><span style="font-size:14px;font-weight:700;color:#1742B8;background:#EAF0FF;border-radius:999px;padding:2px 10px">interativo</span></div>
+          <div role="tablist" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;background:#EEF1F7;border-radius:999px">
+            <sc-for list="{{ segTabs }}" as="t" hint-placeholder-count="3">
+              <button role="tab" onClick="{{ t.pick }}" style="height:44px;border:0;border-radius:999px;background:{{ t.bg }};color:{{ t.fg }};font-weight:700;font-size:16px;cursor:pointer;box-shadow:{{ t.shadow }};transition:background .15s">{{ t.label }}</button>
+            </sc-for>
+          </div>
+          <div role="tablist" style="display:flex;gap:4px;border-bottom:1.5px solid #E3E8F2">
+            <sc-for list="{{ patientTabs }}" as="p" hint-placeholder-count="2">
+              <button role="tab" onClick="{{ p.pick }}" style="display:flex;align-items:center;gap:10px;min-height:56px;padding:0 16px;border:0;background:transparent;border-bottom:3px solid {{ p.line }};margin-bottom:-1.5px;color:{{ p.fg }};font-weight:700;font-size:16px;cursor:pointer">
+                <span style="width:32px;height:32px;border-radius:50%;background:{{ p.avBg }};color:{{ p.avFg }};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">{{ p.ini }}</span>{{ p.name }}<span style="font-size:14px;font-weight:700;background:{{ p.countBg }};color:{{ p.countFg }};border-radius:999px;padding:0 8px">{{ p.count }}</span>
+              </button>
+            </sc-for>
+          </div>
+          <div style="font-size:15px;color:#4A5670">Segmentado (pílula, da referência) para período; sublinhado com avatar para paciente.</div>
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px">
+        <h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Avatar de pessoa · cor por papel, nunca por status</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:center">
+          <sc-for list="{{ people }}" as="p" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="position:relative;width:48px;height:48px;border-radius:50%;background:{{ p.bg }};color:{{ p.fg }};display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:17px">{{ p.ini }}<sc-if value="{{ p.wa }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;right:-3px;bottom:-3px;width:22px;height:22px;border-radius:50%;background:#0B6B4A;border:2px solid #fff;color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:13px;line-height:1;font-variation-settings:'FILL' 1">chat</span></sc-if></div>
+              <div><div style="font-weight:700">{{ p.name }}</div><div style="font-size:14px;color:#5E6A84">{{ p.role }}</div></div>
+            </div>
+          </sc-for>
+          <div style="display:flex;align-items:center"><div style="width:36px;height:36px;border-radius:50%;background:#EEE8FF;color:#5B3CC4;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">AN</div><div style="width:36px;height:36px;margin-left:-10px;border-radius:50%;background:#DDF4F6;color:#0E6670;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">BE</div><div style="width:36px;height:36px;margin-left:-10px;border-radius:50%;background:#FFE9DE;color:#9A3D12;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">CA</div><div style="width:36px;height:36px;margin-left:-10px;border-radius:50%;background:#EEF1F7;color:#4A5670;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">+3</div><span style="margin-left:8px;font-size:14px;color:#5E6A84">grupo · recebem avisos</span></div>
+        </div>
+      </div>
+
+      <!-- Cartões de dose -->
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px"><h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Cartão de dose</h3><span style="font-size:14px;font-weight:700;color:#1742B8;background:#EAF0FF;border-radius:999px;padding:2px 10px">interativo · confirme a dose</span></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:16px;align-items:start">
+
+          <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;box-shadow:0 4px 16px rgba(23,66,184,.08);padding:16px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;gap:14px;align-items:flex-start">
+              <div style="flex:none;width:52px;height:52px;border-radius:14px;background:#EAF0FF;color:#1F56E0;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-variation-settings:'FILL' 1">water_drop</div>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:24px;letter-spacing:-.02em">14:00</span>
+                  <sc-if value="{{ doseTaken }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px 0 8px;border-radius:999px;background:#E3F5EC;color:#0B6B4A;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">check_circle</span>Tomada</span></sc-if>
+                  <sc-if value="{{ doseNotTaken }}" hint-placeholder-val="{{ true }}"><span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px 0 8px;border-radius:999px;background:#EAF0FF;color:#1742B8;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">schedule</span>Pendente</span></sc-if>
+                </div>
+                <div style="font-weight:700;font-size:18px">Zypred</div>
+                <div style="color:#4A5670">1 gota em cada olho · pingar</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-size:15px;color:#4A5670;padding-top:12px;border-top:1px solid #EEF1F7">
+              <span style="display:flex;align-items:center;gap:6px"><span style="width:24px;height:24px;border-radius:50%;background:#DCE6FF;color:#1742B8;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">AD</span><strong style="color:#0E1A33">Adelino</strong></span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">person</span>Quem dá: Rosa (cuidadora)</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">event_repeat</span>Fase 1 de 2 · dia 7 de 15</span>
+            </div>
+            <sc-if value="{{ doseNotTaken }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ confirmDose }}" style="height:48px;border:0;border-radius:12px;background:#1F56E0;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer" style-hover="background:#1742B8" style-focus="outline:none;box-shadow:0 0 0 3px #fff,0 0 0 5px #1F56E0"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">check_circle</span>Confirmar dose</button>
+            </sc-if>
+            <sc-if value="{{ doseTaken }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:48px;padding:0 4px 0 12px;border-radius:12px;background:#F3FAF6;color:#0B6B4A;font-weight:700"><span style="display:flex;align-items:center;gap:6px"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1">computer</span>Você confirmou às 14:02</span><button onClick="{{ undoDose }}" style="height:44px;padding:0 12px;border:0;background:transparent;color:#1F56E0;font-weight:700;font-size:16px;cursor:pointer;text-decoration:underline;text-underline-offset:3px">Desfazer</button></div>
+            </sc-if>
+          </div>
+
+          <div style="background:#FFFAF2;border:1.5px solid #F2CF9E;border-radius:16px;box-shadow:0 4px 16px rgba(154,74,0,.08);padding:16px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;gap:8px;color:#9A4A00;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">alarm</span>Atrasada há 25 min</div>
+            <div style="display:flex;gap:14px;align-items:flex-start">
+              <div style="flex:none;width:52px;height:52px;border-radius:14px;background:#FFF1DF;color:#9A4A00;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-variation-settings:'FILL' 1">pill</div>
+              <div style="flex:1;min-width:0"><div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:24px;letter-spacing:-.02em">12:00</div><div style="font-weight:700;font-size:18px">Donepezila 10 mg</div><div style="color:#4A5670">1 comprimido · após almoço</div></div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-size:15px;color:#4A5670;padding-top:12px;border-top:1px solid #F2E1C6">
+              <span style="display:flex;align-items:center;gap:6px"><span style="width:24px;height:24px;border-radius:50%;background:#EEE8FF;color:#5B3CC4;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">MA</span><strong style="color:#0E1A33">Maria</strong></span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">person</span>Quem dá: quem estiver com ela</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
+              <button style="height:48px;border:0;border-radius:12px;background:#1F56E0;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer" style-hover="background:#1742B8"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">check_circle</span>Confirmar dose</button>
+              <button style="height:48px;padding:0 14px;border:1.5px solid #C9D2E3;border-radius:12px;background:#fff;color:#1F56E0;font-weight:700;font-size:16px;cursor:pointer" style-hover="background:#EAF0FF">Lembrar de novo</button>
+            </div>
+          </div>
+
+          <div style="background:#fff;border:1.5px solid #F2B8BA;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:24px;letter-spacing:-.02em;color:#4A5670;text-decoration:line-through;text-decoration-thickness:2px">08:00</span><span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px 0 8px;border-radius:999px;background:#FDECEC;color:#B4232A;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">cancel</span>Esquecida</span></div>
+            <div><div style="font-weight:700;font-size:18px">Losartana 50 mg · Adelino</div><div style="color:#4A5670">Sem confirmação até 10:00. Família avisada às 10:01.</div></div>
+            <button style="height:48px;border:1.5px solid #C9D2E3;border-radius:12px;background:#fff;color:#1F56E0;font-weight:700;font-size:16px;cursor:pointer" style-hover="background:#EAF0FF">Registrar que tomou depois</button>
+          </div>
+
+          <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:12px 16px;display:flex;align-items:center;gap:12px">
+            <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:20px;width:60px">06:00</span>
+            <div style="flex:1;min-width:0"><div style="font-weight:700">Vigadexa · Adelino</div><div style="font-size:14px;color:#5E6A84">Rosa · 06:04 · WhatsApp</div></div>
+            <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px 0 6px;border-radius:999px;background:#E3F5EC;color:#0B6B4A;font-weight:700;font-size:14px"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-variation-settings:'FILL' 1">check_circle</span>Tomada</span>
+          </div>
+        </div>
+        <div style="font-size:14px;color:#5E6A84">Ordem: pendente · atrasada · esquecida · tomada (compacto, para "últimas doses").</div>
+      </div>
+
+      <!-- Estoque -->
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Cartão de estoque · barra de dias restantes</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:16px">
+          <sc-for list="{{ stockCards }}" as="s" hint-placeholder-count="3">
+            <div style="background:#fff;border:1px solid {{ s.border }};border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+                <div><div style="font-weight:700;font-size:18px">{{ s.name }}</div><div style="color:#4A5670;font-size:15px">{{ s.patient }}</div></div>
+                <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px 0 6px;border-radius:999px;background:{{ s.bg }};color:{{ s.fg }};font-weight:700;font-size:14px"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-variation-settings:'FILL' 1">{{ s.icon }}</span>{{ s.label }}</span>
+              </div>
+              <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:32px;line-height:1;color:{{ s.fg }}">{{ s.days }}</span><span style="font-weight:700">dias restantes</span><span style="color:#4A5670;font-size:15px">· acaba {{ s.date }}</span></div>
+              <div style="position:relative;height:12px;border-radius:999px;background:#E9EEF7;overflow:hidden" role="meter" aria-label="dias restantes"><div style="position:absolute;inset:0 auto 0 0;width:{{ s.pct }};background:{{ s.bar }};border-radius:999px"></div><div style="position:absolute;top:0;bottom:0;left:23%;width:2px;background:#fff"></div></div>
+              <div style="display:flex;justify-content:space-between;font-size:14px;color:#5E6A84"><span>{{ s.qty }}</span><span>aviso aos 7 dias</span></div>
+              <sc-if value="{{ s.approx }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:6px;font-size:14px;color:#4A5670;background:#F3F6FC;border-radius:10px;padding:8px 10px"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1.2">info</span>Colírio: estimativa por gotas, confira o frasco.</div></sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- Tabela + timeline -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:16px;align-items:start">
+        <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;overflow:hidden">
+          <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Tabela</h3><span style="font-size:14px;color:#5E6A84">linha 56px · hover #F7F9FD</span></div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;min-width:560px;font-size:16px">
+              <thead><tr style="background:#F7F9FD;text-align:left"><th style="padding:10px 16px;font-size:14px;color:#4A5670;font-weight:700">Horário</th><th style="padding:10px 16px;font-size:14px;color:#4A5670;font-weight:700">Remédio</th><th style="padding:10px 16px;font-size:14px;color:#4A5670;font-weight:700">Quem deu</th><th style="padding:10px 16px;font-size:14px;color:#4A5670;font-weight:700">Canal</th><th style="padding:10px 16px;font-size:14px;color:#4A5670;font-weight:700">Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ tableRows }}" as="r" hint-placeholder-count="4">
+                  <tr style="border-top:1px solid #EEF1F7;height:56px" style-hover="background:#F7F9FD">
+                    <td style="padding:8px 16px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-variant-numeric:tabular-nums">{{ r.time }}</td>
+                    <td style="padding:8px 16px"><div style="font-weight:700">{{ r.med }}</div><div style="font-size:14px;color:#5E6A84">{{ r.patient }}</div></td>
+                    <td style="padding:8px 16px">{{ r.who }}</td>
+                    <td style="padding:8px 16px"><span style="display:inline-flex;align-items:center;gap:4px;color:#4A5670"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">{{ r.chIcon }}</span>{{ r.ch }}</span></td>
+                    <td style="padding:8px 16px"><span style="display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px 0 6px;border-radius:999px;background:{{ r.bg }};color:{{ r.fg }};font-weight:700;font-size:14px;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-variation-settings:'FILL' 1">{{ r.icon }}</span>{{ r.status }}</span></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:16px 20px;display:flex;flex-direction:column;gap:4px">
+          <h3 style="margin:0 0 12px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Linha do tempo</h3>
+          <div style="font-size:14px;font-weight:700;color:#5E6A84;text-transform:uppercase;letter-spacing:.06em;padding-bottom:8px">Hoje · qua, 15/10</div>
+          <sc-for list="{{ timeline }}" as="e" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:36px minmax(0,1fr);gap:12px">
+              <div style="display:flex;flex-direction:column;align-items:center"><span style="width:36px;height:36px;border-radius:50%;background:{{ e.bg }};color:{{ e.fg }};display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">{{ e.icon }}</span><span style="flex:1;width:2px;background:#E3E8F2;min-height:16px"></span></div>
+              <div style="padding-bottom:16px"><div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700">{{ e.time }}</span><span style="font-weight:700">{{ e.title }}</span></div><div style="color:#4A5670;font-size:15px">{{ e.desc }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- Modal + toast -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:16px;align-items:start">
+        <div style="border-radius:16px;background:rgba(14,26,51,.5);padding:32px 20px;display:flex;justify-content:center">
+          <div role="dialog" style="width:100%;max-width:400px;background:#fff;border-radius:24px;box-shadow:0 16px 40px rgba(23,66,184,.18);padding:24px;display:flex;flex-direction:column;gap:16px">
+            <div style="width:52px;height:52px;border-radius:14px;background:#FDECEC;color:#B4232A;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-variation-settings:'FILL' 1">delete</div>
+            <div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:22px;letter-spacing:-.01em">Excluir Facoba?</div><div style="color:#4A5670;margin-top:6px;text-wrap:pretty">Os lembretes deste remédio param na hora. O histórico de doses de Adelino continua guardado.</div></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+              <button style="height:48px;padding:0 20px;border:1.5px solid #C9D2E3;border-radius:12px;background:#fff;color:#0E1A33;font-weight:700;font-size:16px;cursor:pointer" style-hover="background:#F3F6FC">Cancelar</button>
+              <button style="height:48px;padding:0 20px;border:0;border-radius:12px;background:#B4232A;color:#fff;font-weight:700;font-size:16px;cursor:pointer" style-hover="background:#8F1A20">Excluir remédio</button>
+            </div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Toast</h3><button onClick="{{ showToast }}" style="height:44px;padding:0 14px;border:1.5px solid #C9D2E3;border-radius:12px;background:#fff;color:#1F56E0;font-weight:700;font-size:15px;cursor:pointer;margin-left:auto" style-hover="background:#EAF0FF">Disparar toast</button></div>
+          <div style="background:#0E1A33;color:#fff;border-radius:14px;padding:12px 8px 12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 16px 40px rgba(23,66,184,.18)"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;color:#5FD3A3;font-variation-settings:'FILL' 1">check_circle</span><span style="flex:1">Dose confirmada · Zypred 14:00</span><button style="height:44px;padding:0 12px;border:0;background:transparent;color:#9DBBFF;font-weight:700;font-size:16px;cursor:pointer">Desfazer</button></div>
+          <div style="background:#fff;border:1px solid #E3E8F2;color:#0E1A33;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 16px 40px rgba(23,66,184,.14)"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;color:#1F56E0;font-variation-settings:'FILL' 1">chat</span><span style="flex:1">Lembrete enviado para Rosa pelo WhatsApp</span></div>
+          <div style="background:#FDECEC;border:1px solid #F2B8BA;color:#8F1A20;border-radius:14px;padding:12px 8px 12px 14px;display:flex;align-items:center;gap:10px"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">error</span><span style="flex:1;font-weight:700">Não foi possível salvar. Sem conexão.</span><button style="height:44px;padding:0 12px;border:0;background:transparent;color:#8F1A20;font-weight:700;font-size:16px;text-decoration:underline;cursor:pointer">Tentar de novo</button></div>
+          <div style="font-size:14px;color:#5E6A84">Duração 5s (8s se tiver ação). Erro não some sozinho.</div>
+        </div>
+      </div>
+
+      <!-- Matriz de permissões -->
+      <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;overflow:hidden">
+        <div style="padding:16px 20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Matriz de permissões</h3><span style="font-size:14px;font-weight:700;color:#1742B8;background:#EAF0FF;border-radius:999px;padding:2px 10px">interativo</span></div>
+        <div style="overflow-x:auto">
+          <div style="min-width:620px">
+            <div style="display:grid;grid-template-columns:minmax(220px,1.6fr) repeat(4,minmax(100px,1fr));background:#F7F9FD;border-top:1px solid #EEF1F7">
+              <span style="padding:12px 20px;font-size:14px;font-weight:700;color:#4A5670">Funcionalidade</span>
+              <sc-for list="{{ profiles }}" as="p" hint-placeholder-count="4"><span style="padding:12px 8px;font-size:14px;font-weight:700;color:#4A5670;text-align:center">{{ p }}</span></sc-for>
+            </div>
+            <sc-for list="{{ matrix }}" as="row" hint-placeholder-count="6">
+              <div style="display:grid;grid-template-columns:minmax(220px,1.6fr) repeat(4,minmax(100px,1fr));border-top:1px solid #EEF1F7;align-items:center;min-height:60px">
+                <div style="padding:8px 20px"><div style="font-weight:700">{{ row.label }}</div><div style="font-size:14px;color:#5E6A84">{{ row.desc }}</div></div>
+                <sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="4">
+                  <div style="display:flex;justify-content:center">
+                    <button onClick="{{ c.toggle }}" disabled="{{ c.locked }}" aria-pressed="{{ c.on }}" aria-label="{{ c.aria }}" style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:64px;min-height:52px;padding:4px;border:0;background:transparent;cursor:{{ c.cursor }}">
+                      <span style="width:44px;height:26px;border-radius:999px;background:{{ c.bg }};position:relative;transition:background .2s"><span style="position:absolute;top:3px;left:{{ c.left }};width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .2s;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:14px;line-height:1;color:{{ c.bg }}">{{ c.icon }}</span></span>
+                      <span style="font-size:13px;font-weight:700;color:{{ c.fg }}">{{ c.text }}</span>
+                    </button>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="padding:12px 20px;font-size:14px;color:#5E6A84;border-top:1px solid #EEF1F7;display:flex;gap:6px;align-items:center"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">lock</span>Administrador sempre tem acesso total (bloqueado). Cada célula diz "Sim"/"Não" além da cor.</div>
+      </div>
+    </section>
+
+    <!-- MODO ESCURO -->
+    <section id="escuro" style="display:flex;flex-direction:column;gap:24px;scroll-margin-top:90px">
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;color:#1F56E0;font-size:16px">04</span><h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.02em">Modo escuro</h2><span style="color:#5E6A84;font-size:15px">Azul-marinho, não preto. Estados ficam mais claros e menos saturados.</span></div>
+      <div style="background:#0B1222;border-radius:24px;padding:24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px;color:#EEF2FA">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            <sc-for list="{{ darkTokens }}" as="c" hint-placeholder-count="9">
+              <div style="border-radius:12px;overflow:hidden;border:1px solid #26324D"><div style="height:40px;background:{{ c.hex }}"></div><div style="padding:6px 8px;background:#131C30"><div style="font-size:13px;font-weight:700">{{ c.name }}</div><div style="font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#B3BDD3">{{ c.hex }}</div></div></div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <span style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 10px;border-radius:999px;background:#0F2E25;color:#6FDDB0;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">check_circle</span>Tomada</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 10px;border-radius:999px;background:#172647;color:#9DBBFF;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">schedule</span>Pendente</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 10px;border-radius:999px;background:#33240F;color:#F7BD72;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">alarm</span>Atrasada</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 10px;border-radius:999px;background:#3A1518;color:#FF9A9A;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">cancel</span>Esquecida</span>
+          </div>
+        </div>
+        <div style="background:#131C30;border:1px solid #26324D;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <div style="flex:none;width:52px;height:52px;border-radius:14px;background:#172647;color:#9DBBFF;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-variation-settings:'FILL' 1">water_drop</div>
+            <div style="flex:1"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:24px">14:00</span><span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px 0 8px;border-radius:999px;background:#172647;color:#9DBBFF;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-variation-settings:'FILL' 1">schedule</span>Pendente</span></div><div style="font-weight:700;font-size:18px">Zypred</div><div style="color:#B3BDD3">1 gota em cada olho · Adelino</div></div>
+          </div>
+          <button style="height:48px;border:0;border-radius:12px;background:#8AB0FF;color:#0B1222;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer" style-hover="background:#AEC8FF"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">check_circle</span>Confirmar dose</button>
+          <div style="padding-top:12px;border-top:1px solid #26324D;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;justify-content:space-between;gap:8px"><strong>Zypred · Adelino</strong><span style="color:#FF9A9A;font-weight:700;display:flex;align-items:center;gap:4px"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-variation-settings:'FILL' 1">report</span>6 dias</span></div>
+            <div style="position:relative;height:12px;border-radius:999px;background:#26324D;overflow:hidden"><div style="position:absolute;inset:0 auto 0 0;width:20%;background:#F06A6A;border-radius:999px"></div></div>
+            <div style="font-size:14px;color:#B3BDD3">Acaba ter, 21/10 · hora de pedir a receita</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GUIA -->
+    <section id="guia" style="display:flex;flex-direction:column;gap:24px;scroll-margin-top:90px">
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;color:#1F56E0;font-size:16px">05</span><h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.02em">Guia de uso</h2></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px">
+        <sc-for list="{{ guide }}" as="g" hint-placeholder-count="3">
+          <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;gap:10px"><span style="width:40px;height:40px;border-radius:12px;background:#EAF0FF;color:#1F56E0;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1">{{ g.icon }}</span><h3 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">{{ g.title }}</h3></div>
+            <sc-for list="{{ g.rules }}" as="r" hint-placeholder-count="4">
+              <div style="display:flex;gap:10px;padding-top:10px;border-top:1px solid #EEF1F7"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1.25;color:{{ r.c }};font-variation-settings:'FILL' 1">{{ r.i }}</span><span style="text-wrap:pretty">{{ r.t }}</span></div>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+      <div style="background:#fff;border:1px solid #E3E8F2;border-radius:16px;padding:20px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+        <div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px">Próximo passo</div><div style="color:#4A5670">Com a sua aprovação, desenho as telas mobile (Início, Pacientes, Histórico, Configurações, apoio e WhatsApp) e depois a versão desktop em painel.</div></div>
+      </div>
+    </section>
+  </main>
+
+  <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+    <div role="status" style="position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:20;width:min(92vw,420px);background:#0E1A33;color:#fff;border-radius:14px;padding:12px 8px 12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 16px 40px rgba(23,66,184,.28)"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;color:#5FD3A3;font-variation-settings:'FILL' 1">check_circle</span><span style="flex:1">Dose confirmada · Zypred 14:00</span><button onClick="{{ hideToast }}" style="height:44px;padding:0 12px;border:0;background:transparent;color:#9DBBFF;font-weight:700;font-size:16px;cursor:pointer">Desfazer</button></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { seg: 0, patient: 0, uso: 0, sw: true, taken: false, toast: false,
+    perms: [[1,1,1,1],[1,1,1,0],[1,0,0,1],[1,1,0,0],[1,0,0,0],[1,1,0,1]] };
+
+  flash() { clearTimeout(this.t); this.setState({ toast: true }); this.t = setTimeout(() => this.setState({ toast: false }), 5000); }
+  componentWillUnmount() { clearTimeout(this.t); }
+
+  renderVals() {
+    const S = this.state;
+    const ST = {
+      tomada: { bg: '#E3F5EC', fg: '#0B6B4A', icon: 'check_circle', status: 'Tomada' },
+      pendente: { bg: '#EAF0FF', fg: '#1742B8', icon: 'schedule', status: 'Pendente' },
+      atrasada: { bg: '#FFF1DF', fg: '#9A4A00', icon: 'alarm', status: 'Atrasada' },
+      esquecida: { bg: '#FDECEC', fg: '#B4232A', icon: 'cancel', status: 'Esquecida' },
+    };
+    const profiles = ['Administrador', 'Familiar', 'Cuidadora', 'Sogro'];
+    const feats = [
+      ['Ver doses e estoque', 'Tela inicial e pacientes'],
+      ['Confirmar dose', 'Pelo painel ou WhatsApp'],
+      ['Editar remédios e esquemas', 'Cadastro, fases, marcas'],
+      ['Registrar compra', 'Entrada de estoque'],
+      ['Gerenciar usuários', 'Telefones e perfis'],
+      ['Receber avisos', 'Esquecidas e estoque baixo'],
+    ];
+    return {
+      brand: [
+        { name: 'Azul 600 · marca', hex: '#1F56E0', on: '#fff', ratio: '6,1:1 com branco', use: 'Botões, links, foco' },
+        { name: 'Azul 700', hex: '#1742B8', on: '#fff', ratio: '8,4:1', use: 'Hover, texto em azul' },
+        { name: 'Azul 500 · vivo', hex: '#3B74F6', on: '#fff', ratio: 'decorativo', use: 'Ilustração, gráficos' },
+        { name: 'Azul 100', hex: '#DCE6FF', on: '#1742B8', ratio: '', use: 'Avatar, seleção' },
+        { name: 'Azul 50', hex: '#EAF0FF', on: '#1742B8', ratio: '', use: 'Blocos de ícone' },
+      ],
+      neutrals: [
+        { name: 'Tinta', hex: '#0E1A33', on: '#fff', ratio: '16,8:1', use: 'Texto principal (AAA)' },
+        { name: 'Texto 2', hex: '#4A5670', on: '#fff', ratio: '7,4:1', use: 'Texto secundário (AAA)' },
+        { name: 'Texto 3', hex: '#5E6A84', on: '#fff', ratio: '5,4:1', use: 'Metadados (AA)' },
+        { name: 'Borda forte', hex: '#C9D2E3', on: '#0E1A33', ratio: '', use: 'Campos' },
+        { name: 'Borda', hex: '#E3E8F2', on: '#0E1A33', ratio: '', use: 'Cartões, divisórias' },
+        { name: 'Fundo', hex: '#F3F6FC', on: '#0E1A33', ratio: '', use: 'Fundo da página' },
+        { name: 'Superfície', hex: '#FFFFFF', on: '#0E1A33', ratio: '', use: 'Cartões' },
+      ],
+      doseStates: [
+        { ...ST.tomada, label: 'Tomada', desc: 'Confirmada por alguém. Mostrar quem e quando.', ratio: '5,9:1' },
+        { ...ST.pendente, label: 'Pendente', desc: 'Ainda no horário. Estado normal, calmo.', ratio: '7,6:1' },
+        { ...ST.atrasada, label: 'Atrasada', desc: 'Passou do horário, ainda dá tempo. Lembrete repetido.', ratio: '5,7:1' },
+        { ...ST.esquecida, label: 'Esquecida', desc: 'Janela encerrada sem confirmação. Família avisada.', ratio: '5,7:1' },
+      ],
+      stockStates: [
+        { bg: '#E3F5EC', fg: '#0B6B4A', bar: '#1E9E6E', icon: 'inventory_2', label: 'Estoque ok', desc: 'Mais de 14 dias.', ratio: '5,9:1' },
+        { bg: '#FFF1DF', fg: '#9A4A00', bar: '#E08A1E', icon: 'hourglass_bottom', label: 'Atenção', desc: '8 a 14 dias: pedir receita.', ratio: '5,7:1' },
+        { bg: '#FDECEC', fg: '#B4232A', bar: '#D8434A', icon: 'report', label: 'Crítico', desc: '7 dias ou menos: comprar já.', ratio: '5,7:1' },
+      ],
+      typeScale: [
+        { name: 'Display', spec: 'Jakarta 800 · 40/44', family: "'Plus Jakarta Sans',sans-serif", size: '40px', lh: '44px', weight: 800, ls: '-.025em', sample: 'Bom dia, Ana' },
+        { name: 'Título 1', spec: 'Jakarta 800 · 28/36', family: "'Plus Jakarta Sans',sans-serif", size: '28px', lh: '36px', weight: 800, ls: '-.02em', sample: 'Próximas doses' },
+        { name: 'Título 2', spec: 'Jakarta 700 · 22/30', family: "'Plus Jakarta Sans',sans-serif", size: '22px', lh: '30px', weight: 700, ls: '-.01em', sample: 'Estoque perto de acabar' },
+        { name: 'Horário', spec: 'Jakarta 800 · 24/28 tabular', family: "'Plus Jakarta Sans',sans-serif", size: '24px', lh: '28px', weight: 800, ls: '-.02em', sample: '08:00 · 11:00 · 14:00' },
+        { name: 'Título 3', spec: 'Atkinson 700 · 18/26', family: "'Atkinson Hyperlegible Next','Atkinson Hyperlegible',sans-serif", size: '18px', lh: '26px', weight: 700, ls: '0', sample: 'Zypred · 1 gota em cada olho' },
+        { name: 'Corpo grande', spec: 'Atkinson 400 · 18/28', family: "'Atkinson Hyperlegible Next','Atkinson Hyperlegible',sans-serif", size: '18px', lh: '28px', weight: 400, ls: '0', sample: 'Acaba em 6 dias, hora de pedir a receita.' },
+        { name: 'Corpo · base', spec: 'Atkinson 400 · 16/24', family: "'Atkinson Hyperlegible Next','Atkinson Hyperlegible',sans-serif", size: '16px', lh: '24px', weight: 400, ls: '0', sample: 'Quem dá: Rosa (cuidadora) · fase 1 de 2, dia 7 de 15' },
+        { name: 'Legenda', spec: 'Atkinson 400 · 14/20 · só metadado', family: "'Atkinson Hyperlegible Next','Atkinson Hyperlegible',sans-serif", size: '14px', lh: '20px', weight: 400, ls: '0', sample: 'Confirmado pelo WhatsApp às 06:04' },
+      ],
+      spacing: [4, 8, 12, 16, 20, 24, 32, 48, 64].map((n, i) => ({ name: 'space-' + [1, 2, 3, 4, 5, 6, 8, 12, 16][i], px: n + 'px' })),
+      icons: [
+        ['check_circle', 'Tomada'], ['schedule', 'Pendente'], ['alarm', 'Atrasada'], ['cancel', 'Esquecida'],
+        ['water_drop', 'Pingar'], ['pill', 'Comprimido'], ['science', 'Pó dissolvido'], ['local_drink', 'Líquido'],
+        ['healing', 'Pomada'], ['inventory_2', 'Estoque'], ['hourglass_bottom', 'Acabando'], ['chat', 'WhatsApp'],
+        ['notifications', 'Avisos'], ['group', 'Família'], ['event_repeat', 'Esquema'], ['history', 'Histórico'],
+      ].map(([icon, label]) => ({ icon, label })),
+      usoOpts: [['water_drop', 'Pingar'], ['pill', 'Comprimido'], ['science', 'Pó dissolvido'], ['local_drink', 'Líquido'], ['healing', 'Pomada']].map(([icon, label], i) => {
+        const on = S.uso === i;
+        return { icon, label, pick: () => this.setState({ uso: i }), bg: on ? '#EAF0FF' : '#fff', fg: on ? '#1742B8' : '#0E1A33', border: on ? '#1F56E0' : '#C9D2E3' };
+      }),
+      toggleSwitch: () => this.setState(s => ({ sw: !s.sw })),
+      switchBg: S.sw ? '#1F56E0' : '#8A94AA', switchLeft: S.sw ? '24px' : '4px', switchIcon: S.sw ? 'check' : 'close', switchText: S.sw ? 'Ligado' : 'Desligado',
+      segTabs: ['Hoje', 'Amanhã', 'Semana'].map((label, i) => {
+        const on = S.seg === i;
+        return { label, pick: () => this.setState({ seg: i }), bg: on ? '#1F56E0' : 'transparent', fg: on ? '#fff' : '#4A5670', shadow: on ? '0 2px 8px rgba(31,86,224,.3)' : 'none' };
+      }),
+      patientTabs: [['Adelino', 'AD', '#DCE6FF', '#1742B8', 6], ['Maria', 'MA', '#EEE8FF', '#5B3CC4', 4]].map(([name, ini, avBg, avFg, count], i) => {
+        const on = S.patient === i;
+        return { name, ini, avBg, avFg, count, pick: () => this.setState({ patient: i }), line: on ? '#1F56E0' : 'transparent', fg: on ? '#0E1A33' : '#4A5670', countBg: on ? '#1F56E0' : '#EEF1F7', countFg: on ? '#fff' : '#4A5670' };
+      }),
+      people: [
+        { ini: 'AN', name: 'Ana', role: 'Administradora · filha', bg: '#DCE6FF', fg: '#1742B8', wa: false },
+        { ini: 'BE', name: 'Beatriz', role: 'Familiar · filha', bg: '#EEE8FF', fg: '#5B3CC4', wa: false },
+        { ini: 'RO', name: 'Rosa', role: 'Cuidadora', bg: '#DDF4F6', fg: '#0E6670', wa: true },
+        { ini: 'JO', name: 'Seu João', role: 'Sogro · confirma doses', bg: '#FFE9DE', fg: '#9A3D12', wa: true },
+        { ini: 'LU', name: 'Lucas', role: 'Familiar · sobrinho', bg: '#EEF1F7', fg: '#4A5670', wa: false },
+      ],
+      doseTaken: S.taken, doseNotTaken: !S.taken,
+      confirmDose: () => { this.setState({ taken: true }); this.flash(); },
+      undoDose: () => this.setState({ taken: false }),
+      stockCards: [
+        { name: 'Zypred · colírio', patient: 'Adelino · 1 frasco 5 ml', days: 6, date: 'ter, 21/10', pct: '20%', qty: '≈ 1,8 ml · 36 gotas', approx: true, bg: '#FDECEC', fg: '#B4232A', bar: '#D8434A', icon: 'report', label: 'Crítico', border: '#F2B8BA' },
+        { name: 'Donepezila 10 mg', patient: 'Maria · 1 por dia', days: 11, date: 'dom, 26/10', pct: '37%', qty: '11 comprimidos', approx: false, bg: '#FFF1DF', fg: '#9A4A00', bar: '#E08A1E', icon: 'hourglass_bottom', label: 'Atenção', border: '#F2CF9E' },
+        { name: 'Losartana 50 mg', patient: 'Adelino · 1 por dia', days: 24, date: 'dom, 09/11', pct: '80%', qty: '24 comprimidos', approx: false, bg: '#E3F5EC', fg: '#0B6B4A', bar: '#1E9E6E', icon: 'inventory_2', label: 'Estoque ok', border: '#E3E8F2' },
+      ],
+      tableRows: [
+        { time: '14:00', med: 'Zypred', patient: 'Adelino', who: '—', ch: '—', chIcon: 'remove', ...ST.pendente },
+        { time: '12:00', med: 'Donepezila 10 mg', patient: 'Maria', who: '—', ch: 'Lembrete enviado', chIcon: 'chat', ...ST.atrasada },
+        { time: '11:00', med: 'Zypred', patient: 'Adelino', who: 'Seu João', ch: 'WhatsApp', chIcon: 'chat', ...ST.tomada },
+        { time: '08:00', med: 'Losartana 50 mg', patient: 'Adelino', who: '—', ch: '—', chIcon: 'remove', ...ST.esquecida },
+      ],
+      timeline: [
+        { time: '12:25', title: 'Lembrete repetido', desc: 'Donepezila de Maria · enviado para Rosa', icon: 'chat', bg: '#EAF0FF', fg: '#1742B8' },
+        { time: '11:03', title: 'Seu João confirmou', desc: 'Zypred de Adelino · respondeu "Tomei" no WhatsApp', icon: 'check_circle', bg: '#E3F5EC', fg: '#0B6B4A' },
+        { time: '10:01', title: 'Dose esquecida', desc: 'Losartana das 08:00 · 5 familiares avisados', icon: 'cancel', bg: '#FDECEC', fg: '#B4232A' },
+        { time: '09:00', title: 'Estoque crítico', desc: 'Zypred acaba em 6 dias · aviso enviado à família', icon: 'report', bg: '#FFF1DF', fg: '#9A4A00' },
+      ],
+      showToast: () => this.flash(),
+      hideToast: () => this.setState({ toast: false, taken: false }),
+      toastOn: S.toast,
+      profiles,
+      matrix: feats.map(([label, desc], r) => ({
+        label, desc,
+        cells: profiles.map((p, c) => {
+          const on = !!S.perms[r][c], locked = c === 0;
+          return {
+            on, locked, aria: `${label}: ${p}`, cursor: locked ? 'not-allowed' : 'pointer',
+            bg: on ? (locked ? '#8DA8EC' : '#1F56E0') : '#B7C0D1', left: on ? '21px' : '3px', icon: on ? 'check' : 'close',
+            text: locked ? 'Sempre' : on ? 'Sim' : 'Não', fg: on ? '#1742B8' : '#5E6A84',
+            toggle: () => !locked && this.setState(s => ({ perms: s.perms.map((row, i) => i !== r ? row : row.map((v, j) => j === c ? 1 - v : v)) })),
+          };
+        }),
+      })),
+      darkTokens: [
+        { name: 'Fundo', hex: '#0B1222' }, { name: 'Superfície', hex: '#131C30' }, { name: 'Borda', hex: '#26324D' },
+        { name: 'Tinta', hex: '#EEF2FA' }, { name: 'Texto 2', hex: '#B3BDD3' }, { name: 'Marca', hex: '#8AB0FF' },
+      ],
+      guide: [
+        { icon: 'palette', title: 'Cores de status', rules: [
+          { i: 'check', c: '#0B6B4A', t: 'Verde só para "deu certo": dose tomada e estoque ok.' },
+          { i: 'check', c: '#0B6B4A', t: 'Azul é o normal do dia (pendente). Não destaca, não assusta.' },
+          { i: 'check', c: '#0B6B4A', t: 'Âmbar pede ação em breve: dose atrasada, estoque de 8 a 14 dias.' },
+          { i: 'check', c: '#0B6B4A', t: 'Vermelho só para o que já falhou ou vai falhar: esquecida, estoque ≤ 7 dias, excluir.' },
+          { i: 'close', c: '#B4232A', t: 'Nunca usar só cor: chip sempre com ícone e palavra.' },
+        ] },
+        { icon: 'contrast', title: 'Contraste', rules: [
+          { i: 'check', c: '#0B6B4A', t: 'Texto principal e secundário em AAA (≥ 7:1): #0E1A33 e #4A5670.' },
+          { i: 'check', c: '#0B6B4A', t: 'Metadados e status no mínimo AA (≥ 4,5:1).' },
+          { i: 'check', c: '#0B6B4A', t: 'Foco sempre visível: anel duplo branco + azul, 2px.' },
+          { i: 'close', c: '#B4232A', t: 'Sem texto com transparência ou cinza claro sobre fundo colorido.' },
+        ] },
+        { icon: 'text_fields', title: 'Texto e toque', rules: [
+          { i: 'check', c: '#0B6B4A', t: 'Base 16px; 14px só para metadado que não é essencial.' },
+          { i: 'check', c: '#0B6B4A', t: 'Alvos de toque ≥ 44px; ação principal da dose com 48–56px.' },
+          { i: 'check', c: '#0B6B4A', t: 'Horário 24h (08:00), data dd/mm com dia da semana (ter, 21/10).' },
+          { i: 'check', c: '#0B6B4A', t: 'Frases diretas e gentis: "hora de pedir a receita", não "ALERTA".' },
+          { i: 'close', c: '#B4232A', t: 'Sem caixa-alta em frases, sem abreviar nome de remédio.' },
+        ] },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>
