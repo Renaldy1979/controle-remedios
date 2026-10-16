@@ -24,6 +24,22 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.5)
 
+  packages/db:
+    dependencies:
+      '@medcuidar/shared':
+        specifier: workspace:*
+        version: link:../shared
+      node-appwrite:
+        specifier: 19.1.0
+        version: 19.1.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.5
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
+
   packages/shared:
     dependencies:
       zod:
@@ -32,12 +48,15 @@ importers:
 
   scripts/appwrite:
     dependencies:
+      '@medcuidar/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@medcuidar/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       node-appwrite:
-        specifier: ^29.0.0
-        version: 29.4.0
+        specifier: 19.1.0
+        version: 19.1.0
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
@@ -662,9 +681,6 @@ packages:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
     engines: {node: 18 || 20 || >=22}
 
-  bignumber.js@9.3.1:
-    resolution: {integrity: sha512-Ko0uX15oIUS7wJ3Rb30Fs6SkVbLmPBAKdlm7q9+ak9bbIeFf0MwuBsQV6z7+X768/cHsfg+WlysDWJcmthjsjQ==}
-
   brace-expansion@1.1.21:
     resolution: {integrity: sha512-9zeA+KLZNNzglF2TPKRQEDyx6Yby7daAkuy8MiPzpXPsYDWi/DRM8jmwUDxokQjYqBpv5DgPiwD4h4ZZSy1Ujw==}
 
@@ -874,9 +890,6 @@ packages:
     resolution: {integrity: sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==}
     hasBin: true
 
-  json-bigint@1.0.0:
-    resolution: {integrity: sha512-SiPv/8VpZuWbvLSMtTDU8hEfrZWg/mH/nV/b4o0CYbSxu1UIQPLdwKOCIyLQX+VIPO5vrLX3i8qtqFyhdPSUSQ==}
-
   json-buffer@3.0.1:
     resolution: {integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==}
 
@@ -924,8 +937,11 @@ packages:
   natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
 
-  node-appwrite@29.4.0:
-    resolution: {integrity: sha512-3xzZdPSFAh0kmKWy0iwANHaeso564+EU3O/itMT+GIPl/p4kT++usB5EKQXP+kuvF6/lrQH4XVYEhJy/KfvcwQ==}
+  node-appwrite@19.1.0:
+    resolution: {integrity: sha512-fq8IGvukZX73Zf70p61sKoACEB3d+vwv47GklMVQAODXJJ1vZqszJF9ljCzCFVKuhX/WiImcDKSYXFF9kci+wg==}
+
+  node-fetch-native-with-agent@1.7.2:
+    resolution: {integrity: sha512-5MaOOCuJEvcckoz7/tjdx1M6OusOY6Xc5f459IaruGStWnKzlI1qpNgaAwmn4LmFYcsSlj+jBMk84wmmRxfk5g==}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -1071,10 +1087,6 @@ packages:
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
-
-  undici@6.29.1:
-    resolution: {integrity: sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==}
-    engines: {node: '>=18.17'}
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
@@ -1616,8 +1628,6 @@ snapshots:
 
   balanced-match@4.0.4: {}
 
-  bignumber.js@9.3.1: {}
-
   brace-expansion@1.1.21:
     dependencies:
       balanced-match: 1.0.2
@@ -1861,10 +1871,6 @@ snapshots:
     dependencies:
       argparse: 2.0.1
 
-  json-bigint@1.0.0:
-    dependencies:
-      bignumber.js: 9.3.1
-
   json-buffer@3.0.1: {}
 
   json-schema-traverse@0.4.1: {}
@@ -1906,10 +1912,11 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
-  node-appwrite@29.4.0:
+  node-appwrite@19.1.0:
     dependencies:
-      json-bigint: 1.0.0
-      undici: 6.29.1
+      node-fetch-native-with-agent: 1.7.2
+
+  node-fetch-native-with-agent@1.7.2: {}
 
   optionator@0.9.4:
     dependencies:
@@ -2053,8 +2060,6 @@ snapshots:
   typescript@5.9.3: {}
 
   undici-types@6.21.0: {}
-
-  undici@6.29.1: {}
 
   uri-js@4.4.1:
     dependencies:

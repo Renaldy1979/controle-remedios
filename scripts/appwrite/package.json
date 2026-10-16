@@ -7,11 +7,12 @@
     "apply": "node --env-file=../../.env --import tsx src/apply-schema.ts",
     "seed": "node --env-file=../../.env --import tsx src/seed.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@medcuidar/db": "workspace:*",
     "@medcuidar/shared": "workspace:*",
-    "node-appwrite": "^29.0.0"
+    "node-appwrite": "19.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

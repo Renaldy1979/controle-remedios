@@ -7,7 +7,7 @@
  * documento criado pelo servidor recebe permissão de leitura do Team da família (defesa em profundidade).
  */
 import { COLLECTIONS, type AttrSpec, type CollectionSpec } from "@medcuidar/shared";
-import { DatabasesIndexType as IndexType } from "node-appwrite";
+import { IndexType } from "node-appwrite";
 import { createClients, isStatus, sleep } from "./client";
 
 type Ctx = ReturnType<typeof createClients>;
