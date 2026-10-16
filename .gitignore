@@ -1,0 +1,31 @@
+# dependências e build
+node_modules/
+.next/
+dist/
+build/
+coverage/
+.turbo/
+
+# segredos e ambiente
+.env
+.env.*
+!.env.example
+
+# sistema e editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# dados locais do Appwrite e testes
+.appwrite-data/
+playwright-report/
+test-results/
+
+# configuração local do Claude
+.claude/settings.local.json
