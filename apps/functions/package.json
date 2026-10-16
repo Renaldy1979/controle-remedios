@@ -1,0 +1,26 @@
+{
+  "name": "@medcuidar/functions",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "simulate": "tsx src/simulator/cli.ts",
+    "serve:local": "tsx src/simulator/server.ts"
+  },
+  "dependencies": {
+    "@medcuidar/channels": "workspace:*",
+    "@medcuidar/db": "workspace:*",
+    "@medcuidar/shared": "workspace:*",
+    "node-appwrite": "19.1.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2"
+  }
+}

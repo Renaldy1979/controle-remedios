@@ -1,0 +1,104 @@
+{
+  "name": "MedCuidar — WhatsApp entrada (Evolution → whatsapp-inbound)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "medcuidar-evolution",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Webhook Evolution",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "medcuidar-evolution"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.headers['x-evolution-token'] }}",
+              "rightValue": "={{ $env.EVOLUTION_WEBHOOK_TOKEN }}",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Token da Evolution confere?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Assina o corpo com o segredo compartilhado (HMAC-SHA256). Exige NODE_FUNCTION_ALLOW_BUILTIN=crypto.\nconst crypto = require('crypto');\nconst body = $input.first().json.body;\nconst rawBody = JSON.stringify({ provider: 'evolution', payload: body });\nconst signature = 'sha256=' + crypto.createHmac('sha256', $env.WHATSAPP_WEBHOOK_SECRET).update(rawBody).digest('hex');\nreturn [{ json: { rawBody, signature } }];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Assinar corpo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, -80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.INBOUND_FUNCTION_URL }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "x-medcuidar-signature", "value": "={{ $json.signature }}" }] },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.rawBody }}",
+        "options": { "timeout": 25000 }
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Chamar whatsapp-inbound",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, -80],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { ok: true } }}", "options": { "responseCode": 200 } },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Responder 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, -80]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { ok: false } }}", "options": { "responseCode": 401 } },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Responder 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [440, 120]
+    }
+  ],
+  "connections": {
+    "Webhook Evolution": { "main": [[{ "node": "Token da Evolution confere?", "type": "main", "index": 0 }]] },
+    "Token da Evolution confere?": {
+      "main": [
+        [{ "node": "Assinar corpo", "type": "main", "index": 0 }],
+        [{ "node": "Responder 401", "type": "main", "index": 0 }]
+      ]
+    },
+    "Assinar corpo": { "main": [[{ "node": "Chamar whatsapp-inbound", "type": "main", "index": 0 }]] },
+    "Chamar whatsapp-inbound": { "main": [[{ "node": "Responder 200", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "pinData": {},
+  "tags": [{ "name": "medcuidar" }]
+}
