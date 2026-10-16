@@ -1,0 +1,20 @@
+{
+  "name": "@medcuidar/appwrite-scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "apply": "node --env-file=../../.env --import tsx src/apply-schema.ts",
+    "seed": "node --env-file=../../.env --import tsx src/seed.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@medcuidar/shared": "workspace:*",
+    "node-appwrite": "^29.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2"
+  }
+}
