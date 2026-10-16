@@ -4,6 +4,8 @@ import {
   applyAdjustment,
   balance,
   confirmDose,
+  undoDoseConfirmation,
+  type UndoDoseRepo,
   currentStep,
   forecastDepletion,
   generateDoseEvents,
@@ -117,10 +119,17 @@ describe("confirmDose", () => {
       id: "d1", family_id: "f1", treatment_id: "t1", patient_id: "p1", medication_id: "m1",
       scheduled_at: "2026-10-15T09:00:00.000Z", status: "pending", amount: 2,
     });
-    const repo: ConfirmDoseRepo = {
+    const repo: ConfirmDoseRepo & UndoDoseRepo = {
       getDose: async (id) => doses.get(id) ?? null,
       findDoseBySourceMessage: async (s) => [...doses.values()].find((d) => d.source_message_id === s) ?? null,
       findStockItemId: async () => "s1",
+      listDoseMovements: async (id) => movements.filter((m) => m.dose_event_id === id || m.note?.includes(`:${id}`)),
+      insertMovement: async (m) => void movements.push(m),
+      resetDose: async (id, status: "pending" | "late" | "missed") => {
+        const d = { ...doses.get(id)!, status, confirmed_by_member_id: null, confirmed_at: null, channel: null, source_message_id: null };
+        doses.set(id, d);
+        return d;
+      },
       insertDoseMovementIfAbsent: async (m) => {
         if (movements.some((x) => x.dose_event_id === m.dose_event_id)) return false;
         movements.push(m);
@@ -166,6 +175,40 @@ describe("confirmDose", () => {
     expect(await confirmDose(repo, { ...input, doseId: "x", sourceMessageId: null })).toEqual({ result: "not_found" });
     doses.set("d2", { ...doses.get("d1")!, id: "d2", status: "skipped", source_message_id: null });
     expect((await confirmDose(repo, { ...input, doseId: "d2", sourceMessageId: null })).result).toBe("not_confirmable");
+  });
+  it("confirmar → desfazer → confirmar deixa saldo = inicial − 1 dose; desfazer duas vezes devolve uma vez", async () => {
+    const { repo, movements, doses } = makeRepo();
+    const base = { doseId: "d1", memberId: "m", channel: "panel" as const, now: new Date("2026-10-15T09:05:00Z") };
+    const undo = (now = base.now) => undoDoseConfirmation(repo, { doseId: "d1", memberId: "m", now });
+    await confirmDose(repo, base);
+    expect(balance(movements)).toBe(-2);
+    expect(await undo(new Date("2026-10-15T09:05:08Z"))).toMatchObject({ result: "undone", stockRestored: true });
+    expect(doses.get("d1")).toMatchObject({ status: "pending", confirmed_by_member_id: null, channel: null });
+    expect(balance(movements)).toBe(0);
+    expect((await undo()).result).toBe("not_taken");
+    expect(balance(movements)).toBe(0);
+    await confirmDose(repo, base);
+    expect(balance(movements)).toBe(-2);
+    await undo();
+    await confirmDose(repo, base);
+    expect(balance(movements)).toBe(-2);
+    expect(movements.filter((m) => m.dose_event_id === "d1")).toHaveLength(1);
+  });
+  it("desfazer: status volta conforme o atraso; recusa dose não tomada ou inexistente", async () => {
+    const { repo } = makeRepo();
+    const u = (doseId: string, now: Date) => undoDoseConfirmation(repo, { doseId, memberId: "m", now });
+    expect((await u("d1", new Date())).result).toBe("not_taken");
+    expect((await u("zz", new Date())).result).toBe("not_found");
+    await confirmDose(repo, { doseId: "d1", memberId: "m", channel: "panel", now: new Date("2026-10-15T09:05:00Z") });
+    const r = await u("d1", new Date("2026-10-15T09:30:00Z"));
+    expect(r.result === "undone" && r.dose.status).toBe("late");
+  });
+  it("desfazer retomado após falha (compensação feita, dose ainda tomada) não devolve duas vezes", async () => {
+    const { repo, movements } = makeRepo();
+    await confirmDose(repo, input);
+    movements.push({ family_id: "f1", stock_item_id: "s1", type: "adjustment", quantity: 2, note: "undo:d1:0" });
+    await undoDoseConfirmation(repo, { doseId: "d1", memberId: "m", now: input.now });
+    expect(balance(movements)).toBe(0);
   });
 });
 
@@ -238,6 +281,18 @@ describe("forecastDepletion", () => {
     const f = forecastDepletion({ balance: 5 * 20, is_estimate: true }, treatment, drops, from, TZ);
     expect(f.daysLeft).toBe(6);
     expect(f.confidence).toBe("low");
+  });
+  it("hoje (Date no meio do dia) conta só as doses que faltam", () => {
+    const drops = [phase({ dose_amount: 2, first_dose_time: "06:00" })]; // 6 doses × 2 = 12/dia; faltam 15h,18h,21h = 6
+    const s = { balance: 24, is_estimate: true };
+    const f = forecastDepletion(s, treatment, drops, new Date("2026-10-15T17:10:00Z"), TZ); // 14:10 local
+    expect(f).toMatchObject({ daysLeft: 2, depletionDate: "2026-10-17", confidence: "low" });
+    // com saldo 19 acaba no dia 17; com string de data o dia inteiro conta
+    expect(forecastDepletion({ ...s, balance: 19 }, treatment, drops, new Date("2026-10-15T17:10:00Z"), TZ).depletionDate).toBe("2026-10-17");
+    expect(forecastDepletion({ ...s, balance: 19 }, treatment, drops, "2026-10-15", TZ).depletionDate).toBe("2026-10-16");
+    // depois da última dose do dia, hoje já não consome
+    const late = forecastDepletion({ ...s, balance: 12 }, treatment, drops, new Date("2026-10-16T01:00:00Z"), TZ); // 22:00 local
+    expect(late).toMatchObject({ daysLeft: 2, depletionDate: "2026-10-17" });
   });
   it("ajuste manual muda saldo e previsão", () => {
     const mv = [{ quantity: 60 }];

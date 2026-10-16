@@ -12,6 +12,7 @@ import { generateDoseEvents, forecastDepletion } from "@medcuidar/domain";
 |---|---|
 | `generateDoseEvents(treatment, phases, date, tz?, existing?)` | Doses do dia local. Fase pelo dia do tratamento (1-based). `interval`: a partir de `first_dose_time`, a cada N horas **reais** enquanto ainda for o mesmo dia local (3 h desde 06:00 → 06,09,…,21). `fixed_times`: horários de parede. Idempotente; `existing` descarta o que já foi gravado; `key = treatment_id\|scheduled_at` espelha o índice único. Horário de verão não duplica nem pula doses. |
 | `confirmDose(repo, input)` | Idempotente por `source_message_id` e por status. Ordem: movimento `dose` (único por `dose_event_id`) → dose `taken`; retomar após falha não duplica. Retorna `confirmed \| duplicate \| not_found \| not_confirmable`. Aceita confirmar dose `late`/`missed`. |
+| `undoDoseConfirmation(repo, { doseId, memberId, now, settings? })` | Só para dose `taken`: volta a `pending`/`late`/`missed` pelo atraso, limpa quem/quando/canal/mensagem e devolve o estoque (ver notas abaixo). O prazo de 8 s é da UI. |
 | `markLateAndMissed(now, settings, doses)` | Lista de mudanças: `pending→late` após `late_after_min`; `pending/late→missed` após `missed_after_min` (com `notifyFamily`). |
 | `balance(movements)` / `applyAdjustment(movements, input)` | Saldo = soma; ajuste manual gera o movimento `adjustment` com a diferença (ou `null` se nada muda). |
 | `forecastDepletion(stock, treatment, phases, from, tz?)` | Percorre dia a dia com o consumo da fase de cada dia. Retorna `{ depletionDate, daysLeft, coversUntilEnd, confidence }`. `daysLeft` = dias inteiros cobertos contando hoje (= `floor(estoque / consumo diário)` numa fase única). `confidence: "low"` se `is_estimate`. Sem fim previsto (cobre até o fim do tratamento) → datas `null`. |
@@ -33,3 +34,8 @@ import { generateDoseEvents, forecastDepletion } from "@medcuidar/domain";
 pnpm --filter @medcuidar/domain test
 pnpm --filter @medcuidar/domain typecheck
 ```
+
+## Notas de desfazer e previsão
+
+- **Desfazer e estoque:** o movimento `dose` original (único por `dose_event_id`) nunca é apagado nem duplicado. `undoDoseConfirmation` insere um `adjustment` positivo (`note: undo:<doseId>:<n>`); reconfirmar depois insere um `adjustment` negativo (`redo:<doseId>:<n>`). Ambos olham o **saldo líquido** da dose via `listDoseMovements` (movimentos com o `dose_event_id` ou `note` `undo:/redo:<doseId>…`), por isso são idempotentes e confirmar → desfazer → confirmar deixa saldo = inicial − 1 dose.
+- **`forecastDepletion` com `from` Date:** hoje conta só as doses com horário ≥ `from` (o saldo já descontou as tomadas). Com `from` string de data, conta o dia inteiro.

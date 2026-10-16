@@ -88,6 +88,10 @@ export interface ConfirmDoseRepo {
   getDose(id: string): Promise<DoseEvent | null>;
   findDoseBySourceMessage(sourceMessageId: string): Promise<DoseEvent | null>;
   findStockItemId(patientId: string, medicationId: string): Promise<string | null>;
+  /** Movimentos ligados à dose: o original (`dose_event_id`) e as compensações `undo:`/`redo:<doseId>…` (campo `note`). */
+  listDoseMovements(doseId: string): Promise<StockMovement[]>;
+  /** Insere movimento comum (compensação/refazer). */
+  insertMovement(movement: StockMovement): Promise<void>;
   /** Insere o movimento só se não existir um para `dose_event_id` (índice único). Retorna true se criou. */
   insertDoseMovementIfAbsent(movement: StockMovement): Promise<boolean>;
   /** Marca a dose como tomada; devolve a dose atualizada. */
@@ -134,14 +138,30 @@ export async function confirmDose(repo: ConfirmDoseRepo, input: ConfirmDoseInput
   const stockItemId = await repo.findStockItemId(dose.patient_id, dose.medication_id);
   let stockDeducted = false;
   if (stockItemId) {
-    stockDeducted = await repo.insertDoseMovementIfAbsent({
-      family_id: dose.family_id,
-      stock_item_id: stockItemId,
-      type: "dose",
-      quantity: -dose.amount,
-      dose_event_id: dose.id,
-      created_by_member_id: input.memberId,
-    });
+    // Saldo líquido da dose: o desconto original existe uma só vez (índice único); após um "desfazer"
+    // o líquido volta a 0 e a reconfirmação desconta de novo com um movimento `redo`.
+    const existing = await repo.listDoseMovements(dose.id);
+    if (existing.length === 0) {
+      stockDeducted = await repo.insertDoseMovementIfAbsent({
+        family_id: dose.family_id,
+        stock_item_id: stockItemId,
+        type: "dose",
+        quantity: -dose.amount,
+        dose_event_id: dose.id,
+        created_by_member_id: input.memberId,
+      });
+    } else if (netOf(existing) === 0) {
+      const seq = existing.filter((m) => m.note?.startsWith(`undo:${dose.id}`)).length;
+      await repo.insertMovement({
+        family_id: dose.family_id,
+        stock_item_id: stockItemId,
+        type: "adjustment",
+        quantity: -dose.amount,
+        created_by_member_id: input.memberId,
+        note: `redo:${dose.id}:${seq}`,
+      });
+      stockDeducted = true;
+    }
   }
   const updated = await repo.markTaken(dose.id, {
     confirmed_by_member_id: input.memberId,
@@ -150,6 +170,67 @@ export async function confirmDose(repo: ConfirmDoseRepo, input: ConfirmDoseInput
     source_message_id: input.sourceMessageId ?? null,
   });
   return { result: "confirmed", dose: updated, stockDeducted };
+}
+
+const netOf = (list: StockMovement[]) => Math.round(list.reduce((a, m) => a + m.quantity, 0) * 1000) / 1000;
+
+/* ---------- desfazer ---------- */
+
+export interface UndoDoseRepo {
+  getDose(id: string): Promise<DoseEvent | null>;
+  findStockItemId(patientId: string, medicationId: string): Promise<string | null>;
+  listDoseMovements(doseId: string): Promise<StockMovement[]>;
+  insertMovement(movement: StockMovement): Promise<void>;
+  /** Volta a dose ao status e limpa confirmed_by/at/channel/source_message_id. */
+  resetDose(doseId: string, status: "pending" | "late" | "missed"): Promise<DoseEvent>;
+}
+
+export type UndoDoseResult =
+  | { result: "undone"; dose: DoseEvent; stockRestored: boolean }
+  | { result: "not_found" }
+  | { result: "not_taken"; dose: DoseEvent };
+
+/**
+ * Desfaz a confirmação. O prazo (8 s) é da interface. O estoque volta com um movimento `adjustment`
+ * positivo (`note: undo:<doseId>:<n>`), pois o movimento original é único por dose e não é apagado.
+ * Idempotente: só compensa se o líquido da dose ainda for negativo.
+ */
+export async function undoDoseConfirmation(
+  repo: UndoDoseRepo,
+  input: {
+    doseId: string;
+    memberId: string;
+    now: Date;
+    settings?: Pick<FamilySettings, "late_after_min" | "missed_after_min">;
+  },
+): Promise<UndoDoseResult> {
+  const dose = await repo.getDose(input.doseId);
+  if (!dose) return { result: "not_found" };
+  if (dose.status !== "taken") return { result: "not_taken", dose };
+
+  let stockRestored = false;
+  const stockItemId = await repo.findStockItemId(dose.patient_id, dose.medication_id);
+  if (stockItemId) {
+    const existing = await repo.listDoseMovements(dose.id);
+    const net = netOf(existing);
+    if (net < 0) {
+      const seq = existing.filter((m) => m.note?.startsWith(`undo:${dose.id}`)).length;
+      await repo.insertMovement({
+        family_id: dose.family_id,
+        stock_item_id: stockItemId,
+        type: "adjustment",
+        quantity: -net,
+        created_by_member_id: input.memberId,
+        note: `undo:${dose.id}:${seq}`,
+      });
+      stockRestored = true;
+    }
+  }
+  const late = input.settings?.late_after_min ?? 15;
+  const missed = input.settings?.missed_after_min ?? 120;
+  const elapsed = (input.now.getTime() - new Date(dose.scheduled_at).getTime()) / 60000;
+  const status = elapsed >= missed ? "missed" : elapsed >= late ? "late" : "pending";
+  return { result: "undone", dose: await repo.resetDose(dose.id, status), stockRestored };
 }
 
 /* ---------- atraso / esquecida ---------- */

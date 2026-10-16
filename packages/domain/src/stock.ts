@@ -1,5 +1,5 @@
 import { addDays, daysBetween, DEFAULT_TZ, localParts } from "./time";
-import { dosesPerDay, phaseForDay } from "./doses";
+import { dosesPerDay, generateDoseEvents, phaseForDay } from "./doses";
 import type { StockMovement, Treatment, TreatmentPhase } from "./types";
 
 export function balance(movements: Array<Pick<StockMovement, "quantity">>): number {
@@ -69,7 +69,19 @@ export function forecastDepletion(
     const day = daysBetween(treatment.start_date, date) + 1;
     if (last.end_day !== null && day > last.end_day) return covered();
     const phase = day >= 1 ? phaseForDay(sorted, day) : undefined;
-    const need = phase ? dosesPerDay(phase) * phase.dose_amount : 0;
+    const fullNeed = phase ? dosesPerDay(phase) * phase.dose_amount : 0;
+    let need = fullNeed;
+    if (fullNeed > 0 && i === 0 && typeof from !== "string") {
+      // hoje: o saldo já descontou o que foi tomado; conta só as doses que ainda faltam
+      const fromMs = from.getTime();
+      need = generateDoseEvents({ ...treatment, status: "active" }, sorted, date, tz)
+        .filter((d) => Date.parse(d.scheduled_at) >= fromMs)
+        .reduce((a, d) => a + d.amount, 0);
+      if (need === 0) {
+        days++;
+        continue;
+      }
+    }
     if (need === 0) {
       if (phase && phase.end_day === null) return covered();
       days++;
