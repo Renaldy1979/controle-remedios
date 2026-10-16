@@ -1,0 +1,81 @@
+@import "./tokens.css";
+@import "./icons.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-bg font-sans text-body text-ink antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus {
+    outline: none;
+  }
+  /* Foco sempre visível: anel duplo (design.md princípio 7) */
+  :focus-visible {
+    outline: 2px solid transparent;
+    box-shadow:
+      0 0 0 3px var(--sf),
+      0 0 0 5px var(--br);
+  }
+  button {
+    font: inherit;
+    color: inherit;
+  }
+  ::placeholder {
+    color: var(--ink3);
+  }
+}
+
+@layer components {
+  .shimmer {
+    background: linear-gradient(90deg, var(--trk) 25%, var(--sf2) 50%, var(--trk) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+  .num {
+    font-family: var(--font-jakarta), system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,110 @@
+/* Tokens do design (design/design.md seção 2). Tema claro por padrão; escuro por [data-theme="dark"]. */
+:root {
+  --bg: #f3f6fc;
+  --sf: #ffffff;
+  --sf2: #f7f9fd;
+  --bd: #e3e8f2;
+  --bd2: #c9d2e3;
+  --ink: #0e1a33;
+  --ink2: #4a5670;
+  --ink3: #5e6a84;
+  --br: #1f56e0;
+  --br2: #1742b8;
+  --brt: #eaf0ff;
+  --onbr: #ffffff;
+  --neub: #eef1f7;
+  --neuf: #4a5670;
+  --trk: #e9eef7;
+  --scrim: rgba(14, 26, 51, 0.5);
+
+  --okb: #e3f5ec;
+  --okf: #0b6b4a;
+  --okbar: #1e9e6e;
+  --pnb: #eaf0ff;
+  --pnf: #1742b8;
+  --ltb: #fff1df;
+  --ltf: #9a4a00;
+  --ltbar: #e08a1e;
+  --ltsf: #fffaf2;
+  --ltbd: #f2cf9e;
+  --msb: #fdecec;
+  --msf: #b4232a;
+  --msbar: #d8434a;
+  --msbd: #f2b8ba;
+
+  --tst: #0e1a33;
+  --tstf: #ffffff;
+  --tstl: #aec8ff;
+  --tsti: #6fddb0;
+
+  --field-err-bg: #fff8f8;
+  --disabled-bg: #e3e8f2;
+  --disabled-fg: #7c869c;
+  --halo: rgba(31, 86, 224, 0.2);
+  --paper: #fbfaf6;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #0b1222;
+  --sf: #131c30;
+  --sf2: #18233a;
+  --bd: #26324d;
+  --bd2: #3a4766;
+  --ink: #eef2fa;
+  --ink2: #b3bdd3;
+  --ink3: #9aa5be;
+  --br: #8ab0ff;
+  --br2: #aec8ff;
+  --brt: #172647;
+  --onbr: #0b1222;
+  --neub: #1e2942;
+  --neuf: #c3ccdf;
+  --trk: #26324d;
+  --scrim: rgba(0, 0, 0, 0.6);
+
+  --okb: #0f2e25;
+  --okf: #6fddb0;
+  --okbar: #3fbf8a;
+  --pnb: #172647;
+  --pnf: #9dbbff;
+  --ltb: #33240f;
+  --ltf: #f7bd72;
+  --ltbar: #e9a04a;
+  --ltsf: #1e1a14;
+  --ltbd: #5a3f1a;
+  --msb: #3a1518;
+  --msf: #ff9a9a;
+  --msbar: #f06a6a;
+  --msbd: #5c2328;
+
+  --tst: #eef2fa;
+  --tstf: #0e1a33;
+  --tstl: #1f56e0;
+  --tsti: #0b6b4a;
+
+  --field-err-bg: #2a1417;
+  --disabled-bg: #26324d;
+  --disabled-fg: #8a95ad;
+  --halo: rgba(138, 176, 255, 0.3);
+  --paper: #e9e6dc;
+  color-scheme: dark;
+}
+
+/* Avatares: cor por PAPEL, nunca por status (design.md 3). */
+:root {
+  --av-patient-bg: #dce6ff; --av-patient-fg: #1742b8;
+  --av-admin-bg: #dce6ff; --av-admin-fg: #1742b8;
+  --av-family-bg: #eee8ff; --av-family-fg: #5b3cc4;
+  --av-caregiver-bg: #ddf4f6; --av-caregiver-fg: #0e6670;
+  --av-confirmer-bg: #f2ebdd; --av-confirmer-fg: #6b4e16;
+  --av-other-bg: #eef1f7; --av-other-fg: #4a5670;
+}
+[data-theme="dark"] {
+  --av-patient-bg: #1c2d57; --av-patient-fg: #b5ccff;
+  --av-admin-bg: #1c2d57; --av-admin-fg: #b5ccff;
+  --av-family-bg: #2c2350; --av-family-fg: #cdbfff;
+  --av-caregiver-bg: #11393e; --av-caregiver-fg: #8fe0e8;
+  --av-confirmer-bg: #3a2f17; --av-confirmer-fg: #f0d596;
+  --av-other-bg: #1e2942; --av-other-fg: #c3ccdf;
+}
