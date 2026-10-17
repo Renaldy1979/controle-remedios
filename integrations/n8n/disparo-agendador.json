@@ -12,9 +12,9 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.SCHEDULER_FUNCTION_URL }}",
-        "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "x-medcuidar-secret", "value": "={{ $env.SCHEDULER_TRIGGER_SECRET }}" }] },
+        "url": "https://TROQUE-PELA-URL-DA-FUNCTION-scheduler",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "options": { "timeout": 50000 }
       },
       "id": "d4000000-0000-4000-8000-000000000002",
@@ -23,7 +23,8 @@
       "typeVersion": 4.2,
       "position": [220, 0],
       "retryOnFail": false,
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "id": "CONFIGURAR", "name": "MedCuidar Scheduler" } }
     }
   ],
   "connections": { "A cada minuto": { "main": [[{ "node": "Chamar scheduler", "type": "main", "index": 0 }]] } },

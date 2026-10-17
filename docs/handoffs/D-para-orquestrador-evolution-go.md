@@ -1,25 +1,22 @@
-# Integrações (D) → Orquestrador: Evolution Go (pesquisa; adaptador AINDA NÃO reescrito)
+# Integrações (D) → Orquestrador: Evolution Go
 
-Fontes: swagger oficial `EvolutionAPI/evolution-go/docs/swagger.json` e docs.evolutionfoundation.com.br/evolution-go/*.md (webhooks, send-a-*).
+Estado: adaptador `evolution-go` implementado (`packages/channels/src/evolution-go.ts`); o adaptador da Evolution API v2 foi **removido**. Fontes: swagger oficial `EvolutionAPI/evolution-go/docs/swagger.json` e docs.evolutionfoundation.com.br/evolution-go (webhooks, send-a-*).
 
-## Confirmado na documentação
-- **Autenticação:** cabeçalho `apikey: <GLOBAL_API_KEY>`; chamadas por instância também levam o cabeçalho `instanceId: <UUID da instância>`.
-- **Texto:** `POST /send/text` `{number, text, id?, delay?, formatJid?, quoted?{messageId,participant}, mentionedJid?}`.
-- **Mídia:** `POST /send/media` `{number, type, url, caption?, filename?}`.
-- **Botões:** `POST /send/button` `{number,title,description,footer,buttons[{type: reply|copy|url|call|pix, displayText, id, phoneNumber...}]}`. Até 3 `reply`; não misturar `reply` com `call/url/copy` (some no WhatsApp Web). Logo, o botão "Ligar" do template não pode ir junto de "Já tomou".
-- **Lista:** `POST /send/list`; **enquete:** `POST /send/poll` `{number,question,options[],maxAnswer}`.
-- **Baixar mídia recebida:** `POST /message/downloadmedia` (corpo no swagger: `{message:{conversation}}` — **dúvida**, verificar com uma mídia real).
-- **Webhook:** configurado em `POST /instance/connect` com `{webhookUrl, subscribe:["MESSAGE",...], immediate}`. Evento chega como `{event:"Message", data:{Info:{PushName,Sender,...}, Message:{conversation,...}}, instanceId}` (nomes em PascalCase, estilo whatsmeow). Responder 2xx em 30 s; até 5 retentativas a cada 30 s.
-- Há `docs/webhooks.md` (29 KB) com mais eventos; só li o início.
+## Confirmado na documentação e implementado
+- Autenticação: cabeçalhos `apikey` (GLOBAL_API_KEY) e `instanceId` (UUID da instância).
+- `POST /send/text {number,text}` · `/send/media {number,type,url,caption,filename}` · `/send/button {number,title,description,footer,buttons[{type:"reply",displayText,id}]}` (até 3 `reply`; **não misturar com `call/url/copy`** — a ligação vira linha de texto) · `/message/downloadmedia`.
+- Webhook: configurado em `POST /instance/connect {webhookUrl, subscribe:["MESSAGE"], immediate}`; evento `{event:"Message", data:{Info:{Chat,Sender,SenderAlt,IsFromMe,IsGroup,ID,Timestamp,MediaType}, Message:{conversation|extendedTextMessage|audioMessage|imageMessage..., base64}}}`; 2xx em 30 s, até 5 retentativas.
+- **Botões são opcionais**: `SUPPORTS_BUTTONS=false` (padrão) envia texto com opções numeradas; as respostas "1", "2", "ok", "tomei", "já tomou", ✅/👍 e áudio transcrito são interpretadas na entrada. Mais de uma dose possível → lista numerada, nunca adivinha. Enquete **não** implementada: a doc não mostra o evento de voto no webhook.
 
-## Dúvidas (não inventei)
-1. Formato exato de `Info` para grupo/remetente (`Chat`, `Sender`, `IsFromMe`, `IsGroup`, `ID`?), de resposta a botão e de **áudio** (base64 inline ou só via `downloadmedia`).
-2. Formato da resposta de envio (onde vem o id da mensagem) — o swagger só diz `object`.
-3. Se o evento de **voto em enquete** chega no webhook (só então implementar enquete).
-4. Header de assinatura do webhook: a doc não mostra; usar o token do N8N como hoje.
+## Ainda NÃO verificado com mensagem real (isolado em funções pequenas, com `TODO verificar com mensagem real` e teste por fixture)
+1. `extractSentMessageId` — a doc é inconsistente (`messageId` no schema, `data.Info.ID` no exemplo). Se nenhum vier, geramos um id sintético em vez de falhar (a mensagem já foi enviada; falhar duplicaria no reenvio).
+2. `senderPhoneFromInfo` — remetente em grupo e em `@lid` (usa `Sender`, cai para `SenderAlt`).
+3. `buttonIdFromMessage` — grafia do id de resposta de botão (`selectedButtonID`/`Id`...): só relevante com `SUPPORTS_BUTTONS=true`.
+4. Mídia: `Message.base64` (WEBHOOK_FILES=true) ou `mediaUrl`; o corpo de `/message/downloadmedia` na doc é `{message:{conversation}}` — enviamos o objeto `Message` recebido; formato da resposta (`extractDownloadedMedia`) é suposição.
+5. `/send/media` com `base64`: enviamos como data URI em `url` (suposição); preferir URL assinada.
+6. Grupo: `number` = JID do grupo (`...@g.us`) — a doc não detalha; validar.
+7. O Evolution Go não envia cabeçalho de autenticação no webhook: o workflow de entrada usa um **token no caminho** do webhook do N8N.
 
-## Pedidos recebidos e ainda NÃO feitos (limite de uso atingido)
-- Renomear/reescrever o adaptador como `evolution-go` com as rotas acima (hoje `packages/channels/src/evolution.ts` usa Evolution API v2 — **rotas erradas para o Evolution Go**).
-- `supportsButtons` (env, padrão false) com **fallback numerado como caminho padrão**; templates em duas versões a partir da mesma definição; interpretador aceitando `1/2`, `ok`, `já tomou`, ✅/👍 ligado à dose pendente mais provável (várias → perguntar com lista numerada).
-- Script `pnpm --filter @medcuidar/channels smoke` (envio real só com confirmação explícita e número por env).
-- Atualizar `.env.example` (pasta do agente A; ver `D-para-A-variaveis-de-ambiente.md`) e reexportar workflows N8N com credenciais por nome + instruções de importação em `integrations/n8n/README.md`.
+## Roteiro com número de teste (quando existir)
+1. `pnpm --filter @medcuidar/channels smoke` (mostra o plano) e depois `SMOKE_TO=<número de teste> SMOKE_CONFIRM=ENVIAR pnpm --filter @medcuidar/channels smoke`.
+2. Configurar o webhook (README de `integrations/n8n`), mandar "oi", "1", "tomei", um áudio, e conferir os pontos 1–6 acima.

@@ -14,8 +14,11 @@ export class WhatsAppSimulator {
   readonly world: World;
   private cursor = 0;
 
-  constructor(opts: WorldOptions = {}) {
-    this.world = buildWorld({ withTreatments: true, ...opts });
+  constructor(opts: WorldOptions & { buttons?: boolean } = {}) {
+    const { buttons, ...worldOpts } = opts;
+    this.world = buildWorld({ withTreatments: true, ...worldOpts });
+    // Padrão de produção (Evolution Go): opções numeradas em texto. `buttons: true` imita a API oficial.
+    this.world.channel.supportsButtons = buttons ?? false;
   }
 
   get webhookSecret() {
@@ -42,9 +45,10 @@ export class WhatsAppSimulator {
     return res;
   }
 
-  /** Toca no botão `index` (1-based) da última mensagem que `who` recebeu. */
+  /** Toca no botão `index` (1-based); no modo numerado, responde com o número. */
   async tap(who: PersonaKey, index: number) {
     const phone = PERSONAS[who].phone;
+    if (!this.world.channel.supportsButtons) return this.say(who, String(index));
     const last = [...this.world.channel.sent].reverse().find((m) => m.to === phone && m.buttons?.length);
     const button = last?.buttons?.[index - 1];
     if (!button) throw new Error("Nenhum botão com esse número na última mensagem.");

@@ -1,10 +1,10 @@
-import { decodeButtonId, phoneVariants, type ChannelAdapter, type InboundMessage, type TemplateId, type TemplateParams } from "@medcuidar/channels";
+import { decodeButtonId, numberedOptions, phoneVariants, renderTemplate, type ChannelAdapter, type InboundMessage, type TemplateId, type TemplateParams } from "@medcuidar/channels";
 import type { DataFactory, DomainPort, FamilyData, FamilyInfo, GlobalData, Logger, Monitor, RateLimiter, Row, TranscriptionPort } from "../ports";
 import { enqueue, enqueueToRecipients, familyAlertRecipients } from "../outbox";
 import { doseText, isConflict, loadMemberCtx, memberCan, n, s, sOpt, type MemberCtx } from "../rows";
 import { addMinutes, dateBR, localDate, localTime } from "../time";
-import { findMentions, interpretText, redactBody } from "./interpret";
-import { SIGNATURE_HEADER, verifySignature } from "./signature";
+import { findMentions, interpretText, parseOption, redactBody } from "./interpret";
+import { SECRET_HEADER, SIGNATURE_HEADER, verifySharedSecret, verifySignature } from "./signature";
 
 export interface InboundDeps {
   global: Pick<GlobalData, "listFamilies">;
@@ -53,7 +53,7 @@ const CONFIRM_WINDOW_AFTER_MIN = 60;
 /** Entrada do webhook `whatsapp-inbound`. Resposta sempre neutra: nada revela quem é cadastrado. */
 export async function handleWhatsappInbound(deps: InboundDeps, req: InboundRequest): Promise<InboundResponse> {
   const header = req.headers[SIGNATURE_HEADER] ?? req.headers[SIGNATURE_HEADER.toUpperCase()];
-  if (!verifySignature(req.rawBody, header, deps.webhookSecret)) {
+  if (!verifySignature(req.rawBody, header, deps.webhookSecret) && !verifySharedSecret(req.headers[SECRET_HEADER], deps.webhookSecret)) {
     deps.log.warn("inbound.bad_signature");
     return { status: 401, body: { ok: false } };
   }
@@ -370,6 +370,8 @@ async function audit(ctx: Ctx, action: string, entityId: string) {
 // ───────────────────────── texto ─────────────────────────
 
 async function handleText(ctx: Ctx, text: string) {
+  const chosen = parseOption(text);
+  if (chosen !== null) return handleOption(ctx, chosen);
   const { deps, family, data, member, now } = ctx;
   const intent = interpretText(text);
   const [patients, medications] = await Promise.all([data.find("patients", { active: true }, { limit: 200 }), data.find("medications", {}, { limit: 500 })]);
@@ -470,4 +472,84 @@ async function handleText(ctx: Ctx, text: string) {
       return reply(ctx, "dose_choose", { familyId: family.id, options, moreCount: candidates.length - options.length });
     }
   }
+}
+
+// ───────────────────────── resposta numerada ("1", "2"...) ─────────────────────────
+
+const OPTION_TEMPLATES = new Set<string>(["dose_reminder", "dose_missed_family", "dose_choose", "low_stock"]);
+const OPTION_WINDOW_MIN = 180;
+
+interface OptionCandidate {
+  template: string;
+  rowId: string;
+  doseEventId?: string;
+  options: ReturnType<typeof numberedOptions>;
+}
+
+/**
+ * Interpreta "1"/"2" como resposta à última pergunta com opções enviada a esta pessoa (ou ao grupo).
+ * Reconstrói as opções a partir da própria outbox (mesmo template e parâmetros do envio), sem estado extra.
+ * Mais de uma pergunta pendente que sirva → pergunta de novo com a lista numerada; nunca adivinha.
+ */
+async function handleOption(ctx: Ctx, chosen: number) {
+  const { data, member, msg, now } = ctx;
+  const target: Record<string, string> = msg.groupId ? { target_group_id: msg.groupId } : { target_member_id: member.id };
+  const rows = await data.find("notifications_outbox", { status: "sent", ...target }, { limit: 10, orderBy: "$updatedAt", order: "desc" });
+
+  const candidates: OptionCandidate[] = [];
+  for (const row of rows) {
+    if (now.getTime() - new Date(String(row["$updatedAt"] ?? 0)).getTime() > OPTION_WINDOW_MIN * 60_000) continue;
+    let payload: { template?: string; params?: Record<string, unknown> };
+    try {
+      payload = JSON.parse(String(row["payload"] ?? "{}")) as typeof payload;
+    } catch {
+      continue;
+    }
+    if (!payload.template || !payload.params || !OPTION_TEMPLATES.has(payload.template)) continue;
+    const rendered = renderTemplate(payload.template as TemplateId, payload.params as never);
+    const options = numberedOptions(rendered.buttons);
+    if (options.length === 0) continue;
+    const doseEventId = typeof payload.params["doseEventId"] === "string" ? payload.params["doseEventId"] : undefined;
+    candidates.push({ template: payload.template, rowId: row.$id, ...(doseEventId ? { doseEventId } : {}), options });
+  }
+  if (candidates.length === 0) return reply(ctx, "help", {});
+
+  // Uma pergunta explícita ("Qual dose?") mais recente tem prioridade sobre os lembretes antigos.
+  let pool = candidates[0]!.template === "dose_choose" ? [candidates[0]!] : candidates;
+
+  // Descarta lembretes de doses que já foram resolvidas.
+  const alive: OptionCandidate[] = [];
+  for (const c of pool) {
+    if (c.template === "dose_reminder" || c.template === "dose_missed_family") {
+      const dose = c.doseEventId ? await data.getOrNull("dose_events", c.doseEventId) : null;
+      if (!dose || !["pending", "late"].includes(s(dose, "status"))) continue;
+    }
+    alive.push(c);
+  }
+  pool = alive;
+  if (pool.length === 0) return reply(ctx, "no_pending_dose", {});
+
+  if (pool.length === 1) {
+    const option = pool[0]!.options[chosen - 1];
+    const decoded = option ? decodeButtonId(option.id) : null;
+    if (!decoded || decoded.familyId !== ctx.family.id) return reply(ctx, "help", {});
+    return handleButton(ctx, decoded.action, decoded.ref);
+  }
+
+  // Várias perguntas pendentes: não dá para saber a qual o "1" responde.
+  const options = [];
+  for (const c of [...pool].reverse()) {
+    if (!c.doseEventId || options.length >= 3) continue;
+    const view = await loadDoseView(data, c.doseEventId);
+    if (view) {
+      options.push({
+        doseEventId: c.doseEventId,
+        patientName: s(view.patient, "name"),
+        medicationName: s(view.medication, "name"),
+        time: localTime(new Date(s(view.dose, "scheduled_at")), ctx.family.timezone),
+      });
+    }
+  }
+  if (options.length === 0) return reply(ctx, "help", {});
+  return reply(ctx, "dose_choose", { familyId: ctx.family.id, options, moreCount: 0 });
 }

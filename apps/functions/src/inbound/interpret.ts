@@ -10,6 +10,15 @@ export type TextIntent =
   | "help"
   | "unknown";
 
+/** Só ✅/👍/✔ (com ou sem tom de pele): confirmação sem palavras. */
+const CONFIRM_EMOJI = /^(?:\s|✅|✔|☑|️|\u{1F44D}|[\u{1F3FB}-\u{1F3FF}])+$/u;
+
+/** Resposta "1", "2", "3." à lista numerada. Devolve o número ou null. */
+export function parseOption(text: string): number | null {
+  const m = /^\s*([1-9])\s*[.):]?\s*$/.exec(text);
+  return m ? Number(m[1]) : null;
+}
+
 export function normalizeText(text: string): string {
   return text
     .toLowerCase()
@@ -28,9 +37,11 @@ const has = (t: string, re: RegExp) => re.test(t);
  * Na dúvida devolve "unknown" ou deixa o passo seguinte perguntar com botões — nunca chuta.
  */
 export function interpretText(text: string): TextIntent {
+  if (CONFIRM_EMOJI.test(text)) return "dose_taken";
   const t = normalizeText(text);
   if (!t) return "unknown";
-  const isQuestion = t.includes("?") || /^(como|quando|qual|quais|quanto|quantos|que horas|ja|tem|o que)\b/.test(t);
+  if (/^(ok|okay|feito|pronto|certo)$/.test(t)) return "dose_taken";
+  const isQuestion = t.includes("?") || /^(como|quando|qual|quais|quanto|quantos|que horas|tem|o que)\b/.test(t);
 
   if (has(t, /\b(nao|ainda nao|esqueci|nem)\b.*\b(tomei|tomou|tomaram|dei|dado)\b/)) return "not_taken";
   if (has(t, /\b(estoque|sobrando|quantos dias|acabando|vai acabar)\b/)) return "stock_status";

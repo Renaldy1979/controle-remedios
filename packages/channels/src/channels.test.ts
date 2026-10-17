@@ -2,15 +2,20 @@ import { describe, expect, it, vi } from "vitest";
 import { MetaCloudAdapter } from "./meta-cloud";
 import { decodeButtonId, encodeButtonId } from "./buttons";
 import { ChannelError } from "./errors";
-import { EvolutionAdapter } from "./evolution";
+import { EvolutionGoAdapter, extractDownloadedMedia, extractSentMessageId } from "./evolution-go";
+import { createChannelFromEnv } from "./factory";
+import { FakeChannel } from "./fake";
+import { degradeContent, numberedOptions, renderNumbered } from "./options";
 import { normalizePhone, phoneVariants } from "./phone";
 import { renderTemplate } from "./templates";
+import { sendContent } from "./types";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 describe("telefone", () => {
   it("normaliza JIDs e números brasileiros", () => {
     expect(normalizePhone("5511999998888@s.whatsapp.net")).toBe("+5511999998888");
+    expect(normalizePhone("5511999998888:38@s.whatsapp.net")).toBe("+5511999998888");
     expect(normalizePhone("(11) 99999-8888")).toBe("+5511999998888");
     expect(normalizePhone("abc")).toBeNull();
   });
@@ -29,68 +34,179 @@ describe("botões", () => {
   });
 });
 
-describe("EvolutionAdapter", () => {
-  const cfg = { baseUrl: "https://evo.test/", apiKey: "k", instance: "inst" };
+const reminder = () =>
+  renderTemplate("dose_reminder", { familyId: "fam1", doseEventId: "d1", patientName: "Adelino", medicationName: "Zypred", doseText: "1 gota", time: "14:00" });
+const missed = () =>
+  renderTemplate("dose_missed_family", { familyId: "f", doseEventId: "d", patientName: "Adelino", medicationName: "Zypred", time: "14:00", callPhone: "+5511988887777" });
 
-  it("envia texto e devolve o id do provedor", async () => {
-    const fetchFn = vi.fn(async () => json({ key: { id: "ABC" } }));
-    const a = new EvolutionAdapter({ ...cfg, fetch: fetchFn as never });
+describe("opções numeradas (mesma definição dos botões)", () => {
+  it("lembrete: 1 = Tomei, 2 = Lembrar", () => {
+    const text = renderNumbered(reminder());
+    expect(text).toContain("Adelino");
+    expect(text).toContain("*1* — Tomei");
+    expect(text).toContain("*2* — Lembrar em 15 min");
+    expect(numberedOptions(reminder().buttons).map((b) => b.label)).toEqual(["Tomei", "Lembrar em 15 min"]);
+  });
+  it("ligação nunca vira opção numerada: vira linha de texto", () => {
+    const text = renderNumbered(missed());
+    expect(text).toContain("📞 Ligar: +5511988887777");
+    expect(text).toContain("*1* — Já tomou");
+    expect(text).not.toContain("*2*");
+    expect(numberedOptions(missed().buttons)).toHaveLength(1);
+  });
+  it("com botões reais o conteúdo não muda; sem botões nada a degradar", () => {
+    expect(degradeContent(reminder(), true)).toEqual(reminder());
+    expect(degradeContent({ text: "oi" }, false)).toEqual({ text: "oi" });
+  });
+  it("mídia com opções leva o texto numerado na legenda", () => {
+    const c = degradeContent({ text: "t", buttons: reminder().buttons!, media: { url: "https://x", mimeType: "image/jpeg" } }, false);
+    expect(c.buttons).toBeUndefined();
+    expect(c.media?.caption).toContain("*1*");
+  });
+  it("sendContent usa texto numerado quando o canal não suporta botões, e botões quando suporta", async () => {
+    const off = new FakeChannel();
+    off.supportsButtons = false;
+    await sendContent(off, "+5511999998888", reminder());
+    expect(off.sent[0]!.buttons).toBeUndefined();
+    expect(off.sent[0]!.text).toContain("*1* — Tomei");
+    const on = new FakeChannel();
+    await sendContent(on, "+5511999998888", reminder());
+    expect(on.sent[0]!.buttons).toHaveLength(2);
+    const grp = new FakeChannel();
+    grp.supportsButtons = false;
+    await grp.sendToGroup("1203@g.us", reminder());
+    expect(grp.sent[0]!.text).toContain("*2* — Lembrar");
+  });
+});
+
+describe("EvolutionGoAdapter — envio", () => {
+  const cfg = { baseUrl: "https://evo.test/", apiKey: "k", instanceId: "inst-uuid" };
+  const bodyOf = (fn: ReturnType<typeof vi.fn>, i = 0) => JSON.parse((fn.mock.calls[i] as unknown as [string, RequestInit])[1].body as string);
+
+  it("texto: rota, cabeçalhos apikey+instanceId e número só com dígitos", async () => {
+    const fetchFn = vi.fn(async () => json({ success: true, messageId: "ABC" }));
+    const a = new EvolutionGoAdapter({ ...cfg, fetch: fetchFn as never });
     await expect(a.sendText("+5511999998888", "oi")).resolves.toEqual({ providerMessageId: "ABC" });
     const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("https://evo.test/message/sendText/inst");
-    expect(JSON.parse(init.body as string)).toEqual({ number: "5511999998888", text: "oi" });
+    expect(url).toBe("https://evo.test/send/text");
+    expect(init.headers).toMatchObject({ apikey: "k", instanceId: "inst-uuid" });
+    expect(bodyOf(fetchFn)).toEqual({ number: "5511999998888", text: "oi" });
   });
 
-  it("erro de rede e 5xx são retentáveis; 4xx é definitivo", async () => {
-    const down = new EvolutionAdapter({ ...cfg, fetch: (async () => { throw new Error("ECONNREFUSED"); }) as never });
+  it("id da resposta: aceita messageId ou data.Info.ID; sem id, gera um e NÃO falha (já foi enviado)", async () => {
+    expect(extractSentMessageId({ data: { Info: { ID: "3EB0" } } })).toBe("3EB0");
+    expect(extractSentMessageId({ messageId: "M" })).toBe("M");
+    expect(extractSentMessageId({})).toBeUndefined();
+    const a = new EvolutionGoAdapter({ ...cfg, fetch: (async () => json({ success: true })) as never });
+    expect((await a.sendText("+5511999998888", "x")).providerMessageId).toMatch(/^evgo-/);
+  });
+
+  it("padrão sem botões: sendButtons envia texto numerado em /send/text", async () => {
+    const fetchFn = vi.fn(async () => json({ messageId: "T" }));
+    const a = new EvolutionGoAdapter({ ...cfg, fetch: fetchFn as never });
+    expect(a.supportsButtons).toBe(false);
+    await sendContent(a, "+5511999998888", reminder());
+    expect((fetchFn.mock.calls[0] as unknown as [string])[0]).toContain("/send/text");
+    expect(bodyOf(fetchFn).text).toContain("*1* — Tomei");
+  });
+
+  it("com botões: /send/button só com reply; ligação vira texto (não mistura reply com call)", async () => {
+    const fetchFn = vi.fn(async () => json({ messageId: "B1" }));
+    const a = new EvolutionGoAdapter({ ...cfg, supportsButtons: true, fetch: fetchFn as never });
+    await sendContent(a, "+5511999998888", missed());
+    expect((fetchFn.mock.calls[0] as unknown as [string])[0]).toContain("/send/button");
+    const body = bodyOf(fetchFn);
+    expect(body.buttons).toEqual([{ type: "reply", displayText: "Já tomou", id: expect.stringContaining("mc1:dose_taken") }]);
+    expect(body.buttons.every((b: { type: string }) => b.type === "reply")).toBe(true);
+    expect(body.description).toContain("📞 Ligar: +5511988887777");
+    expect(body).toMatchObject({ title: expect.any(String), footer: expect.any(String) }); // obrigatórios no swagger
+  });
+
+  it("mídia e grupo", async () => {
+    const fetchFn = vi.fn(async () => json({ messageId: "M" }));
+    const a = new EvolutionGoAdapter({ ...cfg, fetch: fetchFn as never });
+    await a.sendMedia("+5511999998888", { url: "https://x/y.jpg", mimeType: "image/jpeg", caption: "c" });
+    expect(bodyOf(fetchFn)).toMatchObject({ number: "5511999998888", type: "image", url: "https://x/y.jpg", caption: "c" });
+    await a.sendToGroup("1203@g.us", { text: "olá" });
+    expect(bodyOf(fetchFn, 1)).toEqual({ number: "1203@g.us", text: "olá" });
+  });
+
+  it("erro de rede e 5xx são retentáveis; 4xx é definitivo e a mensagem não vaza telefone", async () => {
+    const down = new EvolutionGoAdapter({ ...cfg, fetch: (async () => { throw new Error("ECONNREFUSED"); }) as never });
     await expect(down.sendText("+5511999998888", "x")).rejects.toMatchObject({ retryable: true });
-    const s503 = new EvolutionAdapter({ ...cfg, fetch: (async () => json({}, 503)) as never });
+    const s503 = new EvolutionGoAdapter({ ...cfg, fetch: (async () => json({}, 503)) as never });
     await expect(s503.sendText("+5511999998888", "x")).rejects.toMatchObject({ retryable: true, status: 503 });
-    const s400 = new EvolutionAdapter({ ...cfg, fetch: (async () => json({}, 400)) as never });
+    const s400 = new EvolutionGoAdapter({ ...cfg, fetch: (async () => json({}, 400)) as never });
     const err = await s400.sendText("+5511999998888", "x").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ChannelError);
     expect((err as ChannelError).retryable).toBe(false);
     expect((err as ChannelError).message).not.toContain("5511");
   });
+});
 
-  it("monta botões de resposta e de ligação", async () => {
-    const fetchFn = vi.fn(async () => json({ key: { id: "B1" } }));
-    const a = new EvolutionAdapter({ ...cfg, fetch: fetchFn as never });
-    await a.sendButtons("+5511999998888", {
-      text: "t",
-      buttons: [
-        { id: "x", label: "Tomei" },
-        { id: "c", label: "Ligar", kind: "call", phone: "+5511988887777" },
-      ],
-    });
-    const body = JSON.parse((fetchFn.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
-    expect(body.buttons[0]).toEqual({ type: "reply", displayText: "Tomei", id: "x" });
-    expect(body.buttons[1].type).toBe("call");
+describe("EvolutionGoAdapter — entrada (fixtures no formato da documentação)", () => {
+  const adapter = new EvolutionGoAdapter({ baseUrl: "https://evo.test", apiKey: "k", instanceId: "i" });
+  const event = (info: Record<string, unknown>, message: unknown, extra: Record<string, unknown> = {}) => ({
+    event: "Message",
+    instanceId: "i",
+    data: {
+      Info: { Chat: "557499879409@s.whatsapp.net", Sender: "557499879409:38@s.whatsapp.net", IsFromMe: false, IsGroup: false, ID: "3EB0C05F", Type: "text", Timestamp: "2024-10-10T17:17:44-03:00", MediaType: "", ...info },
+      Message: message,
+      ...extra,
+    },
   });
 
-  const upsert = (message: unknown, key: Record<string, unknown> = {}) => ({
-    event: "messages.upsert",
-    data: { key: { remoteJid: "5511999998888@s.whatsapp.net", fromMe: false, id: "M1", ...key }, messageTimestamp: 1760000000, message },
+  it("texto", () => {
+    const [m] = adapter.parseInbound(event({}, { conversation: "tomei" }));
+    expect(m).toMatchObject({ type: "text", text: "tomei", from: "+557499879409", providerMessageId: "3EB0C05F" });
+    expect(m!.receivedAt.toISOString()).toBe("2024-10-10T20:17:44.000Z");
+    expect(adapter.parseInbound(event({}, { extendedTextMessage: { text: "ok" } }))[0]).toMatchObject({ text: "ok" });
   });
-  const adapter = new EvolutionAdapter(cfg);
 
-  it("interpreta texto, botão, áudio e ignora mensagens próprias e outros eventos", () => {
-    expect(adapter.parseInbound(upsert({ conversation: "tomei" }))[0]).toMatchObject({ type: "text", text: "tomei", from: "+5511999998888" });
-    expect(adapter.parseInbound(upsert({ buttonsResponseMessage: { selectedButtonId: "mc1:dose_taken:f:d" } }))[0]).toMatchObject({
-      type: "button",
-      buttonId: "mc1:dose_taken:f:d",
-    });
-    expect(adapter.parseInbound(upsert({ audioMessage: { mimetype: "audio/ogg; codecs=opus" } }))[0]).toMatchObject({ type: "audio" });
-    expect(adapter.parseInbound(upsert({ conversation: "x" }, { fromMe: true }))).toEqual([]);
-    expect(adapter.parseInbound({ event: "connection.update", data: {} })).toEqual([]);
+  it("áudio com base64 inline e com referência para /message/downloadmedia", async () => {
+    const withB64 = adapter.parseInbound(event({ Type: "media", MediaType: "audio" }, { audioMessage: { mimetype: "audio/ogg; codecs=opus", ptt: true }, base64: "AQID" }))[0]!;
+    expect(withB64).toMatchObject({ type: "audio", media: { base64: "AQID", mimeType: "audio/ogg; codecs=opus" } });
+    expect([...(await adapter.fetchMedia(withB64)).data]).toEqual([1, 2, 3]);
+
+    const fetchFn = vi.fn(async () => json({ data: { base64: "BAUG", mimetype: "audio/ogg" } }));
+    const a2 = new EvolutionGoAdapter({ baseUrl: "https://evo.test", apiKey: "k", instanceId: "i", fetch: fetchFn as never });
+    const noB64 = a2.parseInbound(event({ Type: "media", MediaType: "audio" }, { audioMessage: { mimetype: "audio/ogg" } }))[0]!;
+    expect([...(await a2.fetchMedia(noB64)).data]).toEqual([4, 5, 6]);
+    expect((fetchFn.mock.calls[0] as unknown as [string])[0]).toContain("/message/downloadmedia");
+    expect(extractDownloadedMedia({ nada: 1 })).toBeNull();
+  });
+
+  it("grupo: Chat é o grupo e o remetente vem de Sender; LID usa SenderAlt", () => {
+    const [m] = adapter.parseInbound(event({ Chat: "1203630@g.us", IsGroup: true, Sender: "99887766@lid", SenderAlt: "557499879409@s.whatsapp.net" }, { conversation: "oi" }));
+    expect(m).toMatchObject({ groupId: "1203630@g.us", from: "+557499879409" });
+    expect(adapter.parseInbound(event({ Sender: "99887766@lid", SenderAlt: "1@lid" }, { conversation: "oi" }))).toEqual([]);
+  });
+
+  it("resposta de botão (modo botões) em qualquer grafia do whatsmeow", () => {
+    expect(adapter.parseInbound(event({}, { buttonsResponseMessage: { selectedButtonID: "mc1:dose_taken:f:d" } }))[0]).toMatchObject({ type: "button", buttonId: "mc1:dose_taken:f:d" });
+    expect(adapter.parseInbound(event({}, { templateButtonReplyMessage: { selectedId: "mc1:dose_snooze:f:d" } }))[0]).toMatchObject({ buttonId: "mc1:dose_snooze:f:d" });
+  });
+
+  it("ignora mensagens próprias, outros eventos e lixo", () => {
+    expect(adapter.parseInbound(event({ IsFromMe: true }, { conversation: "x" }))).toEqual([]);
+    expect(adapter.parseInbound({ event: "Receipt", data: {} })).toEqual([]);
+    expect(adapter.parseInbound({ event: "Message", data: { Info: {} } })).toEqual([]);
     expect(adapter.parseInbound("lixo")).toEqual([]);
   });
+});
 
-  it("em grupo, o remetente é o participante", () => {
-    const [m] = adapter.parseInbound(
-      upsert({ conversation: "oi" }, { remoteJid: "1203@g.us", participant: "5511977776666@s.whatsapp.net" }),
-    );
-    expect(m).toMatchObject({ groupId: "1203@g.us", from: "+5511977776666" });
+describe("fábrica por configuração", () => {
+  const base = { EVOLUTION_BASE_URL: "https://e", EVOLUTION_API_KEY: "k", EVOLUTION_INSTANCE_ID: "i" };
+  it("Evolution Go por padrão, sem botões; SUPPORTS_BUTTONS liga", () => {
+    const a = createChannelFromEnv(base);
+    expect([a.name, a.supportsButtons]).toEqual(["evolution-go", false]);
+    expect(createChannelFromEnv({ ...base, SUPPORTS_BUTTONS: "true" }).supportsButtons).toBe(true);
+  });
+  it("trocar para Meta é só configuração", () => {
+    const a = createChannelFromEnv({ CHANNEL_PROVIDER: "meta-cloud", META_ACCESS_TOKEN: "t", META_PHONE_NUMBER_ID: "1" });
+    expect([a.name, a.supportsButtons]).toEqual(["meta-cloud", true]);
+    expect(() => createChannelFromEnv({ CHANNEL_PROVIDER: "outro" })).toThrow();
+    expect(() => createChannelFromEnv({})).toThrow("EVOLUTION_BASE_URL");
   });
 });
 
@@ -123,9 +239,7 @@ describe("MetaCloudAdapter", () => {
 
 describe("templates pt-BR", () => {
   it("lembrete: nome do paciente, uma ação por botão, ids com família", () => {
-    const r = renderTemplate("dose_reminder", {
-      familyId: "fam1", doseEventId: "d1", patientName: "Adelino", medicationName: "Zypred", doseText: "1 gota", time: "14:00",
-    });
+    const r = reminder();
     expect(r.text).toContain("Adelino");
     expect(r.buttons?.map((b) => b.label)).toEqual(["Tomei", "Lembrar em 15 min"]);
     expect(decodeButtonId(r.buttons![0]!.id)).toMatchObject({ action: "dose_taken", ref: "d1" });
@@ -137,12 +251,13 @@ describe("templates pt-BR", () => {
     expect(r.buttons?.map((b) => b.label)).toEqual(["Eu cuido disso", "Ver receita"]);
     expect(r.text).toContain("estimativa");
     expect(r.text).toContain("6 dias");
+    expect(renderNumbered(r)).toContain("*2* — Ver receita");
   });
   it("todo rótulo de botão cabe em 20 caracteres", () => {
     const r = renderTemplate("dose_choose", {
       familyId: "f",
       moreCount: 0,
-      options: [{ doseEventId: "d", patientName: "Maria", medicationName: "Sinvastatina 20mg comprimido", time: "08:00" }],
+      options: [{ doseEventId: "d", patientName: "Maria Aparecida", medicationName: "Sinvastatina 20mg comprimido", time: "08:00" }],
     });
     expect(r.buttons![0]!.label.length).toBeLessThanOrEqual(20);
   });
@@ -168,5 +283,13 @@ describe("templates pt-BR", () => {
     });
     expect(r.text).toContain("Resumo do dia");
     expect(r.text).toContain("Zypred");
+  });
+  it("todo template com botões tem versão numerada coerente com as mesmas opções", () => {
+    const withButtons = [reminder(), missed()];
+    for (const r of withButtons) {
+      const opts = numberedOptions(r.buttons);
+      const text = renderNumbered(r);
+      opts.forEach((b, i) => expect(text).toContain(`*${i + 1}* — ${b.label}`));
+    }
   });
 });

@@ -1,4 +1,5 @@
 import { ChannelError } from "./errors";
+import { degradeContent } from "./options";
 import type { ChannelAdapter, InboundMessage, MediaInput, OutboundButton, OutboundContent, SendResult } from "./types";
 
 export interface SentRecord {
@@ -12,6 +13,8 @@ export interface SentRecord {
 /** Canal em memória para testes e simulador: nada sai para a rede. */
 export class FakeChannel implements ChannelAdapter {
   readonly name = "fake";
+  /** Com `false` imita o Evolution Go: botões viram texto numerado. */
+  supportsButtons = true;
   sent: SentRecord[] = [];
   /** Simula o provedor fora do ar (erro retentável). */
   down = false;
@@ -35,13 +38,14 @@ export class FakeChannel implements ChannelAdapter {
     return this.record({ to, isGroup: false, text });
   }
   sendButtons(to: string, content: { text: string; buttons: OutboundButton[] }) {
-    return this.record({ to, isGroup: false, text: content.text, buttons: content.buttons });
+    const c = degradeContent(content, this.supportsButtons);
+    return this.record({ to, isGroup: false, text: c.text, ...(c.buttons ? { buttons: c.buttons } : {}) });
   }
   sendMedia(to: string, media: MediaInput) {
     return this.record({ to, isGroup: false, text: media.caption ?? "", media });
   }
   sendToGroup(groupId: string, content: OutboundContent) {
-    return this.record({ to: groupId, isGroup: true, ...content });
+    return this.record({ to: groupId, isGroup: true, ...degradeContent(content, this.supportsButtons) });
   }
 
   /** Aceita `InboundMessage[]` já normalizado (o simulador monta direto). */

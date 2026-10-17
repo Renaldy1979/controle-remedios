@@ -35,7 +35,7 @@ export function doseChoose(p: DoseChooseParams): Rendered {
   const more = p.moreCount > 0 ? `\nHá mais ${p.moreCount} depois dessas. Responda "tomei" de novo para ver.` : "";
   return {
     text: `${title("❓", "Qual dose você tomou?")}\n${lines}${more}`,
-    buttons: p.options.slice(0, 3).map((o) => replyButton("dose_taken", p.familyId, o.doseEventId, clip(`${o.medicationName} ${o.time}`))),
+    buttons: p.options.slice(0, 3).map((o) => replyButton("dose_taken", p.familyId, o.doseEventId, clip(`${o.patientName.split(" ")[0]} · ${o.medicationName}`))),
   };
 }
 

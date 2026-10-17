@@ -105,6 +105,7 @@ export class MemoryFamilyData implements FamilyData {
     if (options.orderBy) {
       const key = options.orderBy;
       const dir = options.order === "desc" ? -1 : 1;
+      if (dir === -1) rows = rows.reverse(); // empate: o mais novo (inserido depois) primeiro, como no banco real
       rows = rows.sort((a, b) => (String(a[key] ?? "") < String(b[key] ?? "") ? -dir : String(a[key] ?? "") > String(b[key] ?? "") ? dir : 0));
     }
     return rows.slice(0, options.limit ?? 100).map((r) => ({ ...r }));

@@ -1,4 +1,4 @@
-import { EvolutionAdapter, MetaCloudAdapter, type ChannelAdapter } from "@medcuidar/channels";
+import { createChannelFromEnv, type ChannelAdapter } from "@medcuidar/channels";
 import { FamilyScopedDb } from "@medcuidar/db";
 import { Client, Databases, ID } from "node-appwrite";
 import { AppwriteFamilyData, AppwriteGlobalData } from "./data/appwrite";
@@ -36,14 +36,6 @@ export interface RuntimeOverrides {
   channel?: ChannelAdapter;
 }
 
-/** Escolhe o canal por configuração: trocar Evolution por Meta não muda nenhuma regra. */
-export function createChannel(env: Env): ChannelAdapter {
-  const provider = env["CHANNEL_PROVIDER"] ?? "evolution";
-  if (provider === "meta-cloud") {
-    return new MetaCloudAdapter({ accessToken: need(env, "META_ACCESS_TOKEN"), phoneNumberId: need(env, "META_PHONE_NUMBER_ID") });
-  }
-  return new EvolutionAdapter({ baseUrl: need(env, "EVOLUTION_BASE_URL"), apiKey: need(env, "EVOLUTION_API_KEY"), instance: need(env, "EVOLUTION_INSTANCE") });
-}
 
 /** Monta as dependências reais a partir do ambiente. O domínio e a sessão do painel ficam para a Fase 3. */
 export function createRuntime(env: Env = process.env, overrides: RuntimeOverrides = {}): Runtime {
@@ -62,7 +54,7 @@ export function createRuntime(env: Env = process.env, overrides: RuntimeOverride
   };
   const global = new AppwriteGlobalData(databases, databaseId, () => ID.unique());
   const log = createLogger(consoleSink);
-  const channel = overrides.channel ?? createChannel(env);
+  const channel = overrides.channel ?? createChannelFromEnv(env);
   const monitor = new HttpMonitor({
     log,
     ...(env["HEARTBEAT_URL"] ? { heartbeatUrl: env["HEARTBEAT_URL"] } : {}),

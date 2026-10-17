@@ -21,6 +21,7 @@ const str = (v: unknown): string | undefined => (typeof v === "string" && v.leng
  */
 export class MetaCloudAdapter implements ChannelAdapter {
   readonly name = "meta-cloud";
+  readonly supportsButtons = true;
   private readonly doFetch: typeof fetch;
 
   constructor(private readonly cfg: MetaCloudConfig) {

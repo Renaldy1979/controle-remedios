@@ -28,15 +28,26 @@ describe("workflows N8N exportados", () => {
       }
       expect(wf.active).toBe(false);
       // Segredos só via $env; nada de chave literal.
-      expect(raw).not.toMatch(/AIza[0-9A-Za-z_-]{20,}|apikey"\s*:\s*"[^=]/i);
+      expect(raw).not.toMatch(/AIza[0-9A-Za-z_-]{20,}/);
     });
   }
 
-  it("a entrada assina o corpo e envia o mesmo texto assinado", () => {
-    const wf = JSON.parse(readFileSync(join(DIR, "whatsapp-entrada.json"), "utf8")) as { nodes: Array<{ name: string; parameters: Record<string, unknown> }> };
-    const sign = wf.nodes.find((n) => n.name === "Assinar corpo")!;
-    expect(String(sign.parameters["jsCode"])).toContain("createHmac('sha256'");
-    const call = wf.nodes.find((n) => n.name === "Chamar whatsapp-inbound")!;
-    expect(call.parameters["body"]).toBe("={{ $json.rawBody }}");
+  it("sem segredos no arquivo: nada de $env, credenciais por nome e marcadores TROQUE nos endereços", () => {
+    const names = new Set<string>();
+    for (const file of files) {
+      const raw = readFileSync(join(DIR, file), "utf8");
+      expect(raw).not.toContain("$env");
+      for (const m of raw.matchAll(/"name": "([^"]+)" }/g)) if (m[1] !== "medcuidar") names.add(m[1]!);
+    }
+    expect([...names].sort()).toEqual(["Gemini API Key", "MedCuidar Alertas", "MedCuidar Scheduler", "MedCuidar Webhook Secret", "SMTP MedCuidar"]);
+    const entrada = readFileSync(join(DIR, "whatsapp-entrada.json"), "utf8");
+    expect(entrada).toContain("TROQUE-ESTE-TOKEN");
+    expect(entrada).toContain("TROQUE-PELA-URL");
+    expect(entrada).toContain("evolution-go");
+  });
+
+  it("o README documenta todas as credenciais usadas", () => {
+    const readme = readFileSync(join(DIR, "README.md"), "utf8");
+    for (const n of ["Gemini API Key", "MedCuidar Alertas", "MedCuidar Scheduler", "MedCuidar Webhook Secret", "SMTP MedCuidar"]) expect(readme).toContain(n);
   });
 });

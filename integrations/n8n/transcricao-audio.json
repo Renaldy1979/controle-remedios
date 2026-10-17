@@ -2,85 +2,60 @@
   "name": "MedCuidar — Transcrição de áudio (Gemini)",
   "nodes": [
     {
-      "parameters": { "httpMethod": "POST", "path": "medcuidar-transcrever", "responseMode": "responseNode", "options": {} },
+      "parameters": { "httpMethod": "POST", "path": "medcuidar-transcrever", "authentication": "headerAuth", "responseMode": "lastNode", "options": {} },
       "id": "b2000000-0000-4000-8000-000000000001",
       "name": "Webhook transcrever",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [0, 0],
-      "webhookId": "medcuidar-transcrever"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
-          "conditions": [
-            {
-              "id": "c1",
-              "leftValue": "={{ $json.headers['x-medcuidar-secret'] }}",
-              "rightValue": "={{ $env.ALERTS_WEBHOOK_SECRET }}",
-              "operator": { "type": "string", "operation": "equals" }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "b2000000-0000-4000-8000-000000000002",
-      "name": "Segredo confere?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [220, 0]
+      "webhookId": "medcuidar-transcrever",
+      "credentials": { "httpHeaderAuth": { "id": "CONFIGURAR", "name": "MedCuidar Alertas" } }
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $env.GEMINI_MODEL || 'gemini-2.5-flash' }}:generateContent",
-        "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "x-goog-api-key", "value": "={{ $env.GEMINI_API_KEY }}" }] },
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { contents: [{ parts: [{ text: 'Transcreva fielmente este áudio em pt-BR. Responda só com a transcrição.' }, { inlineData: { mimeType: ($json.body.mimeType || 'audio/ogg').split(';')[0], data: $json.body.audioBase64 } }] }], generationConfig: { temperature: 0 } } }}",
         "options": { "timeout": 30000 }
       },
-      "id": "b2000000-0000-4000-8000-000000000003",
+      "id": "b2000000-0000-4000-8000-000000000002",
       "name": "Gemini",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, -80],
+      "position": [220, 0],
       "retryOnFail": true,
-      "maxTries": 2
+      "maxTries": 2,
+      "credentials": { "httpHeaderAuth": { "id": "CONFIGURAR", "name": "Gemini API Key" } }
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { text: ($json.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim() } }}",
-        "options": { "responseCode": 200 }
+        "assignments": {
+          "assignments": [
+            {
+              "id": "t1",
+              "name": "text",
+              "type": "string",
+              "value": "={{ ($json.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim() }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
       },
-      "id": "b2000000-0000-4000-8000-000000000004",
-      "name": "Responder texto",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [660, -80]
-    },
-    {
-      "parameters": { "respondWith": "json", "responseBody": "={{ { ok: false } }}", "options": { "responseCode": 401 } },
-      "id": "b2000000-0000-4000-8000-000000000005",
-      "name": "Responder 401",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [440, 120]
+      "id": "b2000000-0000-4000-8000-000000000003",
+      "name": "Só o texto",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [440, 0]
     }
   ],
   "connections": {
-    "Webhook transcrever": { "main": [[{ "node": "Segredo confere?", "type": "main", "index": 0 }]] },
-    "Segredo confere?": {
-      "main": [
-        [{ "node": "Gemini", "type": "main", "index": 0 }],
-        [{ "node": "Responder 401", "type": "main", "index": 0 }]
-      ]
-    },
-    "Gemini": { "main": [[{ "node": "Responder texto", "type": "main", "index": 0 }]] }
+    "Webhook transcrever": { "main": [[{ "node": "Gemini", "type": "main", "index": 0 }]] },
+    "Gemini": { "main": [[{ "node": "Só o texto", "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1", "saveDataSuccessExecution": "none" },
   "active": false,
