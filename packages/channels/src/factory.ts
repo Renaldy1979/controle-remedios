@@ -1,4 +1,5 @@
 import { EvolutionGoAdapter } from "./evolution-go";
+import { DEFAULT_FAKE_LOG, FakeChannel } from "./fake";
 import { MetaCloudAdapter } from "./meta-cloud";
 import type { ChannelAdapter } from "./types";
 
@@ -18,6 +19,13 @@ const truthy = (v: string | undefined) => ["1", "true", "sim", "yes"].includes((
  */
 export function createChannelFromEnv(env: Env): ChannelAdapter {
   const provider = env["CHANNEL_PROVIDER"] ?? "evolution-go";
+  if (provider === "fake") {
+    // Só para desenvolvimento e e2e: nada sai para a rede; os envios ficam em um arquivo.
+    if (env["NODE_ENV"] === "production") throw new Error("CHANNEL_PROVIDER=fake não é permitido em produção");
+    const channel = new FakeChannel(env["FAKE_CHANNEL_FILE"] ?? DEFAULT_FAKE_LOG);
+    channel.supportsButtons = truthy(env["SUPPORTS_BUTTONS"]);
+    return channel;
+  }
   if (provider === "meta-cloud") {
     return new MetaCloudAdapter({ accessToken: need(env, "META_ACCESS_TOKEN"), phoneNumberId: need(env, "META_PHONE_NUMBER_ID") });
   }

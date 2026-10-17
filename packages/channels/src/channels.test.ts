@@ -4,7 +4,10 @@ import { decodeButtonId, encodeButtonId } from "./buttons";
 import { ChannelError } from "./errors";
 import { EvolutionGoAdapter, extractDownloadedMedia, extractSentMessageId } from "./evolution-go";
 import { createChannelFromEnv } from "./factory";
-import { FakeChannel } from "./fake";
+import { rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { FakeChannel, lastLoginCode, readFakeChannelLog } from "./fake";
 import { degradeContent, numberedOptions, renderNumbered } from "./options";
 import { normalizePhone, phoneVariants } from "./phone";
 import { renderTemplate } from "./templates";
@@ -207,6 +210,23 @@ describe("fábrica por configuração", () => {
     expect([a.name, a.supportsButtons]).toEqual(["meta-cloud", true]);
     expect(() => createChannelFromEnv({ CHANNEL_PROVIDER: "outro" })).toThrow();
     expect(() => createChannelFromEnv({})).toThrow("EVOLUTION_BASE_URL");
+  });
+});
+
+describe("canal falso persistido (e2e)", () => {
+  it("grava os envios e devolve o último código de login por telefone", async () => {
+    const file = join(tmpdir(), `fake-channel-${process.pid}-${Date.now()}.jsonl`);
+    const ch = createChannelFromEnv({ CHANNEL_PROVIDER: "fake", FAKE_CHANNEL_FILE: file });
+    await ch.sendText("+5511999990001", renderTemplate("login_code", { code: "111111", minutes: 10 }).text);
+    await ch.sendText("+5511999990002", renderTemplate("login_code", { code: "222222", minutes: 10 }).text);
+    await ch.sendText("+5511999990001", renderTemplate("login_code", { code: "333333", minutes: 10 }).text);
+    expect(lastLoginCode("+5511999990001", readFakeChannelLog(file))).toBe("333333");
+    expect(lastLoginCode("+5511999990002", readFakeChannelLog(file))).toBe("222222");
+    expect(lastLoginCode("+5511900000000", readFakeChannelLog(file))).toBeNull();
+    rmSync(file);
+  });
+  it("não é permitido em produção", () => {
+    expect(() => createChannelFromEnv({ CHANNEL_PROVIDER: "fake", NODE_ENV: "production" })).toThrow();
   });
 });
 
