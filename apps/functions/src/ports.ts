@@ -16,6 +16,7 @@ export type Where = Record<string, Cond>;
 
 export interface FindOptions {
   limit?: number;
+  offset?: number;
   orderBy?: string;
   order?: "asc" | "desc";
 }
@@ -30,6 +31,7 @@ export interface FamilyData {
   getOrNull(collection: string, id: string): Promise<Row | null>;
   find(collection: string, where?: Where, options?: FindOptions): Promise<Row[]>;
   update(collection: string, id: string, data: Record<string, unknown>): Promise<Row>;
+  remove(collection: string, id: string): Promise<void>;
 }
 
 export interface FamilyInfo {
@@ -57,9 +59,9 @@ export interface ConfirmDoseInput {
   familyId: string;
   doseEventId: string;
   memberId: string;
-  channel: "whatsapp";
-  /** Id da mensagem do provedor. O domínio DEVE ser idempotente por este valor. */
-  sourceMessageId: string;
+  channel: "whatsapp" | "panel" | "system";
+  /** Id da mensagem do provedor (ausente no painel). O domínio DEVE ser idempotente por este valor. */
+  sourceMessageId?: string;
 }
 export interface ConfirmDoseResult {
   outcome: "confirmed" | "already_confirmed" | "already_taken" | "not_found" | "forbidden";
@@ -172,7 +174,7 @@ export interface RateLimiter {
 
 export interface AuthPort {
   /** Abre sessão do Appwrite Auth para o telefone já validado (token customizado). */
-  createSessionFor(phoneE164: string): Promise<{ token: string } | null>;
+  createSessionFor(phoneE164: string): Promise<{ token: string; userId: string; expire?: string } | null>;
 }
 
 export type LogFields = Record<string, string | number | boolean | null | undefined>;

@@ -33,16 +33,25 @@ export interface LoginDeps {
 export const hashCode = (phone: string, code: string, secret: string) =>
   createHmac("sha256", secret).update(`${phone}:${code}`).digest("hex");
 
-async function findMember(deps: LoginDeps, rawPhone: string): Promise<{ familyId: string; member: Row; phone: string } | null> {
+/** Todos os cadastros ativos com este telefone (um por família). */
+export async function findMembersByPhone(
+  deps: { global: Pick<GlobalData, "listFamilies">; dataFor: DataFactory },
+  rawPhone: string,
+): Promise<Array<{ familyId: string; member: Row; phone: string }>> {
   const normalized = normalizePhone(rawPhone);
-  if (!normalized) return null;
+  if (!normalized) return [];
   const variants = phoneVariants(normalized);
+  const out: Array<{ familyId: string; member: Row; phone: string }> = [];
   for (const family of await deps.global.listFamilies()) {
     const [member] = await deps.dataFor(family.id).find("members", { phone_e164: { in: variants }, active: true }, { limit: 1 });
     const phone = member ? sOpt(member, "phone_e164") : undefined;
-    if (member && phone) return { familyId: family.id, member, phone };
+    if (member && phone) out.push({ familyId: family.id, member, phone });
   }
-  return null;
+  return out;
+}
+
+async function findMember(deps: LoginDeps, rawPhone: string) {
+  return (await findMembersByPhone(deps, rawPhone))[0] ?? null;
 }
 
 /**
@@ -90,7 +99,8 @@ export async function requestLoginCode(deps: LoginDeps, rawPhone: string): Promi
   return { ok: true };
 }
 
-export type VerifyResult = { ok: true; token: string } | { ok: false };
+/** `userId` + `token` (secret) entram no `account.createSession({ userId, secret })` do Appwrite no painel. */
+export type VerifyResult = { ok: true; token: string; userId: string; expire?: string } | { ok: false };
 
 /** Valida o código. Falha sempre devolve o mesmo `{ ok: false }`. */
 export async function verifyLoginCode(deps: LoginDeps, rawPhone: string, code: string): Promise<VerifyResult> {
@@ -119,5 +129,5 @@ export async function verifyLoginCode(deps: LoginDeps, rawPhone: string, code: s
   }
   await deps.global.updateLoginCode(active.$id, { consumed_at: now.toISOString() }); // uso único
   const session = await deps.auth.createSessionFor(found.phone);
-  return session ? { ok: true, token: session.token } : { ok: false };
+  return session ? { ok: true, token: session.token, userId: session.userId, ...(session.expire ? { expire: session.expire } : {}) } : { ok: false };
 }

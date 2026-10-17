@@ -108,7 +108,11 @@ export class MemoryFamilyData implements FamilyData {
       if (dir === -1) rows = rows.reverse(); // empate: o mais novo (inserido depois) primeiro, como no banco real
       rows = rows.sort((a, b) => (String(a[key] ?? "") < String(b[key] ?? "") ? -dir : String(a[key] ?? "") > String(b[key] ?? "") ? dir : 0));
     }
-    return rows.slice(0, options.limit ?? 100).map((r) => ({ ...r }));
+    return rows.slice(options.offset ?? 0, (options.offset ?? 0) + (options.limit ?? 100)).map((r) => ({ ...r }));
+  }
+  async remove(collection: string, id: string) {
+    await this.get(collection, id);
+    this.store.table(collection).delete(id);
   }
   async update(collection: string, id: string, data: Record<string, unknown>) {
     if ("family_id" in data) throw new Error("family_id não pode ser alterado");

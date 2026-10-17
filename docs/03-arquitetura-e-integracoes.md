@@ -5,7 +5,7 @@
 Painel Next.js ──► Appwrite (Auth, DB, Storage, Functions)
                         ▲                │
                         │ API interna    │ eventos
-WhatsApp ◄► Evolution ◄► N8N ───────────┘
+WhatsApp ◄► Evolution Go ◄► N8N ───────────┘
                          ▲
               Agendador (Appwrite Function, a cada minuto)
 ```
@@ -16,8 +16,8 @@ WhatsApp ◄► Evolution ◄► N8N ───────────┘
 1. **Agendador** (Appwrite Function, cron 1 min): gera `dose_events` do dia (idempotente), enfileira lembretes e avisos em `notifications_outbox`, marca doses `late`/`missed`, abre reposições quando o estoque cruza o limite, avisa receitas que vencem.
 2. **Worker de saída**: lê `notifications_outbox` (`queued`), envia via adaptador de canal, faz retentativa com backoff, move para `dead` após N falhas e alerta o administrador. `dedupe_key` evita lembrete duplicado.
 3. **Webhook de entrada** (Function `whatsapp-inbound`): recebe do N8N a mensagem normalizada, identifica o membro pelo telefone, grava em `whatsapp_messages` (idempotente por `provider_message_id`), interpreta a intenção e chama o domínio.
-4. **Adaptador de canal** (`packages/channels`): interface `sendText, sendButtons, sendMedia, parseInbound`. Implementações: `evolution` (agora) e `meta-cloud` (depois). Trocar = configuração.
-5. **N8N**: workflows versionados em `integrations/n8n/*.json`: (a) Evolution webhook → normaliza → chama `whatsapp-inbound`; (b) transcrição de áudio; (c) alertas operacionais ao administrador.
+4. **Adaptador de canal** (`packages/channels`): interface `sendText, sendButtons, sendMedia, sendToGroup, parseInbound, fetchMedia` + `supportsButtons`. Implementações: `evolution-go` (agora; **não** é a Evolution API v2) e `meta-cloud` (depois). Trocar = configuração (`CHANNEL_PROVIDER`). Botões interativos são instáveis em conexões não oficiais: o padrão (`SUPPORTS_BUTTONS=false`) é texto com opções numeradas ("Responda 1 para Tomei"), gerado da mesma definição dos botões; a entrada entende "1/2", "ok", "tomei", "já tomou", ✅/👍 e áudio.
+5. **N8N**: workflows versionados em `integrations/n8n/*.json`: (a) webhook do Evolution Go → chama `whatsapp-inbound` (o N8N só repassa; a normalização é do adaptador); (b) transcrição de áudio; (c) alertas operacionais ao administrador.
 6. **Painel**: Next.js com Server Actions/route handlers que chamam o domínio; Appwrite SDK para auth e leitura.
 
 ## Fluxos críticos
@@ -56,14 +56,23 @@ O agendador monta às `daily_summary_time` o resumo (tomadas, esquecidas, estoqu
 ### Consultas
 Intenções: `stock_status`, `next_doses`, `dose_status(medication)`. Resposta filtrada pelas permissões do membro. Intenção desconhecida → mensagem de ajuda com exemplos.
 
+## Contratos implementados (apps/functions)
+
+- **Webhook `whatsapp-inbound`:** corpo `{provider, payload}` (payload = evento bruto do provedor) com o segredo compartilhado no cabeçalho `x-medcuidar-secret` ou assinatura `x-medcuidar-signature: sha256=<HMAC-SHA256 do corpo>`. Respostas: `200 {ok:true}` (também para telefone desconhecido, que é ignorado sem rastro), `401` segredo inválido, `500` para o N8N repetir (todo passo é idempotente).
+- **IDs de botão / opções:** `mc1:<ação>:<familyId>:<ref>` (ações: `dose_taken`, `dose_snooze`, `replenish_claim`, `rx_view`, `rx_download`, `rx_forward_pharmacy`). A resposta numerada "1/2" reconstrói as opções a partir da última mensagem enviada à pessoa (outbox) e, havendo mais de uma pergunta/dose possível, pergunta de novo com lista numerada.
+- **Fila:** `dedupe_key` gravado como `<familyId>:<chave>`; backoff 30 s × 2 até 30 min; `dead` após 8 tentativas ou erro definitivo (4xx); 3 falhas retentáveis seguidas = provedor fora do ar (interrompe o lote e alerta). Lembrete de dose já resolvida que ficou na fila é descartado (`dead` com `last_error` `obsolete:`). Código de login fica selado (AES-GCM) até o envio.
+- **Agendador (cron 1 min):** gera doses a cada 15 min (idempotente no domínio); estoque e receitas a cada 30 min e logo após cada dose confirmada; lembrete no horário, reenvio único após `reminder_retry_min` do primeiro envio, `late` após `late_after_min`, `missed` após `missed_after_min` (avisa a família); resumo diário na janela de 3 h após `daily_summary_time`, uma vez por dia (`summary:<família>:<data>`). Heartbeat por ping HTTP (`HEARTBEAT_URL`) e alertas operacionais por N8N → e-mail; só ids e contagens, nunca dado pessoal.
+- **Domínio:** o código chama as regras de `packages/domain` por `DomainPort` (`apps/functions/src/domain/binding.ts`), sobre `FamilyScopedDb`. Confirmação idempotente por `dose_event_id` e `source_message_id` (HTTP 409 do índice único = duplicado). Desfazer e refazer usam movimentos `adjustment` (`undo:/redo:<dose>`); o movimento original nunca é apagado.
+- **Painel:** `createServices(env)` (`@medcuidar/functions`) expõe, para uso server-side, login por código (`login.requestCode/verifyCode` → `userId`+`token` para `account.createSession`), `doses.confirm/undo`, `stock.adjust/registerPurchase/balance`, `replenishment.claim/advance` e `prescriptions.save/share/recordView`.
+
 ## Segurança e confiabilidade
 - Webhooks assinados (segredo compartilhado); rejeitar telefone não cadastrado sem revelar existência da família.
 - Rate limit por telefone. Segredos só em env.
 - Backups do Appwrite e do Storage diários; teste de restauração documentado.
 - Monitoramento: heartbeat do agendador (se parar, alerta); contagem de `failed/dead` no painel do administrador.
-- Ambientes: `dev` (Evolution de teste, número de teste) e `prod`. Nunca testar com o número real dos pacientes.
+- Ambientes: `dev` (Evolution Go de teste, número de teste) e `prod`. Nunca testar com o número real dos pacientes.
 
 ## Decisões abertas
 - Provedor de transcrição de áudio (Whisper vs Claude vs outro).
 - Retenção de `whatsapp_messages` (sugestão: 12 meses, corpo redigido).
-- Limites do plano Evolution/Meta quando virar SaaS.
+- Limites do plano Evolution Go/Meta quando virar SaaS.

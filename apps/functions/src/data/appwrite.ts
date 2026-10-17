@@ -25,6 +25,7 @@ export function whereToQueries(where: Where = {}, options: FindOptions = {}): st
   }
   if (options.orderBy) q.push(options.order === "desc" ? Query.orderDesc(options.orderBy) : Query.orderAsc(options.orderBy));
   q.push(Query.limit(options.limit ?? DEFAULT_LIMIT));
+  if (options.offset) q.push(Query.offset(options.offset));
   return q;
 }
 
@@ -57,6 +58,9 @@ export class AppwriteFamilyData implements FamilyData {
   }
   update(collection: string, id: string, data: Record<string, unknown>) {
     return this.db.update(collection, id, data) as Promise<Row>;
+  }
+  remove(collection: string, id: string) {
+    return this.db.remove(collection, id);
   }
 }
 

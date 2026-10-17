@@ -45,7 +45,7 @@ export class FakeTranscriber implements TranscriptionPort {
 
 export class FakeAuth implements AuthPort {
   async createSessionFor(phone: string) {
-    return { token: `token-para-${phone.length}` };
+    return { token: `token-para-${phone.length}`, userId: `user-${phone.length}` };
   }
 }
 
