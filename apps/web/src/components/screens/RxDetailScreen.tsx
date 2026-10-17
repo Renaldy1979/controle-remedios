@@ -43,10 +43,10 @@ function Detail({ id }: { id: string }) {
   const title = `Receita de ${rx.medNames.join(" e ")}`;
 
   const history: TimelineItem[] = [
-    ...(next ? [{ id: "next", icon: "swap_horiz", tone: "neu" as const, title: `Substituída pela receita de ${next.issuedOn}`, detail: <Link className="font-bold text-br underline" href={`/receitas/${next.id}`}>Abrir a receita nova</Link> }] : []),
+    ...(next ? [{ id: "next", icon: "swap_horiz", tone: "neu" as const, title: `Substituída pela receita de ${next.issuedOn}`, detail: <Link className="inline-flex min-h-touch items-center font-bold text-br underline" href={`/receitas/${next.id}`}>Abrir a receita nova</Link> }] : []),
     ...rx.shares.map((s, i) => ({ id: `s${i}`, icon: "share", tone: "br" as const, title: `Compartilhada com ${s.to}`, detail: `${s.who} · ${s.at} · ${s.channel}` })),
     { id: "att", icon: "description", tone: "ok", title: "Receita anexada", detail: `${rx.attachedBy} · ${rx.attachedAt}` },
-    ...(prev ? [{ id: "prev", icon: "history", tone: "neu" as const, title: `Substituiu a receita de ${prev.issuedOn}`, detail: <Link className="font-bold text-br underline" href={`/receitas/${prev.id}`}>Abrir a receita anterior</Link> }] : []),
+    ...(prev ? [{ id: "prev", icon: "history", tone: "neu" as const, title: `Substituiu a receita de ${prev.issuedOn}`, detail: <Link className="inline-flex min-h-touch items-center font-bold text-br underline" href={`/receitas/${prev.id}`}>Abrir a receita anterior</Link> }] : []),
   ];
 
   return (

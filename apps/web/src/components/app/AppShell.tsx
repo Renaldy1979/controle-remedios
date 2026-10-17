@@ -55,7 +55,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Menu lateral (desktop) */}
       <aside className="sticky top-0 hidden h-dvh flex-col gap-6 overflow-y-auto border-r border-bd bg-sf p-5 desk:flex">
-        <Link href="/" aria-label="MedCuidar, ir para o início" className="rounded-md">
+        <Link href="/" aria-label="MedCuidar, ir para o início" className="inline-flex min-h-touch items-center rounded-md">
           <Logo />
         </Link>
         <nav aria-label="Principal">
@@ -133,7 +133,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-col">
         {/* Header mobile 64px */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-bd bg-sf px-4 desk:hidden">
-          <Link href="/" aria-label="MedCuidar, ir para o início" className="rounded-md">
+          <Link href="/" aria-label="MedCuidar, ir para o início" className="inline-flex min-h-touch items-center rounded-md">
             <Logo />
           </Link>
           <div className="flex items-center">
