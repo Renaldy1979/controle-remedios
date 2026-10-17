@@ -59,6 +59,8 @@ export interface RawDose {
   by?: string;
   at?: string;
   channel?: "whatsapp" | "panel";
+  /** estado antes da confirmação, para o Desfazer */
+  before?: RawDose | null;
 }
 
 export const INITIAL_DOSES: Record<string, RawDose> = {

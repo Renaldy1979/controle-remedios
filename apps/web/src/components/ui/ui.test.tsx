@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { axe } from "vitest-axe";
+import { axe } from "@/test/axe";
 import { useState } from "react";
 import { Button, IconButton } from "./Button";
 import { SelectChip, StatusChip } from "./Chip";
@@ -37,7 +37,7 @@ describe("Campos", () => {
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByRole("alert")).toHaveTextContent("Use dd/mm/aaaa");
     expect(input.getAttribute("aria-describedby")).toBe(screen.getByRole("alert").id);
-    expect(await axe(document.body, { rules: { "color-contrast": { enabled: false } } })).toHaveNoViolations();
+    expect(await axe(document.body)).toHaveNoViolations();
   });
 
   it("opcional aparece no rótulo", () => {

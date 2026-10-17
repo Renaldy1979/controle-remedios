@@ -453,7 +453,7 @@ export class MockDataSource implements DataSource {
       const m = this.member();
       this.set((r) => ({
         ...r,
-        doses: { ...r.doses, [id]: { status: "taken", by: m.name, at: fmtTime(NOW), channel: "panel" } },
+        doses: { ...r.doses, [id]: { status: "taken", by: m.name, at: fmtTime(NOW), channel: "panel", before: r.doses[id]?.status === "taken" ? r.doses[id]!.before : (r.doses[id] ?? null) } },
         moves: [...r.moves.filter((x) => x.ref !== id), { id: `dose-${id}`, medId, delta: -(r.medPatch[medId]?.perDose ?? med.perDose), type: "dose", ref: id }],
         interactions: [{ time: fmtTime(NOW), icon: "check_circle", tone: "ok", text: `${m.name} confirmou pelo painel`, sub: `${r.medPatch[medId]?.name ?? med.name} · ${id.split("-")[1]}` }, ...r.interactions],
       }));
@@ -461,7 +461,9 @@ export class MockDataSource implements DataSource {
     undoDose: (id) =>
       this.set((r) => {
         const rest = { ...r.doses };
-        delete rest[id];
+        const before = rest[id]?.before;
+        if (before) rest[id] = before;
+        else delete rest[id];
         return { ...r, doses: rest, moves: r.moves.filter((x) => x.ref !== id), interactions: r.interactions.slice(1) };
       }),
     snoozeDose: (id, minutes) =>
