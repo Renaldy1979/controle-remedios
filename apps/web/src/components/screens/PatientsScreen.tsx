@@ -163,7 +163,9 @@ function MedicationBlock({ med, doses }: { med: MedicationVM; doses: DoseVM[] })
             <Icon name={lvl.icon} size={16} />
             {lvl.label}
           </span>
-          <span>{med.stock.quantityText}</span>
+          <span data-testid="stock-quantity" data-quantity={med.stock.quantity}>
+            {med.stock.quantityText}
+          </span>
           {med.stock.approximate ? <span className="inline-flex items-center gap-1"><Icon name="info" size={16} className="text-br" />Estimativa</span> : null}
         </p>
       </div>

@@ -2,7 +2,7 @@ import { beforeAll } from "vitest";
 import { signFileUrl, verifyFileSignature } from "./files";
 
 beforeAll(() => {
-  process.env["SESSION_SECRET"] = "segredo-de-teste-com-mais-de-16-caracteres";
+  process.env["LOGIN_CODE_SECRET"] = "segredo-de-teste-com-mais-de-16-caracteres";
 });
 
 const parse = (url: string) => {

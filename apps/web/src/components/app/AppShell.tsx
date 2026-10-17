@@ -111,6 +111,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           </section>
         ) : null}
         <div className="mt-auto flex flex-col gap-3 border-t border-bd pt-4">
+          {kind === "appwrite" && snap.family.canSwitch ? (
+            <Link href="/familia" className="flex min-h-touch items-center gap-2 rounded-md px-3 text-ink2 hover:bg-sf2">
+              <Icon name="swap_horiz" size={22} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-bold">{snap.family.name}</span>
+                <span className="block text-cap">Trocar de família</span>
+              </span>
+            </Link>
+          ) : null}
           <div className="flex items-center gap-3">
             <Avatar name={member.name} role="admin" size={40} />
             <div className="min-w-0 flex-1">

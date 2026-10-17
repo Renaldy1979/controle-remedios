@@ -431,6 +431,7 @@ export class MockDataSource implements DataSource {
       todayLabel,
       todayDate: fmtDate(NOW),
       member,
+      family: { name: "Família Souza (demo)", canSwitch: false },
       patients: PATIENTS.map((p) => ({ ...p })),
       people,
       medications,

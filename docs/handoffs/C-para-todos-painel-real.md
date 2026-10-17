@@ -20,21 +20,27 @@ Lidas do `.env` da raiz (`next.config.ts` carrega, sem sobrescrever o que já ex
 |---|---|
 | `DATA_SOURCE` | `appwrite` ou `mock` (padrão `mock`) |
 | `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_DATABASE_ID`, `APPWRITE_API_KEY` | acesso ao Appwrite (chave de API só no servidor) |
-| `SESSION_SECRET` | assina o cookie de sessão (reserva: `LOGIN_CODE_SECRET`). Mínimo 16 caracteres |
-| `LOGIN_CODE_SECRET` | segredo do código de login (usado pelas Functions de D) |
+| `LOGIN_CODE_SECRET` | segredo do código de login (D) e das URLs curtas de arquivo de receita. Mínimo 16 caracteres |
 | `APPWRITE_PRESCRIPTIONS_BUCKET_ID` | bucket das receitas (padrão `prescriptions`; o painel cria se não existir) |
 | `E2E_TEST_MODE=1` | só teste: canal falso em memória + rotas `/api/test/*`. **Recusado com `APP_ENV=production`** |
 
-**Pendência para o orquestrador/A:** `.env.example` ainda não lista `DATA_SOURCE`, `SESSION_SECRET`, `E2E_TEST_MODE` e `APP_ENV` (arquivo fora da pasta do painel).
+**Pendência para o orquestrador/A:** `.env.example` ainda não lista `DATA_SOURCE`, `E2E_TEST_MODE` e `APP_ENV` (arquivo fora da pasta do painel).
 
 ## Autenticação e permissões
 
-- Login por código de 6 dígitos usa `requestLoginCode`/`verifyLoginCode` de `@medcuidar/functions` (D) via `createServices`.
-- **Desvio de "sessão Appwrite":** os membros entram só por WhatsApp e não têm usuário no Appwrite Auth (`members.user_id` vazio). A sessão é um **cookie httpOnly assinado** (HMAC-SHA256, 30 dias, `SameSite=Lax`) com `familyId` + `memberId`. Ele só diz *quem* é: a cada requisição o servidor relê o membro (precisa estar `active`), o perfil e as permissões no banco. Revogar vale na hora.
-- `familyId` vem **sempre** da sessão, nunca de parâmetro do cliente. Todo acesso a dados passa por `FamilyScopedDb`.
-- `middleware.ts` manda para `/login` sem sessão válida (e responde 401 em `/api/*`). A autorização fina é refeita no servidor.
+Sessão do **Appwrite Auth**, como em docs/02 (`members.user_id`) e docs/03:
+
+1. **Pedir o código:** `requestLoginCode` (D). A resposta é sempre igual, exista o número ou não.
+2. **Verificar:** `verifyLoginCode` → `AuthPort.createSessionFor` real de `@medcuidar/functions` (`AppwriteAuth`): cria/associa o usuário do Appwrite pelo telefone, grava `members.user_id` em todos os cadastros daquele telefone e emite `Users.createToken`.
+3. **Sessão:** o painel troca `userId` + token por uma sessão (`Account.createSession`) e guarda o **segredo da sessão** em cookie `mc_session` (httpOnly, `SameSite=Lax`, `Secure` em produção, 30 dias). Nenhum token próprio nem `SESSION_SECRET`.
+4. **Cada requisição** (`getAccess`, em layout, Server Actions e rotas): valida a sessão no Appwrite (cliente com `setSession` + `Account.get`), obtém o `userId`, acha os cadastros de membro por `user_id` (índice `by_user`; precisam estar `active`) e relê perfil e permissões no banco. O `familyId` vem só do membro, nunca do cliente.
+5. **Qual família?** Se o usuário tem cadastro ativo em mais de uma família, depois do código vai para `/familia` (lista só as famílias dele). A escolha fica no cookie `mc_family`, que só vale se for uma das famílias da pessoa (conferido a cada requisição). "Trocar de família" fica no menu lateral.
+6. **Revogar na hora:** remover uma pessoa ou trocar o telefone dela chama `Users.deleteSessions`; trocar o telefone também solta o `user_id` (o próximo login cria o vínculo certo). **Sair** = `Account.deleteSession('current')`.
+7. `middleware.ts` só olha se existe o cookie (Edge) e manda para `/login` ou responde 401 em `/api/*`; a validade real é checada no Appwrite a cada requisição, e sessão revogada cai no `/login`.
+
 - **Recusa no servidor:** toda Server Action (`src/server/actions.ts`) valida a entrada com zod e chama `requirePermission(ctx, …)` antes de tocar em dados (teste: `mutations.test.ts`). O retrato enviado ao navegador (`snapshot.ts`) já vem sem o que o perfil não pode ver: sem receitas, histórico, estoque, telefones, matriz de perfis ou configurações de avisos.
 - Só um Administrador cria/edita/remove outro Administrador; não dá para remover a si mesmo nem o último Administrador.
+- Efeito colateral do primeiro login: o Appwrite ganha um usuário por telefone (na família demo, usuários com telefones fictícios).
 
 ## Dados, receitas e arquivos
 
@@ -54,4 +60,4 @@ Lidas do `.env` da raiz (`next.config.ts` carrega, sem sobrescrever o que já ex
 ## Testes
 
 - Unidade/componente: `pnpm --filter @medcuidar/web test` (axe nas telas diárias, contraste dos tokens, retrato com permissões, recusa por permissão, token de sessão, URL assinada).
-- e2e (Playwright, Edge): login com código lido do canal falso, código errado, confirmar dose reduz o estoque e Desfazer devolve, Confirmador não vê receitas (e a API de arquivos recusa), anexar receita em 3 passos → ver → excluir. Roda contra `demo-familia-souza` **no Appwrite configurado** (hoje o de produção, ver nota de A): cria e apaga receitas de teste e deixa movimentos de estoque de ida e volta (confirmar+desfazer) no livro-razão. Limite real de código de login: 1 por minuto e 10 por hora por telefone; cada telefone pede 1 código por execução.
+- e2e (Playwright, Edge): login com código lido do canal falso, código errado, confirmar dose reduz o estoque e Desfazer devolve, Confirmador não vê receitas (e a API de arquivos recusa), anexar receita em 3 passos → ver → excluir. Inclui "Sair apaga a sessão no Appwrite" (o cookie antigo devolvido não abre o painel). Roda contra `demo-familia-souza` **no Appwrite configurado** (hoje o de produção, ver nota de A): cria e apaga receitas de teste e deixa movimentos de estoque de ida e volta (confirmar+desfazer) no livro-razão. Limite real de código de login: 1 por minuto e 10 por hora por telefone; cada telefone pede 1 código por execução.

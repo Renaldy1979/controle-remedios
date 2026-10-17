@@ -54,7 +54,7 @@ function loaded(): Loaded {
 const ctxFor = (memberId: "m-ana" | "m-joao"): Ctx => {
   const m = loaded().members.find((x) => x.$id === memberId)!;
   const p = SYSTEM_PROFILES.find((x) => `prof-${x.name}` === String(m["profile_id"]))!;
-  return { familyId: FAM, db: {} as Ctx["db"], member: { id: memberId, name: String(m["name"]), profileName: p.name, permissions: p.permissions }, timezone: "America/Sao_Paulo", settings: familySettingsSchema.parse({}) };
+  return { familyId: FAM, familyName: "Família", canSwitchFamily: false, userId: "u-1", db: {} as Ctx["db"], member: { id: memberId, name: String(m["name"]), profileName: p.name, permissions: p.permissions }, timezone: "America/Sao_Paulo", settings: familySettingsSchema.parse({}) };
 };
 
 describe("mapSnapshot (administrador)", () => {

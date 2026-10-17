@@ -21,6 +21,19 @@ test("login com código lido do canal falso abre o início da família", async (
   await expect(page.getByRole("link", { name: "Receitas" }).first()).toBeVisible();
 });
 
+test("Sair apaga a sessão no Appwrite (o cookie antigo não volta a valer)", async ({ page, context }) => {
+  await login(page, PHONE.claudia);
+  const old = (await context.cookies()).find((c) => c.name === "mc_session");
+  expect(old?.httpOnly).toBe(true);
+  await page.getByRole("button", { name: "Sair" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  // devolve o cookie antigo: se a sessão ainda existisse no Appwrite, o painel abriria
+  await context.addCookies([old!]);
+  await open(page, "/");
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByLabel("Celular com DDD")).toBeVisible();
+});
+
 test("código errado não entra", async ({ page }) => {
   await open(page, "/login");
   await page.getByLabel("Celular com DDD").fill(PHONE.lucas);
@@ -40,14 +53,14 @@ test("confirmar dose reduz o estoque e Desfazer devolve", async ({ page }) => {
   const card = page.locator("article[aria-label]").filter({ has: page.getByRole("button", { name: /Confirmar dose|Registrar que tomou depois/ }) }).first();
   await expect(card).toBeVisible();
   const label = (await card.getAttribute("aria-label"))!; // "Med, Paciente, 08:00, Estado"
-  const med = label.split(", ")[0]!;
+  const [med, patient] = label.split(", ") as [string, string];
 
   const stockOf = async () => {
     await page.getByRole("link", { name: "Pacientes" }).first().click();
+    await page.getByRole("tab", { name: new RegExp(patient) }).click();
     const art = page.locator("article").filter({ has: page.getByRole("heading", { name: med }) }).first();
     await expect(art).toBeVisible();
-    const m = (await art.innerText()).match(/(\d+(?:[.,]\d+)?)\s*(?:comprimidos|gotas|g|ml|unidades|cápsulas)/);
-    return Number((m?.[1] ?? "NaN").replace(",", "."));
+    return Number(await art.getByTestId("stock-quantity").getAttribute("data-quantity"));
   };
   const before = await stockOf();
   await page.getByRole("link", { name: "Início" }).first().click();

@@ -8,7 +8,7 @@ const untouchableDb = new Proxy({}, { get: () => () => { throw new Error("o banc
 
 const ctxOf = (profile: string): Ctx => {
   const p = SYSTEM_PROFILES.find((x) => x.name === profile)!;
-  return { familyId: "fam-t", db: untouchableDb, member: { id: "m-1", name: "Teste", profileName: p.name, permissions: p.permissions }, timezone: "America/Sao_Paulo", settings: familySettingsSchema.parse({}) };
+  return { familyId: "fam-t", familyName: "Família", canSwitchFamily: false, userId: "u-1", db: untouchableDb, member: { id: "m-1", name: "Teste", profileName: p.name, permissions: p.permissions }, timezone: "America/Sao_Paulo", settings: familySettingsSchema.parse({}) };
 };
 
 const draft: AttachDraft = { patientId: "p1", date: "16/10/2026", doctor: "", specialty: "", medicationIds: ["m1"], validity: "30", notes: "", pages: 1 };
@@ -63,5 +63,89 @@ describe("validações antes de tocar no banco", () => {
     expect(m.parseBrDate("31/02/2026")).toBeNull();
     expect(m.parseBrDate("2026-10-16")).toBeNull();
     expect(m.parseBrDate("1/1/2026")).toBeNull();
+  });
+});
+
+// ───────── sessões do Appwrite são derrubadas ao remover pessoa ou trocar telefone ─────────
+import { beforeEach, vi } from "vitest";
+import * as session from "./session";
+
+vi.mock("./session", () => ({ revokeUserSessions: vi.fn(async () => undefined) }));
+
+type Doc = Record<string, unknown> & { $id: string };
+function fakeDb(seed: Record<string, Doc[]>) {
+  const data: Record<string, Doc[]> = JSON.parse(JSON.stringify(seed));
+  const find = (c: string, id: string) => {
+    const d = data[c]?.find((x) => x.$id === id);
+    if (!d) throw Object.assign(new Error("not found"), { code: 404 });
+    return d;
+  };
+  return {
+    data,
+    get: async (c: string, id: string) => find(c, id),
+    list: async (c: string, queries: string[] = []) => {
+      // entende só `equal`, que é o que as mutações usam para filtrar
+      const filters = queries.map((q) => JSON.parse(q) as { method: string; attribute?: string; values?: unknown[] }).filter((q) => q.method === "equal" && q.attribute);
+      const documents = (data[c] ?? []).filter((d) => filters.every((f) => (f.values ?? []).includes(d[f.attribute!])));
+      return { documents, total: documents.length };
+    },
+    create: async (c: string, d: Record<string, unknown>) => {
+      const doc = { $id: `n${(data[c] ?? []).length + 1}`, ...d };
+      (data[c] ??= []).push(doc);
+      return doc;
+    },
+    update: async (c: string, id: string, d: Record<string, unknown>) => Object.assign(find(c, id), d),
+    remove: async (c: string, id: string) => {
+      data[c] = (data[c] ?? []).filter((x) => x.$id !== id);
+    },
+  };
+}
+
+const world = () =>
+  fakeDb({
+    profiles: [
+      { $id: "prof-adm", name: "Administrador", permissions: "{}" },
+      { $id: "prof-fam", name: "Familiar", permissions: "{}" },
+    ],
+    members: [
+      { $id: "m-ana", name: "Ana", phone_e164: "+5511900000001", profile_id: "prof-adm", active: true, user_id: "u-ana" },
+      { $id: "m-bia", name: "Beatriz", phone_e164: "+5511900000002", profile_id: "prof-fam", active: true, user_id: "u-bia" },
+    ],
+    care_assignments: [],
+    audit_log: [],
+  });
+
+const adminCtx = (db: ReturnType<typeof fakeDb>): Ctx => ({ ...ctxOf("Administrador"), member: { id: "m-ana", name: "Ana", profileName: "Administrador", permissions: {} }, db: db as unknown as Ctx["db"] });
+
+describe("revogar sessões do Appwrite", () => {
+  const revoke = vi.mocked(session.revokeUserSessions);
+  beforeEach(() => revoke.mockClear());
+
+  it("remover uma pessoa derruba as sessões dela e a desativa", async () => {
+    const db = world();
+    await m.removeMember(adminCtx(db), "m-bia");
+    expect(revoke).toHaveBeenCalledWith("u-bia");
+    expect(db.data["members"]!.find((x) => x.$id === "m-bia")!["active"]).toBe(false);
+  });
+
+  it("não remove a si mesmo nem o último Administrador", async () => {
+    const db = world();
+    await expect(m.removeMember(adminCtx(db), "m-ana")).rejects.toThrow(/si mesmo/);
+    expect(revoke).not.toHaveBeenCalled();
+  });
+
+  it("trocar o telefone derruba as sessões antigas e solta o vínculo com o usuário", async () => {
+    const db = world();
+    await m.updateMember(adminCtx(db), "m-bia", { name: "Beatriz", phone: "11 91234-5678", profileName: "Familiar", relation: "filha" });
+    expect(revoke).toHaveBeenCalledWith("u-bia");
+    const bia = db.data["members"]!.find((x) => x.$id === "m-bia")!;
+    expect(bia["phone_e164"]).toBe("+5511912345678");
+    expect(bia["user_id"]).toBeNull();
+  });
+
+  it("editar sem trocar o telefone não derruba ninguém", async () => {
+    const db = world();
+    await m.updateMember(adminCtx(db), "m-bia", { name: "Bia", phone: "(11) 90000-0002", profileName: "Familiar", relation: "filha" });
+    expect(revoke).not.toHaveBeenCalled();
   });
 });

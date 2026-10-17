@@ -640,6 +640,7 @@ export function mapSnapshot(ctx: Ctx, L: Loaded, now: Date): Snapshot {
     todayLabel,
     todayDate: ddmmyyyy(today),
     member: ctx.member,
+    family: { name: ctx.familyName, canSwitch: ctx.canSwitchFamily },
     patients: patientsVM,
     people,
     medications: medsVM,

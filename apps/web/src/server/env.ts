@@ -21,11 +21,11 @@ export const appwriteEnv = () => ({
   apiKey: need("APPWRITE_API_KEY"),
 });
 
-/** Segredo do cookie de sessão: SESSION_SECRET, ou LOGIN_CODE_SECRET derivado como reserva. */
-export const sessionSecret = (): string => {
-  const s = process.env["SESSION_SECRET"] ?? process.env["LOGIN_CODE_SECRET"];
-  if (!s || s.length < 16) throw new Error("Defina SESSION_SECRET (ou LOGIN_CODE_SECRET) com pelo menos 16 caracteres");
-  return `session:${s}`;
+/** Segredo para assinar as URLs curtas dos arquivos de receita (derivado do segredo do servidor; a sessão é do Appwrite). */
+export const fileUrlSecret = (): string => {
+  const s = process.env["LOGIN_CODE_SECRET"];
+  if (!s || s.length < 16) throw new Error("Defina LOGIN_CODE_SECRET com pelo menos 16 caracteres");
+  return `file-url:${s}`;
 };
 
 /** Modo de teste (e2e): canal falso em memória e rota que devolve o último código de login. Recusado se APP_ENV=production. */

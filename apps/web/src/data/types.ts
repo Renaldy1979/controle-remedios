@@ -257,6 +257,7 @@ export interface Snapshot {
   /** dd/mm/aaaa */
   todayDate: string;
   member: Member;
+  family: { name: string; canSwitch: boolean };
   patients: PatientVM[];
   people: PersonVM[];
   medications: MedicationVM[];

@@ -9,6 +9,7 @@ import { clients } from "./clients";
 import { type Ctx, requirePermission } from "./context";
 import { audit, listAll, num, str, strList, type R } from "./data";
 import { PRESCRIPTION_BUCKET } from "./env";
+import { revokeUserSessions } from "./session";
 import { services } from "./services";
 import { addDaysYmd } from "./snapshot";
 
@@ -506,7 +507,18 @@ export async function updateMember(ctx: Ctx, id: string, input: MemberInput): Pr
   }
   const clash = (await listAll(ctx.db, "members", [Query.equal("phone_e164", phone)])).find((m) => m.$id !== id);
   if (clash) throw new UserError("Já existe outra pessoa com este telefone.");
-  await ctx.db.update("members", id, { name: input.name.trim().slice(0, 80), phone_e164: phone, profile_id: profile.$id, role_label: input.relation.trim().slice(0, 60) });
+  const phoneChanged = str(target as unknown as R, "phone_e164") !== phone;
+  const oldUserId = str(target as unknown as R, "user_id"); // antes do update (o objeto pode ser o mesmo)
+  await ctx.db.update("members", id, {
+    name: input.name.trim().slice(0, 80),
+    phone_e164: phone,
+    profile_id: profile.$id,
+    role_label: input.relation.trim().slice(0, 60),
+    // telefone novo = outra pessoa/aparelho: solta o usuário do Appwrite (o próximo login cria o vínculo certo)
+    ...(phoneChanged ? { user_id: null } : {}),
+  });
+  // trocar telefone derruba as sessões abertas com o telefone antigo, na hora
+  if (phoneChanged) await revokeUserSessions(oldUserId);
   await audit(ctx.db, ctx.member.id, "member.updated", "member", id, {});
 }
 
@@ -522,6 +534,9 @@ export async function removeMember(ctx: Ctx, id: string): Promise<void> {
   }
   // remove da escala e desativa (histórico e auditoria continuam apontando para a pessoa)
   for (const a of await listAll(ctx.db, "care_assignments", [Query.equal("member_id", id)])) await ctx.db.remove("care_assignments", a.$id);
+  const userId = str(target as unknown as R, "user_id");
   await ctx.db.update("members", id, { active: false });
+  // remover derruba as sessões da pessoa no Appwrite: o acesso acaba na hora, não só na próxima releitura
+  await revokeUserSessions(userId);
   await audit(ctx.db, ctx.member.id, "member.removed", "member", id, {});
 }
