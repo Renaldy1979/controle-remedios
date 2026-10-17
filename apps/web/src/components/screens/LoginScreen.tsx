@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
+import { requestCodeAction, verifyCodeAction } from "@/server/auth-actions";
 
 /**
  * Login por código de 6 dígitos enviado no WhatsApp (docs/01 RF0).
- * Fase 2: simulado. A resposta é a mesma para número cadastrado ou não (RF0.2).
- * Código "000000" mostra o estado de erro; qualquer outro código de 6 dígitos entra.
+ * Origem real (DATA_SOURCE=appwrite): códigos pelo servidor. Origem mock: simulado ("000000" mostra o erro).
+ * A resposta é a mesma para número cadastrado ou não (RF0.2).
  */
-export function LoginScreen() {
+export function LoginScreen({ real = false }: { real?: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const [step, setStep] = useState<"phone" | "code">("phone");
@@ -35,19 +36,35 @@ export function LoginScreen() {
     }
     setErr("");
     setBusy(true);
-    setTimeout(() => {
+    const go = () => {
       setBusy(false);
       setStep("code");
       setWait(30);
-    }, 500);
+    };
+    if (!real) return void setTimeout(go, 500);
+    // resposta igual para número cadastrado ou não (RF0.2)
+    requestCodeAction(phone).then(go, () => {
+      setBusy(false);
+      setErr("Sem conexão. Tente de novo.");
+    });
   };
 
   const verify = () => {
     if (!/^\d{6}$/.test(code)) return setErr("O código tem 6 números.");
-    if (code === "000000") return setErr("Esse código não confere. Confira a mensagem no WhatsApp ou peça um novo.");
     setErr("");
     setBusy(true);
-    setTimeout(() => router.push("/"), 400);
+    const wrong = () => {
+      setBusy(false);
+      setErr("Esse código não confere ou venceu. Confira a mensagem no WhatsApp ou peça um novo.");
+    };
+    if (!real) return void setTimeout(() => (code === "000000" ? wrong() : router.push("/")), 400);
+    verifyCodeAction(phone, code).then(
+      (r) => (r.ok ? window.location.assign("/") : wrong()),
+      () => {
+        setBusy(false);
+        setErr("Sem conexão. Tente de novo.");
+      },
+    );
   };
 
   return (
@@ -106,7 +123,8 @@ export function LoginScreen() {
                 icon="refresh"
                 onClick={() => {
                   setWait(30);
-                  toast({ icon: "chat", message: "Enviamos um novo código" });
+                  if (real) void requestCodeAction(phone);
+                  toast({ icon: "chat", message: "Se o número estiver cadastrado, enviamos um novo código" });
                 }}
               >
                 {wait > 0 ? `Reenviar código em ${wait} s` : "Reenviar código"}

@@ -172,6 +172,7 @@ function stockOf(m: RawMed, qty: number, perDose: number): StockVM {
 }
 
 export class MockDataSource implements DataSource {
+  readonly kind = "mock" as const;
   private raw: Raw = initialRaw();
   private snap: Snapshot | null = null;
   private listeners = new Set<() => void>();
@@ -263,6 +264,7 @@ export class MockDataSource implements DataSource {
         assumeLabel: raw.owner && !mine ? "Assumir no lugar" : "Eu cuido disso",
         advanceLabel: done ? "" : raw.step === 1 && link.kind !== "ok" && link.kind !== "soon" ? "Anexar receita recebida" : "Marcar como feito",
         needsAttach: !done && raw.step === 1 && link.kind !== "ok" && link.kind !== "soon",
+        needsQuantity: !done && raw.step === 2,
         log: raw.log.slice().reverse().map((l) => ({ text: l.text, sub: `${who(l.who)} · ${l.at} · ${STEPS[l.step]![0]}` })),
         mine,
       };
@@ -478,7 +480,7 @@ export class MockDataSource implements DataSource {
         return this.addEvent({ kind: "replenishment", icon: "front_hand", tone: "br", medIds: [medId], patientId: MEDS.find((x) => x.id === medId)!.patientId, label: "Assumiu a reposição", detail: `${m.name} ${verb}` }, { ...r, repl: { ...r.repl, [medId]: next } });
       });
     },
-    advanceReplenishment: (medId) => {
+    advanceReplenishment: (medId, opts) => {
       const m = this.member();
       this.set((r) => {
         const med = MEDS.find((x) => x.id === medId)!;
@@ -486,7 +488,7 @@ export class MockDataSource implements DataSource {
         if (cur.step >= 4) return r;
         const label = STEPS[cur.step]![0];
         const next: RawRepl = { step: cur.step + 1, owner: null, since: null, log: [...cur.log, { step: cur.step, who: m.name, at: nowStamp(), text: `Concluiu: ${label.toLowerCase()}` }] };
-        const add = cur.step === 3 ? ({ zyp: 100, lac: 250 } as Record<string, number>)[medId] ?? 30 : 0;
+        const add = cur.step === 3 ? (opts?.quantity ?? ({ zyp: 100, lac: 250 } as Record<string, number>)[medId] ?? 30) : 0;
         const moves: Move[] = add ? [...r.moves, { id: `buy-${++this.seq}`, medId, delta: add, type: "purchase" }] : r.moves;
         return this.addEvent({ kind: "replenishment", icon: next.step === 4 ? "task_alt" : "checklist", tone: next.step === 4 ? "ok" : "br", medIds: [medId], patientId: med.patientId, label: next.step === 4 ? "Reposição concluída" : "Etapa de reposição concluída", detail: label }, { ...r, repl: { ...r.repl, [medId]: next }, moves });
       });
@@ -503,7 +505,7 @@ export class MockDataSource implements DataSource {
       const id = `rx-${Date.now()}-${++this.seq}`;
       this.set((r) => {
         const replaced = r.rx.filter((x) => !r.rxDeleted[x.id] && !x.next && x.patientId === d.patientId && (x.id === d.replacesId || (x.meds.some((k) => d.medicationIds.includes(k)) && ["expired", "awaiting_new"].includes(rxStatus(x, (i) => r.rx.find((y) => y.id === i), r.rxDeleted).kind))));
-        const nr: RawRx = { id, patientId: d.patientId, doctor: d.doctor.trim(), specialty: d.specialty.trim(), issued: off, validity, meds: d.medicationIds, pages: Math.max(1, d.pages), by: m.name, at: `${fmtDate(NOW)} · ${fmtTime(NOW)}`, notes: d.notes.trim(), prev: replaced[0]?.id, views: [], shares: [] };
+        const nr: RawRx = { id, patientId: d.patientId, doctor: d.doctor.trim(), specialty: d.specialty.trim(), issued: off, validity, meds: d.medicationIds, pages: Math.max(1, d.pages), by: m.name, at: `${fmtDate(NOW)} · ${fmtTime(NOW)}`, notes: d.notes.trim(), prev: replaced[0]?.id, views: [], shares: [], ...(d.controlled ? { copies: d.copies ?? 1 } : {}) };
         const repl = { ...r.repl };
         for (const mid of d.medicationIds) {
           const cur = repl[mid];
@@ -516,6 +518,7 @@ export class MockDataSource implements DataSource {
       });
       return id;
     },
+    recordRxView: () => {},
     deleteRx: (id) => this.set((r) => ({ ...r, rxDeleted: { ...r.rxDeleted, [id]: true } })),
     restoreRx: (id) =>
       this.set((r) => {
@@ -528,7 +531,8 @@ export class MockDataSource implements DataSource {
         const x = r.rx.find((y) => y.id === id)!;
         return this.addEvent({ kind: "prescription", icon: "swap_horiz", tone: "br", medIds: x.meds, patientId: x.patientId, label: "Receita marcada como substituída", detail: `${x.doctor} · ${fmtDate(addDays(NOW, x.issued))}` }, { ...r, rx: r.rx.map((y) => (y.id === id ? { ...y, next: "manual" } : y)) });
       }),
-    shareRx: (id, to, channel) => {
+    shareRx: (id, target, channel) => {
+      const to = target.label;
       const m = this.member();
       this.set((r) => {
         const x = r.rx.find((y) => y.id === id)!;
@@ -541,7 +545,9 @@ export class MockDataSource implements DataSource {
       const med = MEDS.find((x) => x.id === medId)!;
       this.set((r) => ({ ...r, moves: [...r.moves, { id: `buy-${++this.seq}`, medId, delta: qty, type: "purchase", text: `Compra · ${r.medPatch[medId]?.name ?? med.name} +${qty}`, sub: `${fmtShort(NOW)} · ${m.name}` }] }));
     },
-    adjustStock: (medId, qty, reason) => {
+    adjustStock: (medId, newBalance, reason) => {
+      const cur = this.getSnapshot().medications.find((x) => x.id === medId)?.stock.quantity ?? 0;
+      const qty = newBalance - cur;
       const m = this.member();
       const med = MEDS.find((x) => x.id === medId)!;
       this.set((r) => ({ ...r, moves: [...r.moves, { id: `adj-${++this.seq}`, medId, delta: qty, type: "adjustment", text: `Ajuste · ${r.medPatch[medId]?.name ?? med.name} ${qty > 0 ? "+" : "−"}${Math.abs(qty)}`, sub: `${fmtShort(NOW)} · ${m.name}${reason ? ` · ${reason}` : ""}` }] }));
@@ -557,6 +563,10 @@ export class MockDataSource implements DataSource {
       }),
     setNotification: (patch) => this.set((r) => ({ ...r, notif: { ...r.notif, ...patch } })),
     updateMedication: (id, patch) => this.set((r) => ({ ...r, medPatch: { ...r.medPatch, [id]: { ...r.medPatch[id], ...patch } } })),
+    saveScheme: () => {},
+    inviteMember: () => {},
+    updateMember: () => {},
+    removeMember: () => {},
     deleteMedication: (id) => this.set((r) => ({ ...r, medDeleted: { ...r.medDeleted, [id]: true } })),
     restoreMedication: (id) =>
       this.set((r) => {

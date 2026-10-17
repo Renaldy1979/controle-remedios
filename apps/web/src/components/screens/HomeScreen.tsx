@@ -20,20 +20,23 @@ export function HomeScreen() {
 function Home() {
   const snap = useSnapshot();
   const canConfirm = useCan("doses.confirm");
+  const canStock = useCan("stock.view");
   const { confirm, snooze } = useDoseActions();
 
   const alerts = snap.doses.filter((d) => d.status === "late" || d.status === "missed");
   const next = snap.doses.filter((d) => d.status === "pending");
-  const lowStock = snap.medications.filter((m) => m.stock.daysLeft <= 14).sort((a, b) => a.stock.daysLeft - b.stock.daysLeft);
+  const lowStock = !canStock ? [] : snap.medications.filter((m) => m.stock.daysLeft <= 14).sort((a, b) => a.stock.daysLeft - b.stock.daysLeft);
   const taken = snap.doses.filter((d) => d.status === "taken").sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? "")).slice(0, 5);
   const name = (id: string) => snap.patients.find((p) => p.id === id)?.name ?? "";
 
+  const hour = Number(/·\s*(\d{2}):/.exec(snap.nowLabel)?.[1] ?? 12);
+  const greeting = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
   const summary = [alerts.length ? `${plural(alerts.length, "dose pede", "doses pedem")} atenção agora` : "Tudo em dia por enquanto", next[0] ? `próxima às ${next[0].time}` : null].filter(Boolean).join(" · ");
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <p className="font-display text-t1 font-extrabold">Boa tarde, {snap.member.name}</p>
+        <p className="font-display text-t1 font-extrabold">{greeting}, {snap.member.name}</p>
         <p className="text-body-lg text-ink2">{summary}</p>
       </div>
 
@@ -80,6 +83,7 @@ function Home() {
         </div>
 
         <div className="flex flex-col gap-6">
+          {canStock ? (
           <section aria-label="Estoque perto de acabar">
             <SectionHeader title="Estoque perto de acabar" action={<Link href="/configuracoes/estoque" className="inline-flex min-h-touch items-center font-bold text-br underline">Estoque</Link>} />
             {lowStock.length === 0 ? (
@@ -94,6 +98,7 @@ function Home() {
               </ul>
             )}
           </section>
+          ) : null}
 
           <section aria-label="Últimas doses tomadas">
             <SectionHeader title="Últimas doses tomadas" />

@@ -1,14 +1,14 @@
 "use client";
 import { cx } from "@/lib/format";
 import { STOCK_LEVEL, STOCK_TEXT, TONE_BG } from "@/lib/status";
-import { useActions, useCan, type MedicationVM } from "@/data";
+import { useCan, type MedicationVM } from "@/data";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { StatusChip } from "@/components/ui/Chip";
 import { Icon } from "@/components/ui/Icon";
 import { StockBar } from "@/components/ui/Layout";
 import { useOverlay } from "@/components/app/overlay-context";
-import { useToast } from "@/components/ui/Toast";
 import { ReplProgressCompact } from "./Replenishment";
+import { useReplenishmentActions } from "./useReplenishmentActions";
 
 interface StockCardProps {
   med: MedicationVM;
@@ -21,8 +21,7 @@ interface StockCardProps {
 export function StockCard({ med, patientName, withActions }: StockCardProps) {
   const lvl = STOCK_LEVEL[med.stock.level];
   const { open } = useOverlay();
-  const actions = useActions();
-  const toast = useToast();
+  const rep = useReplenishmentActions(med);
   const canViewRx = useCan("prescriptions.view");
   const canUpload = useCan("prescriptions.upload");
   const canRepl = useCan("replenishment.manage");
@@ -80,17 +79,11 @@ export function StockCard({ med, patientName, withActions }: StockCardProps) {
             ) : null}
             {canRepl ? (
               !r.done && !r.owner ? (
-                <Button
-                  icon="front_hand"
-                  onClick={() => {
-                    actions.assumeReplenishment(med.id);
-                    toast({ icon: "front_hand", message: `Combinado: ${med.name}. A família foi avisada.` });
-                  }}
-                >
+                <Button icon="front_hand" onClick={() => void rep.assume()}>
                   Eu cuido disso
                 </Button>
               ) : !r.done && r.mine ? (
-                <Button icon="task_alt" onClick={() => (r.needsAttach ? open({ type: "attach", preset: { patientId: med.patientId, medicationIds: [med.id] } }) : actions.advanceReplenishment(med.id))}>
+                <Button icon="task_alt" onClick={() => void rep.advance()}>
                   Marcar etapa feita
                 </Button>
               ) : (
@@ -102,6 +95,7 @@ export function StockCard({ med, patientName, withActions }: StockCardProps) {
           </div>
         </>
       ) : null}
+      {rep.dialog}
     </article>
   );
 }

@@ -7,6 +7,7 @@ import { useOverlay, type Overlay } from "@/components/app/overlay-context";
 import { AccessIndicator } from "@/components/domain/Rx";
 import { Button } from "@/components/ui/Button";
 import { SelectChip } from "@/components/ui/Chip";
+import { Checkbox } from "@/components/ui/Controls";
 import { Dialog } from "@/components/ui/Dialog";
 import { SelectField, TextArea, TextField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
@@ -15,6 +16,7 @@ import { useToast } from "@/components/ui/Toast";
 
 type Step = "capture" | "preview" | "form" | "upload" | "error" | "done";
 interface Page {
+  file?: File;
   rot: number;
   src?: string;
   name?: string;
@@ -54,6 +56,8 @@ export function AttachFlow({ preset }: { preset?: Preset }) {
     editing ? (editing.validityDays == null ? "none" : ((VALIDITY.find((v) => v.days === editing.validityDays)?.value ?? "30") as AttachDraft["validity"])) : "30",
   );
   const [notes, setNotes] = useState(editing?.notes ?? "");
+  const [controlled, setControlled] = useState(!!editing?.controlledCopies);
+  const [copies, setCopies] = useState(String(editing?.controlledCopies ?? 2));
   const [more, setMore] = useState(!!editing);
   const [errors, setErrors] = useState<{ date?: string; meds?: string }>({});
   const [progress, setProgress] = useState(0);
@@ -77,34 +81,47 @@ export function AttachFlow({ preset }: { preset?: Preset }) {
     return `Vence em ${fmtDate(addDays(d, days))}`;
   })();
 
-  // ---------- upload simulado (a Fase 3 troca por Storage com upload retomável) ----------
+  // ---------- envio: o servidor sobe as páginas ao Storage e salva; a barra acompanha enquanto isso ----------
   const total = Math.max(0.1, pages.reduce((s, p) => s + p.mb, 0));
+  const cancelledRef = useRef(false);
   useEffect(() => {
     if (step !== "upload") return;
+    cancelledRef.current = false;
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       setStep("error");
       return;
     }
     const onOffline = () => setStep("error");
     window.addEventListener("offline", onOffline);
-    const iv = setInterval(() => setProgress((p) => Math.min(100, p + 8 + Math.round(Math.random() * 10))), 350);
+    setProgress(5);
+    const iv = setInterval(() => setProgress((p) => Math.min(90, p + 4 + Math.round(Math.random() * 6))), 350);
+    void (async () => {
+      let id: string | null = null;
+      try {
+        id = await actions.saveRx({ ...draftRef.current!, pages: pages.length || 1, files: pages.map((p) => p.file).filter((f): f is File => !!f) });
+      } catch {
+        id = null;
+      }
+      clearInterval(iv);
+      if (cancelledRef.current) {
+        // envio cancelado enquanto salvava: desfaz o que chegou a ser gravado
+        if (id) await actions.deleteRx(id);
+        return;
+      }
+      if (!id) return setStep("error");
+      setSavedId(id);
+      setProgress(100);
+      setStep("done");
+    })();
     return () => {
       window.removeEventListener("offline", onOffline);
       clearInterval(iv);
     };
   }, [step]);
 
-  useEffect(() => {
-    if (step === "upload" && progress >= 100 && draftRef.current) {
-      const id = actions.saveRx({ ...draftRef.current, pages: pages.length || 1 });
-      setSavedId(id);
-      setStep("done");
-    }
-  }, [step, progress, actions, pages.length]);
-
   const onFiles = (files: FileList | null) => {
     if (!files?.length) return;
-    const added: Page[] = Array.from(files).map((f) => ({ rot: 0, mb: Math.max(0.1, f.size / 1048576), pdf: f.type === "application/pdf", name: f.name, src: f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined }));
+    const added: Page[] = Array.from(files).map((f) => ({ file: f, rot: 0, mb: Math.max(0.1, f.size / 1048576), pdf: f.type === "application/pdf", name: f.name, src: f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined }));
     setPages((prev) => {
       setCur(prev.length);
       return [...prev, ...added];
@@ -132,11 +149,13 @@ export function AttachFlow({ preset }: { preset?: Preset }) {
     if (!medIds.length) e.meds = "Escolha pelo menos um remédio desta receita.";
     setErrors(e);
     if (e.date || e.meds) return;
-    const draft: AttachDraft = { patientId, date, doctor, specialty, medicationIds: medIds, validity, notes, pages: pages.length || 1, replacesId: preset?.replacesId, editId: preset?.editId };
+    const draft: AttachDraft = { patientId, date, doctor, specialty, medicationIds: medIds, validity, notes, pages: pages.length || 1, controlled, copies: controlled ? Math.max(1, Number(copies) || 1) : undefined, replacesId: preset?.replacesId, editId: preset?.editId };
     if (editing) {
-      actions.saveRx(draft);
-      toast({ icon: "check_circle", message: "Receita atualizada" });
-      close();
+      void (async () => {
+        if ((await actions.saveRx(draft)) === null) return;
+        toast({ icon: "check_circle", message: "Receita atualizada" });
+        close();
+      })();
       return;
     }
     draftRef.current = draft;
@@ -168,7 +187,7 @@ export function AttachFlow({ preset }: { preset?: Preset }) {
           </>
         );
       case "upload":
-        return <Button variant="secondary" onClick={() => { setStep("form"); setProgress(0); }}>Cancelar envio</Button>;
+        return <Button variant="secondary" onClick={() => { cancelledRef.current = true; setStep("form"); setProgress(0); }}>Cancelar envio</Button>;
       case "error":
         return (
           <>
@@ -316,6 +335,14 @@ export function AttachFlow({ preset }: { preset?: Preset }) {
                   {validityPreview ? <p className="mt-1.5 flex items-center gap-1.5 text-ink2"><Icon name="event_available" size={18} />{validityPreview}</p> : null}
                 </div>
                 <TextField label="Especialidade" optional value={specialty} onChange={(e) => setSpecialty(e.target.value)} />
+                <div className="flex flex-col gap-2">
+                  <Checkbox checked={controlled} onChange={setControlled} label="Receita de controle especial" description="A farmácia retém uma das vias." />
+                  {controlled ? (
+                    <SelectField label="Número de vias" value={copies} onChange={(e) => setCopies(e.target.value)}>
+                      {["1", "2", "3"].map((n) => <option key={n}>{n}</option>)}
+                    </SelectField>
+                  ) : null}
+                </div>
                 <TextArea label="Observações" optional value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
             ) : null}

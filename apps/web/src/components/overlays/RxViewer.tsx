@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useId, useState } from "react";
-import { useSnapshot } from "@/data";
+import { useActions, useSnapshot } from "@/data";
 import { useOverlay } from "@/components/app/overlay-context";
 import { useDialogBehavior } from "@/components/ui/Dialog";
 import { Button, IconButton } from "@/components/ui/Button";
@@ -22,6 +22,7 @@ export function RxViewer({ rxId, initialPage, forceState }: Props) {
   const { close } = useOverlay();
   const snap = useSnapshot();
   const toast = useToast();
+  const actions = useActions();
   const rx = snap.prescriptions.find((r) => r.id === rxId);
   const [page, setPage] = useState(initialPage);
   const [zoom, setZoom] = useState(1);
@@ -30,12 +31,18 @@ export function RxViewer({ rxId, initialPage, forceState }: Props) {
   const titleId = useId();
 
   const pages = rx?.pages ?? 1;
+  const url = rx?.pageUrls?.[page]?.full;
+  // registra a visualização (auditoria de acesso) uma vez por abertura
+  useEffect(() => {
+    void actions.recordRxView(rxId);
+  }, [actions, rxId]);
   useEffect(() => {
     if (forceState) return;
     setState("loading");
+    if (url) return; // com imagem real, quem tira o "carregando" é o onLoad da <img>
     const t = setTimeout(() => setState("ok"), 600);
     return () => clearTimeout(t);
-  }, [page, forceState]);
+  }, [page, forceState, url]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -75,11 +82,14 @@ export function RxViewer({ rxId, initialPage, forceState }: Props) {
               Tentar de novo
             </Button>
           </div>
-        ) : (
+        ) : null}
+        {state !== "error" && url ? (
+          <img src={url} alt={alt} onLoad={() => setState("ok")} onError={() => setState("error")} className={state === "ok" ? "block" : "hidden"} style={{ width: `${Math.round(360 * zoom)}px`, maxWidth: zoom === 1 ? "100%" : "none" }} />
+        ) : state === "ok" ? (
           <div style={{ width: `${Math.min(420, 360) * zoom}px`, maxWidth: zoom === 1 ? "100%" : "none" }}>
             <RxThumb alt={alt} pages={1} width={Math.round(360 * zoom)} />
           </div>
-        )}
+        ) : null}
         {pages > 1 ? (
           <>
             <button type="button" aria-label="Página anterior" disabled={page === 0} onClick={() => setPage(page - 1)} className="absolute left-2 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-white/15 hover:bg-white/25 disabled:opacity-30">

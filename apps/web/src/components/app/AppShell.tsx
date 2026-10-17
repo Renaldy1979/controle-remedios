@@ -4,7 +4,9 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { can, type PermissionKey } from "@medcuidar/shared";
 import { cx } from "@/lib/format";
-import { useActions, useSnapshot } from "@/data";
+import { useActions, useConnection, useDataKind, useSnapshot } from "@/data";
+import { Button } from "@/components/ui/Button";
+import { logoutAction } from "@/server/auth-actions";
 import { Avatar } from "@/components/ui/Avatar";
 import { Icon } from "@/components/ui/Icon";
 import { ThemeToggle } from "./theme";
@@ -43,6 +45,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const snap = useSnapshot();
   const actions = useActions();
+  const kind = useDataKind();
+  const conn = useConnection();
   const { member } = snap;
   const items = NAV.filter((n) => n.anyOf.some((p) => can(member, p)));
   const current = NAV.find((n) => isActive(pathname, n.href));
@@ -115,7 +119,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             <ThemeToggle />
           </div>
-          {process.env.NODE_ENV !== "production" ? (
+          {kind === "appwrite" ? (
+            <form action={logoutAction}>
+              <button type="submit" className="flex min-h-touch w-full items-center gap-2 rounded-md px-3 font-bold text-ink2 hover:bg-sf2">
+                <Icon name="logout" size={22} />
+                Sair
+              </button>
+            </form>
+          ) : null}
+          {kind === "mock" && process.env.NODE_ENV !== "production" ? (
             <label className="flex flex-col gap-1 text-cap text-ink2">
               Ver como (só em teste)
               <select value={member.id} onChange={(e) => actions.viewAs(e.target.value)} className="h-11 rounded-md border-[1.5px] border-bd2 bg-sf px-2 text-body text-ink">
@@ -156,6 +168,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main id="conteudo" tabIndex={-1} className="mx-auto w-full max-w-[1240px] flex-1 p-4 pb-28 desk:p-8 desk:pb-8">
           {/* No mobile o título da tela fica no conteúdo; no desktop está no header */}
           {current ? <h1 className="mb-4 font-display text-t1 font-extrabold desk:sr-only">{current.title}</h1> : null}
+          {conn.offline ? (
+            <div role="status" className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-lt-bd bg-lt-bg p-4 text-lt">
+              <Icon name="cloud_off" size={24} />
+              <p className="min-w-0 flex-1 font-bold">Sem conexão com o servidor. Você está vendo os dados de {conn.dataAsOf}.</p>
+              <Button variant="secondary" icon="refresh" onClick={() => void conn.retry()}>
+                Tentar de novo
+              </Button>
+            </div>
+          ) : null}
           {children}
         </main>
 

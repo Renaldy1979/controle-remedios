@@ -80,6 +80,7 @@ function MedicationBlock({ med, doses }: { med: MedicationVM; doses: DoseVM[] })
   const canConfirm = useCan("doses.confirm");
   const canViewRx = useCan("prescriptions.view");
   const canUpload = useCan("prescriptions.upload");
+  const canStock = useCan("stock.view");
   const lvl = STOCK_LEVEL[med.stock.level];
 
   const rxAction = (() => {
@@ -150,6 +151,7 @@ function MedicationBlock({ med, doses }: { med: MedicationVM; doses: DoseVM[] })
         })}
       </ul>
 
+      {canStock ? (
       <div className="mt-auto flex flex-col gap-2 border-t border-bd pt-3">
         <div className="flex items-baseline justify-between gap-2">
           <span className={cx("num text-t2 font-extrabold", STOCK_TEXT[med.stock.level])}>{med.stock.daysLeft} dias</span>
@@ -165,6 +167,7 @@ function MedicationBlock({ med, doses }: { med: MedicationVM; doses: DoseVM[] })
           {med.stock.approximate ? <span className="inline-flex items-center gap-1"><Icon name="info" size={16} className="text-br" />Estimativa</span> : null}
         </p>
       </div>
+      ) : null}
     </article>
   );
 }

@@ -74,13 +74,13 @@ function Detail({ id }: { id: string }) {
       <div className="grid gap-6 desk:grid-cols-2 desk:items-start">
         <div className="flex flex-col gap-4">
           <button type="button" onClick={() => open({ type: "viewer", rxId: rx.id, page: 0 })} aria-label={`Abrir ${rxPageAlt(rx, 1)} em tela cheia`} className="mx-auto block w-full max-w-[420px] rounded-lg">
-            <RxThumb alt={rxPageAlt(rx, 1)} pages={rx.pages} width={420} />
+            <RxThumb alt={rxPageAlt(rx, 1)} src={rx.pageUrls?.[0]?.full} pages={rx.pages} width={420} />
           </button>
           {rx.pages > 1 ? (
             <ul className="flex gap-2" aria-label="Páginas da receita">
               {Array.from({ length: rx.pages }, (_, i) => (
                 <li key={i}>
-                  <RxThumb alt={rxPageAlt(rx, i + 1)} width={72} onClick={() => open({ type: "viewer", rxId: rx.id, page: i })} />
+                  <RxThumb alt={rxPageAlt(rx, i + 1)} src={rx.pageUrls?.[i]?.thumb} width={72} onClick={() => open({ type: "viewer", rxId: rx.id, page: i })} />
                 </li>
               ))}
             </ul>
@@ -159,11 +159,11 @@ function Detail({ id }: { id: string }) {
           description="A foto sai do MedCuidar e a exclusão fica registrada. Você pode desfazer por alguns segundos."
           confirmLabel="Excluir receita"
           onClose={() => setConfirm(null)}
-          onConfirm={() => {
-            actions.deleteRx(rx.id);
+          onConfirm={async () => {
             setConfirm(null);
+            if ((await actions.deleteRx(rx.id)) === false) return;
             router.push("/receitas");
-            toast({ icon: "delete", message: "Receita excluída", undo: () => actions.restoreRx(rx.id) });
+            toast({ icon: "delete", message: "Receita excluída", undo: () => void actions.restoreRx(rx.id) });
           }}
         />
       ) : null}
@@ -181,9 +181,9 @@ function Detail({ id }: { id: string }) {
             setConfirm(null);
             open({ type: "attach", preset: { patientId: rx.patientId, medicationIds: rx.medicationIds, doctor: rx.doctor, specialty: rx.specialty, replacesId: rx.id } });
           }}
-          onAlt={() => {
-            actions.markSuperseded(rx.id);
+          onAlt={async () => {
             setConfirm(null);
+            if ((await actions.markSuperseded(rx.id)) === false) return;
             toast({ icon: "swap_horiz", message: "Receita marcada como substituída" });
           }}
         />

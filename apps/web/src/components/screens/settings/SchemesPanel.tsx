@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { cx } from "@/lib/format";
-import { useSnapshot, type MedicationVM, type PhaseVM } from "@/data";
+import { useActions, useSnapshot, type MedicationVM, type PhaseVM } from "@/data";
 import { Button, IconButton } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/Controls";
 import { SelectField, TextField } from "@/components/ui/Field";
@@ -41,6 +41,7 @@ export function SchemesPanel() {
 
 function SchemeForm({ med }: { med: MedicationVM }) {
   const toast = useToast();
+  const actions = useActions();
   const [phases, setPhases] = useState<PhaseVM[]>(med.phases);
   const [single, setSingle] = useState(med.phases.length === 1);
   const [first, setFirst] = useState(med.firstTime);
@@ -57,12 +58,13 @@ function SchemeForm({ med }: { med: MedicationVM }) {
     <form
       className="flex flex-col gap-4 rounded-lg border border-bd bg-sf p-4"
       aria-label={`Esquema de ${med.name}`}
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(first)) {
           setFirstErr("Use o horário no formato 24h, por exemplo 08:00.");
           return;
         }
+        if ((await actions.saveScheme(med.id, { single, firstTime: first, phases })) === false) return;
         toast({ icon: "check_circle", message: `Esquema de ${med.name} salvo` });
       }}
     >

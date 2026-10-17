@@ -43,19 +43,21 @@ export function ShareSheet({ rxId, initialTab = "family" }: { rxId: string; init
   const targetName: Record<Target, string> = { pharmacy: "Farmácia São João", group: "Grupo da família", buyer: buyer ?? "Quem assumiu a compra", other: other || "outro número" };
   const chosen = snap.people.filter((p) => sel[p.id]);
 
-  const sendFamily = () => {
+  const sendFamily = async () => {
     if (!chosen.length) return;
-    actions.shareRx(rx.id, chosen.map((p) => p.name).join(" e "), "MedCuidar");
+    if ((await actions.shareRx(rx.id, { memberIds: chosen.map((p) => p.id), label: chosen.map((p) => p.name).join(" e ") }, "MedCuidar")) === false) return;
     toast({ icon: "share", message: `Receita compartilhada com ${chosen.map((p) => p.name).join(", ")}` });
     close();
   };
 
-  const sendWhatsApp = () => {
+  const sendWhatsApp = async () => {
     if (target === "other" && !/^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$/.test(other.trim())) {
       setOtherErr("Informe o número com DDD, por exemplo (11) 91234-5678.");
       return;
     }
-    actions.shareRx(rx.id, targetName[target], "WhatsApp");
+    const buyerId = snap.people.find((p) => p.name === buyer)?.id;
+    const dest = target === "buyer" && buyerId ? { memberIds: [buyerId] } : target === "other" ? { phone: other.trim() } : {};
+    if ((await actions.shareRx(rx.id, { ...dest, label: targetName[target], message: msg }, "WhatsApp")) === false) return;
     toast({ icon: "chat", message: `Receita enviada para ${targetName[target]}` });
     close();
   };
@@ -103,7 +105,7 @@ export function ShareSheet({ rxId, initialTab = "family" }: { rxId: string; init
                   );
                 })}
               </ul>
-              <Button icon="send" disabled={!chosen.length} onClick={sendFamily}>
+              <Button icon="send" disabled={!chosen.length} onClick={() => void sendFamily()}>
                 Compartilhar{chosen.length ? ` com ${chosen.length}` : ""}
               </Button>
             </>
@@ -152,7 +154,7 @@ export function ShareSheet({ rxId, initialTab = "family" }: { rxId: string; init
                 <Icon name="warning" size={22} className="mt-0.5" />
                 <span>A imagem sai do MedCuidar. Quem receber poderá guardar e encaminhar. O envio fica registrado.</span>
               </p>
-              <Button icon="send" onClick={sendWhatsApp}>
+              <Button icon="send" onClick={() => void sendWhatsApp()}>
                 Enviar pelo WhatsApp
               </Button>
             </>

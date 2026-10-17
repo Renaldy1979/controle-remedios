@@ -10,6 +10,8 @@ import { Avatar } from "@/components/ui/Avatar";
 
 interface RxThumbProps {
   alt: string;
+  /** URL assinada da imagem (origem real). Sem ela desenha o papel de exemplo. */
+  src?: string;
   pages?: number;
   width?: number;
   state?: "ok" | "loading" | "error";
@@ -17,7 +19,9 @@ interface RxThumbProps {
 }
 
 /** Miniatura 3:4, papel #FBFAF6 com linhas e contador de páginas. Carregando = shimmer; erro = "Não carregou". */
-export function RxThumb({ alt, pages = 1, width = 76, state = "ok", onClick }: RxThumbProps) {
+export function RxThumb({ alt, src, pages = 1, width = 76, state: forced = "ok", onClick }: RxThumbProps) {
+  const [failed, setFailed] = useState(false);
+  const state = forced === "ok" && failed ? "error" : forced;
   const body =
     state === "loading" ? (
       <div className="shimmer h-full w-full rounded-md" />
@@ -25,6 +29,11 @@ export function RxThumb({ alt, pages = 1, width = 76, state = "ok", onClick }: R
       <div className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-md border border-ms-bd bg-ms-bg p-1 text-center text-ms">
         <Icon name="broken_image" size={24} />
         <span className="text-[13px] font-bold leading-tight">Não carregou</span>
+      </div>
+    ) : src && !failed ? (
+      <div className="relative h-full w-full overflow-hidden rounded-md border border-bd2 bg-[var(--paper)] shadow-sm">
+        <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover" />
+        {pages > 1 ? <span className="absolute bottom-1 right-1 rounded-sm bg-[#0E1A33] px-1 font-mono text-[13px] font-bold text-white">{pages}</span> : null}
       </div>
     ) : (
       <div className="relative h-full w-full overflow-hidden rounded-md border border-bd2 bg-[var(--paper)] p-2 shadow-sm">
@@ -59,7 +68,7 @@ export function RxCard({ rx, featured }: { rx: RxVM; featured?: boolean }) {
       href={`/receitas/${rx.id}`}
       className={cx("flex gap-4 rounded-lg border bg-sf p-4 shadow-sm transition-colors hover:bg-sf2", featured ? "border-[1.5px] border-br" : "border-bd")}
     >
-      <RxThumb alt={rxPageAlt(rx, 1)} pages={rx.pages} width={featured ? 104 : 76} />
+      <RxThumb alt={rxPageAlt(rx, 1)} src={rx.pageUrls?.[0]?.thumb} pages={rx.pages} width={featured ? 104 : 76} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-bold">{rx.patientName}</span>

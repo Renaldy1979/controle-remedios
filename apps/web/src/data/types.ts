@@ -87,6 +87,9 @@ export interface ReplenishmentVM {
   assumeLabel: string;
   advanceLabel: string;
   needsAttach: boolean;
+  /** etapa "Comprado": pede a quantidade comprada antes de concluir */
+  needsQuantity: boolean;
+  suggestedQuantity?: number;
   log: ReplLogVM[];
   mine: boolean;
 }
@@ -188,6 +191,8 @@ export interface RxVM {
   cannotView: string[];
   shares: RxShareVM[];
   latestValid: boolean;
+  /** URLs assinadas de curta duração (só na origem real); sem elas a miniatura é o papel desenhado */
+  pageUrls?: Array<{ thumb: string; full: string; mime: string }>;
 }
 
 export type HistoryKind = "dose" | "prescription" | "replenishment";
@@ -275,8 +280,36 @@ export interface AttachDraft {
   validity: "30" | "60" | "180" | "none";
   notes: string;
   pages: number;
+  /** controle especial (número de vias) */
+  controlled?: boolean;
+  copies?: number;
+  /** arquivos das páginas (só na origem real; o upload usa estes arquivos) */
+  files?: File[];
   replacesId?: string | null;
   editId?: string | null;
+}
+
+export interface ShareTarget {
+  /** pessoas do sistema (família) */
+  memberIds?: string[];
+  /** número externo (farmácia, grupo, outro) */
+  phone?: string;
+  label: string;
+  message?: string;
+}
+
+export interface MemberInput {
+  name: string;
+  /** telefone com DDD; o servidor normaliza para E.164 */
+  phone: string;
+  profileName: string;
+  relation: string;
+}
+
+export interface SchemeInput {
+  single: boolean;
+  firstTime: string;
+  phases: PhaseVM[];
 }
 
 export interface MedicationPatch {
@@ -286,33 +319,56 @@ export interface MedicationPatch {
   perDose?: number;
 }
 
+type Maybe<T> = T | Promise<T>;
+/** `false` = falhou (o aviso de erro já foi mostrado); `void`/`true` = deu certo. */
+type Done = Maybe<boolean | void>;
+
+/** Ações podem ser síncronas (mock) ou chamar o servidor (origem real). Erros viram aviso na tela. */
 export interface Actions {
-  confirmDose(id: string): void;
-  undoDose(id: string): void;
-  snoozeDose(id: string, minutes: number): void;
-  registerLate(id: string): void;
-  assumeReplenishment(medId: string): void;
-  advanceReplenishment(medId: string): void;
-  saveRx(draft: AttachDraft): string;
-  deleteRx(id: string): void;
-  restoreRx(id: string): void;
-  markSuperseded(id: string): void;
-  shareRx(id: string, to: string, channel: "WhatsApp" | "MedCuidar"): void;
-  registerPurchase(medId: string, qty: number): void;
-  adjustStock(medId: string, qty: number, reason: string): void;
-  setPermission(rowId: string, profile: string, value: boolean): void;
-  setNotification(patch: Partial<NotificationSettingsVM>): void;
-  updateMedication(id: string, patch: MedicationPatch): void;
-  deleteMedication(id: string): void;
-  restoreMedication(id: string): void;
-  /** Só desenvolvimento: testa o que cada perfil enxerga. */
-  viewAs(personId: string): void;
+  confirmDose(id: string): Done;
+  undoDose(id: string): Done;
+  snoozeDose(id: string, minutes: number): Done;
+  registerLate(id: string): Done;
+  assumeReplenishment(medId: string): Done;
+  advanceReplenishment(medId: string, opts?: { quantity?: number }): Done;
+  /** devolve o id da receita, ou null se falhou */
+  saveRx(draft: AttachDraft): Maybe<string | null>;
+  deleteRx(id: string): Done;
+  restoreRx(id: string): Done;
+  markSuperseded(id: string): Done;
+  recordRxView(id: string): Done;
+  shareRx(id: string, target: ShareTarget, channel: "WhatsApp" | "MedCuidar"): Done;
+  registerPurchase(medId: string, qty: number): Done;
+  /** newBalance = quanto tem agora (o ajuste vira movimento com a diferença) */
+  adjustStock(medId: string, newBalance: number, reason: string): Done;
+  setPermission(rowId: string, profile: string, value: boolean): Done;
+  setNotification(patch: Partial<NotificationSettingsVM>): Done;
+  updateMedication(id: string, patch: MedicationPatch): Done;
+  saveScheme(medId: string, input: SchemeInput): Done;
+  inviteMember(input: MemberInput): Done;
+  updateMember(id: string, input: MemberInput): Done;
+  removeMember(id: string): Done;
+  deleteMedication(id: string): Done;
+  restoreMedication(id: string): Done;
+  /** Só desenvolvimento (origem mock): testa o que cada perfil enxerga. */
+  viewAs(personId: string): Done;
+}
+
+export interface ConnectionStatus {
+  /** o último contato com o servidor falhou: as telas mostram os dados em cache */
+  offline: boolean;
+  /** hora (HH:mm) dos dados que estão na tela */
+  dataAsOf: string;
 }
 
 export interface DataSource {
+  /** de onde vêm os dados: define o que a interface mostra (ex.: "Ver como" só no mock) */
+  readonly kind: "mock" | "appwrite";
   getSnapshot(): Snapshot;
   /** Prévia "passa de X para Y dias" ao registrar compra/ajuste. A regra oficial virá de packages/domain. */
-  previewStockDays(medId: string, delta: number): number;
+  previewStockDays(medId: string, delta: number): Maybe<number>;
   subscribe(listener: () => void): () => void;
+  /** só na origem real: estado da conexão e "Tentar de novo" */
+  connection?: { getStatus(): ConnectionStatus; retry(): Promise<void> };
   actions: Actions;
 }

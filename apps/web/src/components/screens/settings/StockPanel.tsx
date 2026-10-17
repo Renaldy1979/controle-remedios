@@ -1,6 +1,6 @@
 "use client";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useActions, useCan, usePreviewStockDays, useSnapshot } from "@/data";
 import { StockCard } from "@/components/domain/StockCard";
 import { Button } from "@/components/ui/Button";
@@ -70,15 +70,24 @@ function PurchaseForm({ initialMed }: { initialMed?: string }) {
   const med = snap.medications.find((m) => m.id === medId)!;
   const n = Number(qty.replace(",", "."));
   const valid = n > 0;
+  const [after, setAfter] = useState<number | null>(null);
+  useEffect(() => {
+    if (!valid) return setAfter(null);
+    let live = true;
+    void Promise.resolve(preview(medId, n)).then((d) => live && setAfter(d));
+    return () => {
+      live = false;
+    };
+  }, [valid, medId, n, preview]);
 
   return (
     <form
       aria-label="Registrar compra"
       className="flex flex-col gap-3 rounded-lg border border-bd bg-sf p-4"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         if (!valid) return setErr("Informe uma quantidade maior que zero.");
-        actions.registerPurchase(medId, n);
+        if ((await actions.registerPurchase(medId, n)) === false) return;
         toast({ icon: "shopping_bag", message: `Compra registrada · ${med.name} +${n}` });
         setQty("");
       }}
@@ -88,7 +97,7 @@ function PurchaseForm({ initialMed }: { initialMed?: string }) {
         {snap.medications.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
       </SelectField>
       <TextField label={`Quantidade comprada (${med.unitLabel.toLowerCase()})`} inputMode="decimal" value={qty} error={err} onChange={(e) => { setQty(e.target.value); setErr(""); }} />
-      {valid ? <p className="rounded-md bg-ok-bg p-3 font-bold text-ok">Passa de {med.stock.daysLeft} para {preview(medId, n)} dias</p> : null}
+      {valid && after !== null ? <p className="rounded-md bg-ok-bg p-3 font-bold text-ok">Passa de {med.stock.daysLeft} para {after} dias</p> : null}
       <Button type="submit" icon="shopping_bag">Registrar compra</Button>
     </form>
   );
@@ -109,12 +118,11 @@ function AdjustForm() {
     <form
       aria-label="Ajuste manual"
       className="flex flex-col gap-3 rounded-lg border border-bd bg-sf p-4"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         if (counted === "" || !(n >= 0)) return setErr("Informe quanto tem no frasco ou na caixa agora.");
-        const delta = n - med.stock.quantity;
-        if (delta === 0) return setErr("A quantidade é a mesma que já está registrada.");
-        actions.adjustStock(medId, delta, reason);
+        if (n === med.stock.quantity) return setErr("A quantidade é a mesma que já está registrada.");
+        if ((await actions.adjustStock(medId, n, reason)) === false) return;
         toast({ icon: "tune", message: `Ajuste registrado · ${med.name}` });
         setCounted("");
         setReason("");

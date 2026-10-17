@@ -53,14 +53,14 @@ function MedicationForm({ med, onDeleted }: { med: MedicationVM; onDeleted: () =
   const [err, setErr] = useState<{ name?: string; perDose?: string }>({});
   useEffect(() => setErr({}), [name, perDose]);
 
-  const save = () => {
+  const save = async () => {
     const q = Number(perDose.replace(",", "."));
     const e: typeof err = {};
     if (!name.trim()) e.name = "Dê um nome ao remédio.";
     if (!(q > 0)) e.perDose = "Informe uma quantidade maior que zero.";
     setErr(e);
     if (e.name || e.perDose) return;
-    actions.updateMedication(med.id, { name: name.trim(), alternatives: alts, routeLabel: route, perDose: q });
+    if ((await actions.updateMedication(med.id, { name: name.trim(), alternatives: alts, routeLabel: route, perDose: q })) === false) return;
     toast({ icon: "check_circle", message: `${name.trim()} salvo` });
   };
 
@@ -108,11 +108,11 @@ function MedicationForm({ med, onDeleted }: { med: MedicationVM; onDeleted: () =
           description="Os lembretes deste remédio param. O histórico de doses continua guardado."
           confirmLabel="Excluir"
           onClose={() => setConfirm(false)}
-          onConfirm={() => {
-            actions.deleteMedication(med.id);
+          onConfirm={async () => {
             setConfirm(false);
+            if ((await actions.deleteMedication(med.id)) === false) return;
             onDeleted();
-            toast({ icon: "delete", message: `${med.name} excluído`, undo: () => actions.restoreMedication(med.id) });
+            toast({ icon: "delete", message: `${med.name} excluído`, undo: () => void actions.restoreMedication(med.id) });
           }}
         />
       ) : null}

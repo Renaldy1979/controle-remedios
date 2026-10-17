@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useActions, useSnapshot } from "@/data";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button, IconButton } from "@/components/ui/Button";
@@ -7,6 +7,13 @@ import { SelectChip } from "@/components/ui/Chip";
 import { Switch } from "@/components/ui/Controls";
 import { SelectField, TextField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
+
+/** Campo que só salva ao sair do campo ou apertar Enter (não manda uma requisição por tecla). */
+function CommitField({ label, value, onCommit, disabled, inputMode }: { label: string; value: string; onCommit: (v: string) => void; disabled?: boolean; inputMode?: "numeric" }) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  return <TextField label={label} inputMode={inputMode} disabled={disabled} value={v} onChange={(e) => setV(e.target.value)} onBlur={() => v !== value && onCommit(v)} onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()} />;
+}
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -84,8 +91,8 @@ export function NoticesPanel() {
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <TextField label="Atrasada após (min)" inputMode="numeric" value={String(n.lateAfterMin)} onChange={(e) => actions.setNotification({ lateAfterMin: Number(e.target.value.replace(/\D/g, "")) || 0 })} />
-          <TextField label="Esquecida após (min)" inputMode="numeric" value={String(n.missedAfterMin)} onChange={(e) => actions.setNotification({ missedAfterMin: Number(e.target.value.replace(/\D/g, "")) || 0 })} />
+          <CommitField label="Atrasada após (min)" inputMode="numeric" value={String(n.lateAfterMin)} onCommit={(v) => actions.setNotification({ lateAfterMin: Number(v.replace(/\D/g, "")) || 1 })} />
+          <CommitField label="Esquecida após (min)" inputMode="numeric" value={String(n.missedAfterMin)} onCommit={(v) => actions.setNotification({ missedAfterMin: Number(v.replace(/\D/g, "")) || 1 })} />
         </div>
         <SelectField label="À noite, quem confirma" value={n.nightTo} onChange={(e) => actions.setNotification({ nightTo: e.target.value })}>
           {snap.people.map((p) => <option key={p.id}>{p.name}</option>)}
@@ -94,7 +101,7 @@ export function NoticesPanel() {
 
       <Block title="Resumo diário">
         <Switch label="Enviar o resumo do dia para a família" checked={n.dailySummary} onChange={(v) => actions.setNotification({ dailySummary: v })} />
-        <TextField label="Horário do resumo" inputMode="numeric" value={n.summaryTime} disabled={!n.dailySummary} onChange={(e) => actions.setNotification({ summaryTime: e.target.value })} />
+        <CommitField label="Horário do resumo" inputMode="numeric" value={n.summaryTime} disabled={!n.dailySummary} onCommit={(v) => actions.setNotification({ summaryTime: v })} />
         <p className="flex items-center gap-2 text-cap text-ink2">
           <Icon name="schedule" size={16} />
           Horário no fuso de São Paulo, em 24h.
