@@ -43,7 +43,7 @@ export function RxThumb({ alt, src, pages = 1, width = 76, state: forced = "ok",
         {pages > 1 ? <span className="absolute bottom-1 right-1 rounded-sm bg-[#0E1A33] px-1 font-mono text-[13px] font-bold text-white">{pages}</span> : null}
       </div>
     );
-  const style = { width, aspectRatio: "3 / 4" } as const;
+  const style = { width, maxWidth: "100%", aspectRatio: "3 / 4" } as const;
   if (onClick)
     return (
       <button type="button" onClick={onClick} aria-label={alt} style={style} className="flex-none rounded-md">
