@@ -15,6 +15,15 @@ Referência de padrão: o projeto `controle-financeiro` do dono (Next.js + Postg
 - Usuários podem: comprar, administrar a dose a pacientes, tomar os próprios remédios, ministrar a outros pacientes. **Isto é permissão, não tipo de usuário**: um paciente com conta (ex.: Adelino) pode confirmar a própria dose e a de outro paciente (ex.: Maria, sem conta).
 - Perfis configuráveis (liga/desliga por funcionalidade). Perfis iniciais: Administrador (tudo), Familiar, Cuidadora, Confirmador (só dar o check e ver a próxima dose).
 - **Um telefone verificado pertence a um único usuário em todo o sistema** (como no projeto financeiro). Isso elimina o passo "qual família?".
+- **Entrada na família (decisão do dono, 19/10/2026):** o primeiro usuário é o administrador e valida e-mail e WhatsApp. Os demais entram por **convite por e-mail** (mesmo processo do admin) ou por **convite por WhatsApp**: o admin cria o convite informando o **número esperado** e o perfil; o convidado envia o código ao WhatsApp do sistema; o número fica verificado. **Todo usuário precisa de e-mail e senha**; quem entrou pelo WhatsApp só fica totalmente validado no **primeiro acesso ao portal**.
+- **Três estados de acesso:**
+  | Estado | Como chega | O que pode |
+  |---|---|---|
+  | `invited` (convidado) | Admin cria o convite (perfil e número esperado) | Nada |
+  | `whatsapp_verified` | Envia o código de convite **do número esperado** | Pelo WhatsApp: dar o check, ver a próxima dose, consultar estoque, receber avisos (somente permissões básicas do perfil) |
+  | `active` | Primeiro acesso ao portal: define e-mail e senha e confirma o e-mail | Tudo o que o perfil permite, inclusive receitas e administração |
+  Receitas, compartilhamento e administração exigem `active`, mesmo que o perfil as permita.
+- **Convite por WhatsApp:** código de uso único, expira em 24 h, vale só se vier do número esperado, guardado como hash, com limite de tentativas. O sistema envia ao número verificado um **link de primeiro acesso** (uso único, expira em 24 h) para definir e-mail e senha. O login do portal é sempre o e-mail (o admin pode pré-preencher). "Reenviar link de acesso" disponível ao admin e ao próprio usuário pelo WhatsApp. Desativar um usuário revoga a sessão do Appwrite e a resposta do WhatsApp.
 
 ## 3. Autenticação e WhatsApp
 - **Login:** e-mail e senha no **Appwrite Auth** (convite por e-mail, redefinição de senha). O Appwrite também guarda o bucket de receitas e anexos.

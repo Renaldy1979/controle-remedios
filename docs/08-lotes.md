@@ -10,7 +10,8 @@ Fluxo de cada lote: construir → testes automáticos → orquestrador confere �
 - **Primeiro usuário = administrador.** Cria a conta (e-mail e senha), **valida o e-mail** (Appwrite) e informa e valida o **WhatsApp**. Sem WhatsApp verificado ele usa o portal normalmente, só não recebe mensagens.
 - **Convite por e-mail:** o convidado faz o mesmo processo do admin (valida o e-mail, define a senha).
 - **Convite por WhatsApp:** o admin gera um código de convite para a pessoa. O convidado salva o número do sistema e **envia o código** por WhatsApp; o número é reconhecido como verificado e ele **entra na família já validado**. Indicado para quem usa WhatsApp mas não tem familiaridade com e-mail.
-- *Interpretação a confirmar:* o usuário que entra só por WhatsApp não precisa de e-mail nem senha; ele age pelo WhatsApp (as permissões do perfil valem igual). Pode acrescentar e-mail e senha depois para usar o portal.
+- **Todo usuário precisa de e-mail e senha** (decisão do dono). Quem entra pelo WhatsApp fica `whatsapp_verified` (pode dar o check, ver a próxima dose, consultar estoque e receber avisos) e só vira `active` no **primeiro acesso ao portal**, por um link de uso único enviado ao WhatsApp dele. Receitas, compartilhamento e administração exigem `active`. Detalhes em `docs/06` seção 2.
+- O convite por WhatsApp fica preso ao **número esperado** informado pelo admin, vale uma vez e expira em 24 h.
 
 ---
 
@@ -19,7 +20,7 @@ Fluxo de cada lote: construir → testes automáticos → orquestrador confere �
 - Staging no ar com HTTPS (portal + Postgres).
 - Criar conta (e-mail e senha), validar e-mail, entrar/sair, redefinir senha.
 - Primeira entrada cria a **família** e o administrador. Campo do número de WhatsApp (fica "pendente": a validação real chega no Lote 4).
-- Convidar por e-mail e aceitar o convite; gerar o código de convite por WhatsApp (o uso do código chega no Lote 4).
+- Convidar por e-mail e aceitar o convite; **criar o convite por WhatsApp** (número esperado, perfil, código de uso único com validade). O uso do código, o link de primeiro acesso e a tela de primeiro acesso chegam no Lote 4. O modelo de dados já nasce com os três estados (`invited`, `whatsapp_verified`, `active`).
 - Perfis e permissões (matriz) e usuários da família; a tela se adapta ao perfil (Confirmador não vê Configurações).
 - Cadastro de **pacientes** (um ou mais; paciente pode ter conta), **remédios** (marcas alternativas, via de uso, unidade) e **esquemas com fases**.
 - Isolamento: uma segunda família criada no staging não enxerga nada da primeira.
