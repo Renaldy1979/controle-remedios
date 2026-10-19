@@ -339,7 +339,7 @@ describe.skipIf(!up)("Lote 1 — regras do portal no Postgres", () => {
       const m = snap.medications.find((x) => x.id === medId)!;
       expect(m).toMatchObject({ name: "Zypred", alternatives: ["Facoba", "Vigadexa"], routeLabel: "Pingar", unitLabel: "Gotas", dropsPerMl: 18, patientId });
       expect(m.phases).toEqual([{ order: 1, everyHours: 24, fromDay: 1, toDay: null, perDose: 1 }]);
-      expect(m.stock.quantityText).toMatch(/Sem estoque/);
+      expect(m.stock).toMatchObject({ tracked: false, quantityText: "Estoque ainda não registrado" });
     });
 
     it("grava o esquema com duas fases (3 em 3 h por 15 dias, depois 6 em 6 h)", async () => {

@@ -73,6 +73,12 @@ export interface StockVM {
   runsOutLabel: string;
   /** 0..100 sobre a escala de 30 dias */
   barPct: number;
+  /** origem real: o remédio já tem estoque registrado (compra ou ajuste). Ausente = sim. */
+  tracked?: boolean;
+  /** origem real: o estoque cobre até o fim do tratamento */
+  coversUntilEnd?: boolean;
+  /** origem real: avisa quando faltarem estes dias */
+  thresholdDays?: number;
 }
 
 export type RxLinkKind = "ok" | "soon" | "awaiting" | "expired" | "none" | "otc";
@@ -169,6 +175,54 @@ export interface DoseVM {
   doneBy?: string;
   doneAt?: string;
   channel?: Channel;
+  /** origem real: dia local da dose (aaaa-mm-dd); doses de ontem ainda sem resolução também aparecem */
+  date?: string;
+}
+
+/** Aviso do portal (sino). Origem real. */
+export interface NoticeVM {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  whenLabel: string;
+  read: boolean;
+  /** para onde o aviso leva (ex.: /configuracoes/estoque?med=...) */
+  href: string;
+}
+
+/** Uma linha do histórico de doses (origem real, filtrada no servidor). */
+export interface DoseHistoryRowVM {
+  id: string;
+  /** dd/mm/aaaa */
+  dateLabel: string;
+  time: string;
+  medName: string;
+  patientId: string;
+  patientName: string;
+  status: DoseStatus;
+  doseText: string;
+  /** quem deu ("" se ninguém) */
+  who: string;
+  /** dd/mm às HH:mm */
+  doneLabel: string;
+  channel: Channel | "";
+}
+export interface DoseHistoryFilters {
+  patientId?: string;
+  medicationId?: string;
+  memberId?: string;
+  /** aaaa-mm-dd (dia local), inclusive */
+  from?: string;
+  to?: string;
+  status?: DoseStatus;
+}
+export interface DoseHistoryResult {
+  rows: DoseHistoryRowVM[];
+  /** pessoas que já confirmaram doses (para o filtro) */
+  people: Array<{ id: string; name: string }>;
+  /** havia mais linhas do que o limite */
+  truncated: boolean;
 }
 
 export interface RxStatusVM {
@@ -297,6 +351,11 @@ export interface Snapshot {
   permissionRows: PermissionRowVM[];
   notifications: NotificationSettingsVM;
   alertCount: number;
+  /** origem real (Lote 2): avisos do sino da pessoa logada, e quantos não foram lidos */
+  notices?: NoticeVM[];
+  unreadNotices?: number;
+  /** origem real (Lote 2): últimas doses tomadas, de qualquer dia */
+  recentTaken?: DoseVM[];
   /** origem real: dados da própria conta (e-mail e WhatsApp pendente) */
   account?: AccountVM;
 }
@@ -368,6 +427,8 @@ export interface MedicationInput {
   routeLabel: string;
   unitLabel: string;
   dropsPerMl?: number;
+  /** estoque inicial (opcional); vira uma compra de abertura */
+  initialStock?: number;
 }
 
 export interface SchemeInput {
@@ -395,6 +456,7 @@ type Done = Maybe<boolean | void>;
 export interface Actions {
   confirmDose(id: string): Done;
   undoDose(id: string): Done;
+  /** Lote 2: registra o pedido; o envio do lembrete chega no Lote 4 */
   snoozeDose(id: string, minutes: number): Done;
   registerLate(id: string): Done;
   assumeReplenishment(medId: string): Done;
@@ -411,6 +473,10 @@ export interface Actions {
   adjustStock(medId: string, newBalance: number, reason: string): Done;
   setPermission(rowId: string, profile: string, value: boolean): Done;
   setNotification(patch: Partial<NotificationSettingsVM>): Done;
+  /** Lote 2 (origem real): marca avisos do sino como lidos (sem ids = todos) */
+  markNoticesRead(ids?: string[]): Done;
+  /** Lote 2 (origem real): histórico de doses filtrado no servidor */
+  loadDoseHistory(filters: DoseHistoryFilters): Maybe<DoseHistoryResult | null>;
   updateMedication(id: string, patch: MedicationPatch): Done;
   saveScheme(medId: string, input: SchemeInput): Done;
   /** devolve o resultado do convite (com o código, no WhatsApp), ou null se falhou */

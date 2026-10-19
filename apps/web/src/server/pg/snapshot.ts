@@ -1,16 +1,21 @@
 import "server-only";
-import { and, asc, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
-import { localParts } from "@medcuidar/domain";
+import { addDays, effectiveRecipientsMode, localParts, resolveResponsible, zonedToUtc } from "@medcuidar/domain";
 import { PERMISSION_GROUPS, SYSTEM_PROFILES, can, permissionMapSchema, type ControlUnit, type PermissionMap } from "@medcuidar/shared";
 import type {
-  AccessState, MedicationVM, PatientVM, PermissionRowVM, PersonVM, ReplenishmentVM, Role, Snapshot, StockVM,
+  AccessState, DoseVM, MedicationVM, PatientVM, PermissionRowVM, PersonVM, ReplenishmentVM, Role, Snapshot, StockMovementVM, StockVM, Tone,
 } from "@/data/types";
+import { fmtDuration } from "@/lib/format";
 import { ROUTE_LABEL, UNIT_LABEL } from "@/lib/labels";
 import { formatPhone } from "@/lib/phone";
 import { intervalTimes } from "@/lib/times";
 import type { Ctx } from "./access";
+import { DEFAULT_LOW_STOCK_DAYS, UNTRACKED_STOCK, computeStock, doseWhenLabel, qtyText, unitNoun } from "./calc";
+import { effectiveStatus } from "./doses";
+import { toDomainPhase, toDomainTreatment } from "./mappers";
+import { listNotices } from "./notices";
 import { stampLabel } from "./stamp";
 
 const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"] as const;
@@ -31,24 +36,15 @@ export function ageOn(birth: string, today: string): number {
 const roleOfProfile = (name: string): Role =>
   name === "Administrador" ? "admin" : name === "Familiar" ? "family" : name === "Cuidadora" ? "caregiver" : name === "Confirmador" ? "confirmer" : "other";
 
-/** Lote 1 não tem doses, estoque nem receitas: os modelos de visão vêm "vazios" e as telas mostram "chega no próximo lote". */
-const NO_STOCK: StockVM = { quantity: 0, quantityText: "Sem estoque registrado", approximate: false, daysLeft: 0, level: "ok", runsOutLabel: "Estoque chega no próximo lote", barPct: 0 };
+/** Quem não pode ver estoque recebe um modelo vazio (a tela também esconde o bloco). */
+const HIDDEN_STOCK: StockVM = { quantity: 0, quantityText: "", approximate: false, daysLeft: 0, level: "ok", runsOutLabel: "", barPct: 0, tracked: false };
 const NO_REPL: ReplenishmentVM = {
   step: 0, done: false, steps: [], stepText: "", ownerText: "", ownerTone: "neu", canAssume: false, assumeLabel: "", advanceLabel: "",
   needsAttach: false, needsQuantity: false, log: [], mine: false,
 };
 
-const unitNoun = (unit: ControlUnit, route: string, n: number): string => {
-  if (unit === "drop") return n === 1 ? "gota" : "gotas";
-  if (unit === "ml") return "ml";
-  if (unit === "gram") return "g";
-  return route === "tablet" ? (n === 1 ? "comprimido" : "comprimidos") : n === 1 ? "unidade" : "unidades";
-};
-const qtyText = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
-
 /** Retrato que as telas consomem, montado do Postgres dentro de withFamilia. Já vem sem o que o perfil não pode ver. */
-export async function buildSnapshot(ctx: Ctx): Promise<Snapshot> {
-  const now = new Date();
+export async function buildSnapshot(ctx: Ctx, now: Date = new Date()): Promise<Snapshot> {
   const { date: today, minutes } = localParts(now, ctx.timezone);
   const canDo = (k: Parameters<typeof can>[1]) => can(ctx.member, k);
 
@@ -62,7 +58,26 @@ export async function buildSnapshot(ctx: Ctx): Promise<Snapshot> {
       ? await tx.select().from(s.treatmentPhases).where(inArray(s.treatmentPhases.treatmentId, treatments.map((t) => t.id))).orderBy(asc(s.treatmentPhases.order))
       : [];
     const invites = await tx.select().from(s.invites).where(and(isNull(s.invites.consumedAt), isNull(s.invites.revokedAt)));
-    return { members, profiles, patients, medications, treatments, phases, invites };
+
+    // Lote 2: doses de hoje (e as de ontem que ainda esperam resolução), estoque e livro-razão
+    const dayStart = zonedToUtc(today, 0, ctx.timezone);
+    const dayEnd = zonedToUtc(addDays(today, 1), 0, ctx.timezone);
+    const seeDoses = canDo("dashboard.view") || canDo("patients.view");
+    const doses = !seeDoses
+      ? []
+      : await tx.select().from(s.doseEvents).where(or(
+          and(gte(s.doseEvents.scheduledAt, dayStart), lt(s.doseEvents.scheduledAt, dayEnd)),
+          and(gte(s.doseEvents.scheduledAt, new Date(dayStart.getTime() - 24 * 3600_000)), lt(s.doseEvents.scheduledAt, dayStart), inArray(s.doseEvents.status, ["pending", "late", "missed"])),
+        )).orderBy(asc(s.doseEvents.scheduledAt));
+    const recentTakenRows = !seeDoses ? [] : await tx.select().from(s.doseEvents).where(eq(s.doseEvents.status, "taken")).orderBy(desc(s.doseEvents.confirmedAt)).limit(5);
+    const seeStock = canDo("stock.view");
+    const stockItems = seeStock ? await tx.select().from(s.stockItems) : [];
+    const sums = seeStock
+      ? await tx.select({ id: s.stockMovements.stockItemId, total: sql<number>`coalesce(sum(${s.stockMovements.quantity}), 0)::float8` }).from(s.stockMovements).groupBy(s.stockMovements.stockItemId)
+      : [];
+    const movements = seeStock ? await tx.select().from(s.stockMovements).orderBy(desc(s.stockMovements.createdAt), desc(s.stockMovements.id)).limit(40) : [];
+    const assignments = seeDoses ? await tx.select().from(s.careAssignments) : [];
+    return { members, profiles, patients, medications, treatments, phases, invites, doses, recentTakenRows, stockItems, sums, movements, assignments };
   });
 
   const profileById = new Map(L.profiles.map((p) => [p.id, p]));
@@ -124,6 +139,18 @@ export async function buildSnapshot(ctx: Ctx): Promise<Snapshot> {
     });
   const patientIds = new Set(L.patients.map((p) => p.id));
 
+  const defaultLow = ctx.settings.default_low_stock_days ?? DEFAULT_LOW_STOCK_DAYS;
+  const sumById = new Map(L.sums.map((x) => [x.id, x.total]));
+  const stockVmFor = (med: (typeof L.medications)[number], t: (typeof L.treatments)[number], phases: (typeof L.phases)): StockVM => {
+    if (!canDo("stock.view")) return HIDDEN_STOCK;
+    const item = L.stockItems.find((i) => i.patientId === t.patientId && i.medicationId === med.id);
+    if (!item) return UNTRACKED_STOCK;
+    return computeStock({
+      balance: sumById.get(item.id) ?? 0, isEstimate: item.isEstimate, controlUnit: item.controlUnit as ControlUnit, route: med.route, dropsPerMl: med.dropsPerMl,
+      treatment: toDomainTreatment(t), phases: phases.map(toDomainPhase), thresholdDays: t.lowStockDays ?? defaultLow, now, tz: ctx.timezone,
+    }).vm;
+  };
+
   const medsVM: MedicationVM[] = [];
   for (const med of L.medications) {
     const t = L.treatments.find((x) => x.medicationId === med.id && patientIds.has(x.patientId));
@@ -154,7 +181,7 @@ export async function buildSnapshot(ctx: Ctx): Promise<Snapshot> {
       firstTime: first,
       startDate: t.startDate,
       otc: !med.requiresPrescription,
-      stock: NO_STOCK,
+      stock: stockVmFor(med, t, phases),
       rx: { kind: "none", text: "Receitas chegam no Lote 3", label: "Receitas chegam no Lote 3", icon: "description", tone: "neu", alert: false },
       replenishment: NO_REPL,
     });
@@ -171,6 +198,82 @@ export async function buildSnapshot(ctx: Ctx): Promise<Snapshot> {
       }))
     : [];
 
+  // ---------- Lote 2: doses ----------
+  const medById = new Map(L.medications.map((m) => [m.id, m]));
+  const patientById = new Map(L.patients.map((p) => [p.id, p]));
+  const liveTreatment = new Set(L.treatments.map((x) => x.id));
+  const domainMembers = L.members.map((m) => ({ id: m.id, name: m.name, active: m.active && !m.removedAt && m.accessState === "active", receives_family_alerts: m.receivesFamilyAlerts }));
+  const p2h = (d: Date) => {
+    const lp = localParts(d, ctx.timezone);
+    return { date: lp.date, hhmm: `${p2(Math.floor(lp.minutes / 60))}:${p2(lp.minutes % 60)}` };
+  };
+  const responsibleOf = (patientId: string, at: Date): string => {
+    const patient = patientById.get(patientId);
+    const mode = effectiveRecipientsMode({ reminder_recipients_mode: patient?.reminderRecipientsMode ?? null }, ctx.settings);
+    const r = resolveResponsible({
+      assignments: L.assignments.filter((a) => a.patientId === patientId).map((a) => ({ member_id: a.memberId, weekdays: a.weekdays, start_time: a.startTime, end_time: a.endTime, priority: a.priority })),
+      members: domainMembers, mode, datetime: at, tz: ctx.timezone,
+    });
+    if (r.responsible[0]) return r.responsible.slice(0, 2).map((m) => firstName(m.name)).join(" e ");
+    const self = patient?.selfMemberId ? memberById.get(patient.selfMemberId) : undefined;
+    return self ? firstName(self.name) : "Qualquer pessoa da família";
+  };
+  const doseVm = (d: (typeof L.doses)[number]): DoseVM | null => {
+    const med = medById.get(d.medicationId);
+    const patient = patientById.get(d.patientId);
+    if (!med || !patient || !liveTreatment.has(d.treatmentId)) return null;
+    const status = effectiveStatus(d.status, d.scheduledAt, now, ctx.settings);
+    const at = p2h(d.scheduledAt);
+    const elapsedMin = (now.getTime() - d.scheduledAt.getTime()) / 60_000;
+    const done = d.confirmedAt ? p2h(d.confirmedAt) : null;
+    const phases = L.phases.filter((p) => p.treatmentId === d.treatmentId);
+    const ph = phases.find((p) => p.id === d.phaseId);
+    const unit = med.controlUnit as ControlUnit;
+    return {
+      id: d.id,
+      medicationId: d.medicationId,
+      medName: med.name,
+      patientId: d.patientId,
+      patientName: firstName(patient.name),
+      time: at.hhmm,
+      status,
+      doseText: `${qtyText(d.amount)} ${unitNoun(unit, med.route, d.amount)}`,
+      phaseText: phases.length <= 1 ? "Uso contínuo" : `Fase ${ph?.order ?? 1} de ${phases.length}`,
+      responsible: responsibleOf(d.patientId, d.scheduledAt),
+      whenLabel: doseWhenLabel(status, at.hhmm, elapsedMin, done?.hhmm, at.date !== today),
+      ...(d.confirmedByMemberId ? { doneBy: memberById.get(d.confirmedByMemberId)?.name ?? "" } : {}),
+      ...(done ? { doneAt: done.hhmm } : {}),
+      ...(d.channel ? { channel: d.channel === "whatsapp" ? ("whatsapp" as const) : ("panel" as const) } : {}),
+      date: at.date,
+    };
+  };
+  const doses = L.doses.map(doseVm).filter((d): d is DoseVM => d !== null);
+  const recentTaken = L.recentTakenRows.map(doseVm).filter((d): d is DoseVM => d !== null);
+  const alertCount = doses.filter((d) => d.status === "late" || d.status === "missed").length;
+
+  // ---------- Lote 2: livro-razão (movimentações) ----------
+  const itemById = new Map(L.stockItems.map((i) => [i.id, i]));
+  const stockMovements: StockMovementVM[] = L.movements.map((m) => {
+    const item = itemById.get(m.stockItemId);
+    const med = item ? medById.get(item.medicationId) : undefined;
+    const name = med?.name ?? "Remédio";
+    const n = qtyText(Math.abs(m.quantity));
+    const sign = m.quantity > 0 ? "+" : "−";
+    const who = m.createdByMemberId ? firstName(memberById.get(m.createdByMemberId)?.name ?? "") : "";
+    const note = (m.note ?? "").replace(/^(Compra|Ajuste): ?/, "");
+    const when = stampLabel(m.createdAt, ctx.timezone).replace(/\/\d{4}/, "");
+    let icon: string, tone: Tone, text: string;
+    if (m.type === "purchase") [icon, tone, text] = ["shopping_bag", "ok", `${m.note === "Saldo inicial" ? "Saldo inicial" : "Compra"} · ${name} ${sign}${n}`];
+    else if (m.type === "dose") [icon, tone, text] = ["check_circle", "neu", `Dose tomada · ${name} ${sign}${n}`];
+    else if (m.note?.startsWith("undo:")) [icon, tone, text] = ["undo", "neu", `Dose desfeita · ${name} ${sign}${n}`];
+    else if (m.note?.startsWith("redo:")) [icon, tone, text] = ["replay", "neu", `Dose refeita · ${name} ${sign}${n}`];
+    else [icon, tone, text] = ["tune", "lt", `Ajuste · ${name} ${sign}${n}`];
+    const extra = m.type === "adjustment" && !/^(undo|redo):/.test(m.note ?? "") && note && note !== "Ajuste manual" ? ` · ${note}` : m.type === "purchase" && note && note !== "Saldo inicial" ? ` · ${note}` : "";
+    return { id: m.id, icon, tone, text, sub: `${when}${who ? ` · ${who}` : ""}${extra}` };
+  });
+
+  const { notices, unread } = await listNotices(ctx, now);
+
   const me = memberById.get(ctx.memberId);
   const todayLabel = weekdayLabel(today);
   return {
@@ -182,19 +285,23 @@ export async function buildSnapshot(ctx: Ctx): Promise<Snapshot> {
     patients,
     people,
     medications: medsVM,
-    doses: [],
+    doses,
+    recentTaken,
     prescriptions: [],
     history: [],
     interactions: [],
-    stockMovements: [],
+    stockMovements,
     profiles: profileNames,
     permissionRows,
     notifications: {
-      leadDays: ctx.settings.default_low_stock_days, exceptions: [], receivers: {}, reminderAtTime: true, dailySummary: true,
+      leadDays: defaultLow,
+      exceptions: L.treatments.filter((x) => x.lowStockDays !== null && medById.has(x.medicationId) && patientIds.has(x.patientId)).map((x) => ({ medicationId: x.medicationId, days: x.lowStockDays! })), receivers: {}, reminderAtTime: true, dailySummary: true,
       summaryTime: ctx.settings.daily_summary_time, repeatEveryMin: 15, lateAfterMin: ctx.settings.late_after_min,
       missedAfterMin: ctx.settings.missed_after_min, nightTo: "",
     },
-    alertCount: 0,
+    alertCount,
+    notices,
+    unreadNotices: unread,
     account: { email: ctx.account.email, name: me?.name ?? ctx.member.name, phonePending: me?.phonePending ?? "", phoneVerified: me?.phoneVerified ?? "" },
   };
 }

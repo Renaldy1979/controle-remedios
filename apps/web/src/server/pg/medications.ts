@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { localParts } from "@medcuidar/domain";
@@ -8,6 +8,7 @@ import { validateScheme, type PhaseInput } from "@/lib/scheme";
 import { audit } from "./audit";
 import { UserError } from "./errors";
 import { requirePermission, type Actor } from "./guard";
+import { evaluateLowStock, getOrCreateStockItem, refreshBalance } from "./stock";
 
 export interface MedicationData {
   patientId: string;
@@ -16,6 +17,8 @@ export interface MedicationData {
   route: MedRoute;
   controlUnit: ControlUnit;
   dropsPerMl?: number;
+  /** Estoque inicial (compra de abertura). Exige a permissão de estoque. */
+  initialStock?: number;
 }
 
 const DEFAULT_DROPS_PER_ML = 20;
@@ -26,6 +29,11 @@ const DEFAULT_DROPS_PER_ML = 20;
  */
 export async function createMedication(actor: Actor, input: MedicationData): Promise<string> {
   requirePermission(actor, "medications.manage");
+  const initial = input.initialStock ?? 0;
+  if (initial !== 0) {
+    requirePermission(actor, "stock.adjust");
+    if (!Number.isFinite(initial) || initial < 0 || initial > 100_000) throw new UserError("Informe um estoque inicial válido (zero ou mais).");
+  }
   return withFamilia(actor.familyId, async (tx) => {
     const [patient] = await tx.select({ id: s.patients.id }).from(s.patients).where(and(eq(s.patients.id, input.patientId), isNull(s.patients.deletedAt)));
     if (!patient) throw new UserError("Paciente não encontrado.");
@@ -48,6 +56,13 @@ export async function createMedication(actor: Actor, input: MedicationData): Pro
       familyId: actor.familyId, treatmentId: t!.id, order: 1, startDay: 1, endDay: null, scheduleType: "interval", intervalHours: 24, firstDoseTime: "08:00", doseAmount: 1,
     });
     await audit(tx, actor, "medication.create", "medication", med!.id);
+    if (initial > 0) {
+      const item = await getOrCreateStockItem(tx, actor.familyId, med!.id);
+      await tx.insert(s.stockMovements).values({ familyId: actor.familyId, stockItemId: item.id, type: "purchase", quantity: initial, createdByMemberId: actor.memberId, note: "Saldo inicial" });
+      await refreshBalance(tx, item.id);
+      await audit(tx, actor, "stock.purchase", "stock_item", item.id, { quantity: initial });
+      await evaluateLowStock(tx, actor.familyId, item.id, new Date());
+    }
     return med!.id;
   });
 }
@@ -129,6 +144,14 @@ export async function saveScheme(actor: Actor, medicationId: string, input: Sche
         doseAmount: p.perDose,
       })),
     );
+    // as doses de hoje que ainda não chegaram e ainda não foram tocadas são refeitas com o esquema novo
+    // (a rotina do dia as gera de novo; doses tomadas, atrasadas e as que já têm movimento de estoque ficam)
+    await tx.delete(s.doseEvents).where(and(
+      eq(s.doseEvents.treatmentId, t.id), eq(s.doseEvents.status, "pending"), gt(s.doseEvents.scheduledAt, new Date()),
+      sql`${s.doseEvents.id} not in (select dose_event_id from stock_movements where dose_event_id is not null)`,
+    ));
     await audit(tx, actor, "scheme.save", "treatment", t.id, { phases: input.phases.length });
+    const [item] = await tx.select({ id: s.stockItems.id }).from(s.stockItems).where(and(eq(s.stockItems.patientId, t.patientId), eq(s.stockItems.medicationId, medicationId)));
+    if (item) await evaluateLowStock(tx, actor.familyId, item.id, new Date());
   });
 }

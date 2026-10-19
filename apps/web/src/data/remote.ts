@@ -1,6 +1,6 @@
 import type { ActionResult } from "@/server/pg/actions";
 import * as srv from "@/server/pg/actions";
-import type { Actions, ConnectionStatus, DataSource, InviteResult, NotificationSettingsVM, Snapshot } from "./types";
+import type { Actions, ConnectionStatus, DataSource, DoseHistoryFilters, DoseHistoryResult, InviteResult, NotificationSettingsVM, Snapshot } from "./types";
 
 const hhmm = () => new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date());
 
@@ -13,7 +13,7 @@ const NEXT_LOT = "Isto chega nos próximos lotes.";
 /**
  * DataSource da origem real (Postgres): o retrato vem do servidor e cada ação é uma Server Action que devolve o
  * retrato novo. As ações rodam em fila (uma por vez) para que as respostas nunca se atropelem.
- * Doses, estoque, receitas e reposição ainda não existem aqui (Lotes 2 e 3): essas ações só avisam.
+ * Doses, estoque e avisos do sino são do Lote 2. Receitas e reposição ainda não existem aqui (Lote 3): essas ações só avisam.
  */
 export class RemoteDataSource implements DataSource {
   readonly kind = "postgres" as const;
@@ -107,7 +107,27 @@ export class RemoteDataSource implements DataSource {
     this.emit();
   }
 
-  previewStockDays = async (): Promise<number> => 0;
+  previewStockDays = async (medId: string, delta: number): Promise<number> => {
+    try {
+      const r = await srv.previewStockDaysAction(medId, delta);
+      return r.ok ? r.data : 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  /** Histórico de doses: consulta filtrada no servidor (não troca o retrato). */
+  private loadHistory = async (filters: DoseHistoryFilters): Promise<DoseHistoryResult | null> => {
+    try {
+      const r = await srv.loadDoseHistoryAction(filters);
+      if (r.ok) return r.data;
+      this.hooks.onError(r.message);
+      if (r.unauthorized && typeof window !== "undefined") window.location.assign("/login");
+    } catch {
+      this.hooks.onError("Sem conexão. Confira a internet e tente de novo.");
+    }
+    return null;
+  };
 
   private notYet = (): boolean => {
     this.hooks.onError(NEXT_LOT);
@@ -123,11 +143,31 @@ export class RemoteDataSource implements DataSource {
   }
 
   actions: Actions = {
-    // Lotes 2 e 3
-    confirmDose: this.notYet,
-    undoDose: this.notYet,
-    snoozeDose: this.notYet,
-    registerLate: this.notYet,
+    // Lote 2: doses, estoque e avisos
+    confirmDose: (id) => this.exec(() => srv.confirmDoseAction(id)),
+    registerLate: (id) => this.exec(() => srv.registerLateDoseAction(id)),
+    undoDose: (id) => this.exec(() => srv.undoDoseAction(id)),
+    snoozeDose: (id, minutes) => this.exec(() => srv.snoozeDoseAction(id, minutes)),
+    registerPurchase: (medId, qty) => this.exec(() => srv.registerPurchaseAction(medId, qty)),
+    adjustStock: (medId, newBalance, reason) => this.exec(() => srv.adjustStockAction(medId, newBalance, reason)),
+    markNoticesRead: (ids) => this.exec(() => srv.markNoticesReadAction(ids)),
+    loadDoseHistory: this.loadHistory,
+    setNotification: (patch: Partial<NotificationSettingsVM>) => {
+      // só o que existe neste lote: limite padrão e por remédio, prazos de atraso/esquecida; o resto chega no Lote 4
+      const supported: Record<string, unknown> = {};
+      if (patch.leadDays !== undefined) supported["leadDays"] = patch.leadDays;
+      if (patch.lateAfterMin !== undefined) supported["lateAfterMin"] = patch.lateAfterMin;
+      if (patch.missedAfterMin !== undefined) supported["missedAfterMin"] = patch.missedAfterMin;
+      if (patch.exceptions !== undefined) {
+        const next = patch.exceptions;
+        const removed = this.snap.notifications.exceptions.filter((e) => !next.some((n) => n.medicationId === e.medicationId)).map((e) => ({ medicationId: e.medicationId, days: null }));
+        supported["exceptions"] = [...next.map((e) => ({ medicationId: e.medicationId, days: e.days })), ...removed];
+      }
+      if (Object.keys(supported).length === 0) return this.notYet();
+      return this.exec(() => srv.saveNoticeSettingsAction(supported));
+    },
+
+    // Lote 3
     assumeReplenishment: this.notYet,
     advanceReplenishment: this.notYet,
     saveRx: () => {
@@ -139,12 +179,6 @@ export class RemoteDataSource implements DataSource {
     markSuperseded: this.notYet,
     recordRxView: () => undefined,
     shareRx: this.notYet,
-    registerPurchase: this.notYet,
-    adjustStock: this.notYet,
-    setNotification: (patch: Partial<NotificationSettingsVM>) => {
-      this.patch((s) => ({ ...s, notifications: { ...s.notifications, ...patch } }));
-      return this.notYet();
-    },
     viewAs: () => undefined,
 
     // Lote 1

@@ -563,6 +563,8 @@ export class MockDataSource implements DataSource {
         return { ...r, profilePerms: { ...r.profilePerms, [profile]: next } };
       }),
     setNotification: (patch) => this.set((r) => ({ ...r, notif: { ...r.notif, ...patch } })),
+    markNoticesRead: () => {},
+    loadDoseHistory: () => null,
     updateMedication: (id, patch) => this.set((r) => ({ ...r, medPatch: { ...r.medPatch, [id]: { ...r.medPatch[id], ...patch } } })),
     saveScheme: () => {},
     inviteMember: (input) => ({ kind: input.kind ?? "whatsapp", memberName: input.name, code: "123456", expectedPhone: input.phone.replace(/\D/g, ""), expiresLabel: "amanhã" }),

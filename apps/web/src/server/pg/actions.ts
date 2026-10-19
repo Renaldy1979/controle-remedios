@@ -15,6 +15,7 @@ export type ActionResult<T = undefined> =
 const id = z.string().uuid();
 const name = (max = 120) => z.string().trim().min(1, "Informe o nome.").max(max);
 const optText = (max: number) => z.string().trim().max(max);
+const quantity = z.number({ invalid_type_error: "Informe a quantidade." }).finite("Informe a quantidade.").min(0).max(100_000);
 
 async function run<T>(fn: (ctx: import("./access").Ctx) => Promise<T>): Promise<ActionResult<T>> {
   const [{ getContext }, { UserError, ForbiddenError }, { buildSnapshot }] = await Promise.all([
@@ -24,6 +25,8 @@ async function run<T>(fn: (ctx: import("./access").Ctx) => Promise<T>): Promise<
   if (!ctx) return { ok: false, message: "Sua sessão expirou. Entre de novo.", unauthorized: true };
   try {
     const data = await fn(ctx);
+    const { prepareDay } = await import("./prepare");
+    await prepareDay(ctx); // gera as doses de hoje (idempotente), atraso/esquecida e aviso de estoque baixo
     return { ok: true, snapshot: await buildSnapshot(ctx), ...(data === undefined ? {} : { data }) };
   } catch (e) {
     if (e instanceof ForbiddenError) return { ok: false, message: "Seu perfil não tem permissão para fazer isso." };
@@ -46,6 +49,87 @@ export async function loadSnapshotAction(): Promise<ActionResult> {
 }
 
 // ---------- pessoas ----------
+
+// ---------- doses (Lote 2) ----------
+
+export async function confirmDoseAction(doseId: string) {
+  return run(async (ctx) => (await import("./doses")).confirmDose(ctx, parse(id, doseId)).then(() => undefined));
+}
+/** Também serve para "registrar que tomou depois" (dose atrasada ou esquecida). */
+export const registerLateDoseAction = confirmDoseAction;
+export async function undoDoseAction(doseId: string) {
+  return run(async (ctx) => (await import("./doses")).undoDose(ctx, parse(id, doseId)).then(() => undefined));
+}
+export async function snoozeDoseAction(doseId: string, minutes: number) {
+  return run(async (ctx) => (await import("./doses")).snoozeDose(ctx, parse(id, doseId), parse(z.number().int(), minutes)));
+}
+
+// ---------- estoque (Lote 2) ----------
+
+export async function registerPurchaseAction(medicationId: string, qty: number) {
+  return run(async (ctx) => (await import("./stock")).registerPurchase(ctx, parse(id, medicationId), parse(quantity, qty)));
+}
+export async function adjustStockAction(medicationId: string, newBalance: number, reason: string) {
+  return run(async (ctx) => (await import("./stock")).adjustStock(ctx, parse(id, medicationId), parse(quantity, newBalance), parse(optText(120), reason)));
+}
+export async function saveNoticeSettingsAction(input: unknown) {
+  return run(async (ctx) => {
+    const i = parse(
+      z.object({
+        leadDays: z.number().int().optional(),
+        lateAfterMin: z.number().int().optional(),
+        missedAfterMin: z.number().int().optional(),
+        exceptions: z.array(z.object({ medicationId: id, days: z.number().int().nullable() })).max(100).optional(),
+      }).strict(),
+      input,
+    );
+    await (await import("./stock")).saveNoticeSettings(ctx, i);
+  });
+}
+
+// ---------- avisos do sino (Lote 2) ----------
+
+export async function markNoticesReadAction(ids?: string[]) {
+  return run(async (ctx) => (await import("./notices")).markNoticesRead(ctx, ids === undefined ? undefined : parse(z.array(id).max(100), ids)));
+}
+
+// ---------- consultas (não devolvem o retrato) ----------
+
+export type QueryResult<T> = { ok: true; data: T } | { ok: false; message: string; unauthorized?: boolean };
+
+async function query<T>(fn: (ctx: import("./access").Ctx) => Promise<T>): Promise<QueryResult<T>> {
+  const [{ getContext }, { UserError, ForbiddenError }] = await Promise.all([import("./access"), import("./errors")]);
+  const ctx = await getContext();
+  if (!ctx) return { ok: false, message: "Sua sessão expirou. Entre de novo.", unauthorized: true };
+  try {
+    return { ok: true, data: await fn(ctx) };
+  } catch (e) {
+    if (e instanceof ForbiddenError) return { ok: false, message: "Seu perfil não tem permissão para fazer isso." };
+    if (e instanceof UserError) return { ok: false, message: e.message };
+    if (e instanceof z.ZodError) return { ok: false, message: e.issues[0]?.message ?? "Confira os dados informados." };
+    console.error("[query] falhou", (e as Error).name, (e as { code?: unknown }).code ?? "");
+    return { ok: false, message: "Não foi possível concluir. Tente de novo." };
+  }
+}
+
+const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+export async function loadDoseHistoryAction(filters: unknown) {
+  return query(async (ctx) => {
+    const f = parse(
+      z.object({
+        patientId: id.optional(), medicationId: id.optional(), memberId: id.optional(), from: ymd.optional(), to: ymd.optional(),
+        status: z.enum(["pending", "taken", "late", "missed", "skipped"]).optional(),
+      }).strict(),
+      filters,
+    );
+    return (await import("./doses")).listDoseHistory(ctx, f);
+  });
+}
+
+export async function previewStockDaysAction(medicationId: string, delta: number) {
+  return query(async (ctx) => (await import("./stock")).previewStockDays(ctx, parse(id, medicationId), parse(z.number().finite().min(-100_000).max(100_000), delta)));
+}
 
 const memberInput = z.object({
   name: name(),
@@ -150,9 +234,9 @@ const drops = z.number().finite().positive().max(200);
 
 export async function createMedicationAction(input: unknown) {
   return run(async (ctx) => {
-    const i = parse(z.object({ patientId: id, name: name(), alternatives, routeLabel: route, unitLabel: unit, dropsPerMl: drops.optional() }), input);
+    const i = parse(z.object({ patientId: id, name: name(), alternatives, routeLabel: route, unitLabel: unit, dropsPerMl: drops.optional(), initialStock: quantity.optional() }), input);
     return (await import("./medications")).createMedication(ctx, {
-      patientId: i.patientId, name: i.name, alternatives: i.alternatives, route: i.routeLabel, controlUnit: i.unitLabel, ...(i.dropsPerMl ? { dropsPerMl: i.dropsPerMl } : {}),
+      patientId: i.patientId, name: i.name, alternatives: i.alternatives, route: i.routeLabel, controlUnit: i.unitLabel, ...(i.dropsPerMl ? { dropsPerMl: i.dropsPerMl } : {}), ...(i.initialStock ? { initialStock: i.initialStock } : {}),
     });
   });
 }
