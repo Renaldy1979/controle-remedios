@@ -10,13 +10,22 @@ Tempo estimado: 40 a 60 minutos na primeira vez. Tenha à mão: acesso ao EasyPa
 
 ## 0. Antes de começar
 
-Escolha o endereço do staging, por exemplo `staging.medcuidar.seudominio.com.br`. Daqui em diante ele é chamado de **ENDEREÇO**. Anote também:
+Você **não precisa de domínio próprio**. O app já foi criado no EasyPanel e o endereço gratuito com HTTPS já existe:
 
-| O que | Exemplo | Onde você vai usar |
-|---|---|---|
-| ENDEREÇO do portal | `staging.medcuidar.seudominio.com.br` | Appwrite (plataforma web) e EasyPanel (domínio) |
-| Senha do papel **dono** do banco | 24 letras e números, sem símbolos | só no comando de migração (passo 5) |
-| Senha do papel **app** do banco | 24 letras e números, sem símbolos | variável `DATABASE_URL` do portal |
+```
+https://automacoes-app-controle-remedios.8m5sgi.easypanel.host
+```
+
+Daqui em diante ele é o **ENDEREÇO** (hostname, sem `https://`: `automacoes-app-controle-remedios.8m5sgi.easypanel.host`). O que falta é: criar o **Postgres**, configurar as **variáveis** do app e fazer o **deploy**. Ordem deste guia: Appwrite (conferir) → Postgres → papéis do banco → variáveis e deploy → migração → conferir.
+
+O portal sobe e responde `/api/health` mesmo **sem** `APP_URL`; só os e-mails (confirmação, senha, convite) dependem dela.
+
+Anote antes de começar:
+
+| O que | Onde você vai usar |
+|---|---|
+| Senha do papel **dono** do banco (24 letras e números, sem símbolos) | só no comando de migração (passo 5) |
+| Senha do papel **app** do banco (24 letras e números, sem símbolos) | variável `DATABASE_URL` do portal |
 
 Dica: gere as senhas num gerenciador de senhas. **Use só letras e números** (símbolos como `@`, `:` e `/` quebram o endereço do banco).
 
@@ -26,18 +35,13 @@ Dica: gere as senhas num gerenciador de senhas. **Use só letras e números** (s
 
 O portal usa o Appwrite **só para login** (e-mail e senha). Faça isto antes de subir o portal.
 
-### 1.1 Plataforma web (obrigatório)
-1. Abra o seu projeto no Console do Appwrite → **Overview** → **Integrations → Platforms** (ou *Add platform*).
-2. **Add platform → Web**. Nome: `MedCuidar staging`. **Hostname:** o ENDEREÇO (sem `https://`), por exemplo `staging.medcuidar.seudominio.com.br`.
-3. Salve.
+### 1.1 Plataforma web — já cadastrada; só confira
+O hostname do staging já foi cadastrado como plataforma Web no projeto do Appwrite. Para conferir: Console do Appwrite → seu projeto → **Overview → Integrations → Platforms** → deve existir uma plataforma **Web** com o hostname exato `automacoes-app-controle-remedios.8m5sgi.easypanel.host` (sem `https://`, sem barra, sem espaço). Se o endereço do app mudar, cadastre o novo hostname.
 
 Sem isto, os e-mails de confirmação, recuperação de senha e convite falham com "URL host must be one of…".
 
-### 1.2 Envio de e-mails (SMTP) — obrigatório para testar
-O Appwrite precisa de um servidor de e-mail para mandar: confirmação de e-mail, recuperação de senha e convite.
-1. **Settings → SMTP** → ligue **Custom SMTP**.
-2. Preencha servidor, porta, usuário e senha do seu provedor de e-mail (por exemplo Brevo, Mailgun, Amazon SES, ou o SMTP da sua hospedagem). Em **Sender**, o nome `MedCuidar` e um endereço do seu domínio.
-3. Clique em **Send test email** e confirme que chegou (veja também o spam).
+### 1.2 Envio de e-mails (SMTP) — já configurado; só teste
+O SMTP do seu Appwrite já está configurado (pré-requisito atendido). Não precisa mexer, só **testar o envio** depois que o portal estiver no ar (passo 6): crie uma conta de teste e confirme que o e-mail de confirmação chega (veja também o spam). Se não chegar, em **Settings → SMTP** use **Send test email**.
 
 ### 1.3 Modelos de e-mail (português)
 Em **Auth → Templates** (ou *Settings → Email templates*), idioma **Português (pt-br)**, revise estes três:
@@ -110,29 +114,31 @@ DATABASE_URL_ADMIN = postgres://medcuidar_owner:SENHA_DONO@HOST:5432/NOME_DO_BAN
 
 ---
 
-## 4. Criar o portal no EasyPanel
+## 4. Criar o portal no EasyPanel (a partir do Git)
 
-1. No mesmo projeto: **+ Service → App**. Nome: `medcuidar-web`.
-2. **Source → GitHub**: escolha o repositório do MedCuidar e a branch (`main`). Se o repositório for privado, o EasyPanel mostra uma chave de implantação (*deploy key*) para colar no GitHub em **Settings → Deploy keys** do repositório.
-3. **Build → Dockerfile**: caminho do arquivo `Dockerfile` (o da raiz do repositório). Contexto: a raiz (`/`).
-4. **Environment** (variáveis de ambiente). Cole assim, trocando os valores:
+1. O app **já foi criado** no EasyPanel (serviço do portal). Abra-o para configurar. (Se precisar criar de novo: **+ Service → App**.)
+2. **Source → GitHub**: escolha o repositório `Renaldy1979/controle-remedios`, branch `main`. O seu EasyPanel já está conectado ao GitHub, então não precisa de chave nem token. *Se o repositório não aparecer na lista, reconecte a conta do GitHub no EasyPanel.* Nunca cole chaves ou tokens em chat, e-mail ou no repositório.
+3. **Build**: tipo **Dockerfile**, caminho `Dockerfile` (o da raiz), **contexto de build = raiz do repositório** (`/`). O build usa só o conteúdo do repositório: não depende de `.env` nem de nenhum arquivo ignorado pelo Git (o `.dockerignore` ainda exclui `.env*` de propósito).
+4. **Porta do app: 3000.** O teste de saúde da imagem é `GET /api/health` (o EasyPanel usa o `HEALTHCHECK` do Dockerfile).
+5. **Domains**: confirme que `automacoes-app-controle-remedios.8m5sgi.easypanel.host` aponta para a porta **3000** com HTTPS ligado.
+6. **Environment**: cole assim, trocando os valores. Preencha todas antes do primeiro **Deploy**:
 
    | Variável | Valor | Observação |
    |---|---|---|
    | `DATA_SOURCE` | `postgres` | liga o portal real (sem isto aparecem dados fictícios) |
-   | `APP_URL` | `https://ENDEREÇO` | sem barra no final; é o endereço dos links dos e-mails |
+   | `APP_URL` | `https://automacoes-app-controle-remedios.8m5sgi.easypanel.host` | sem barra no final; é o endereço dos links dos e-mails. Sem ela o portal sobe, mas não monta os links |
    | `APP_ENV` | `production` | desliga qualquer rota de teste |
-   | `DATABASE_URL` | `postgres://medcuidar_app:SENHA_APP@HOST:5432/NOME_DO_BANCO` | **papel app** |
+   | `DATABASE_URL` | `postgres://medcuidar_app:SENHA_APP@HOST_INTERNO:5432/NOME_DO_BANCO` | **papel app**; use o **host interno** do serviço Postgres (passo 2), nunca um endereço público |
    | `APPWRITE_ENDPOINT` | `https://…/v1` | do passo 1.5 |
    | `APPWRITE_PROJECT_ID` | o Project ID | do passo 1.5 |
    | `APPWRITE_API_KEY` | a chave criada no passo 1.5 | **segredo** |
 
    **Não crie** `DATABASE_URL_ADMIN` aqui (a aplicação nunca recebe o papel dono) e **nunca** `E2E_TEST_MODE`.
-5. **Domains**: *Add domain* → ENDEREÇO, porta do app **3000**, **HTTPS ligado** (certificado automático). No painel do seu domínio crie o registro DNS **A** do ENDEREÇO apontando para o IP da VPS e espere propagar (alguns minutos).
-6. (Opcional) **Resources**: 512 MB de memória é suficiente para o staging.
-7. Clique em **Deploy** e acompanhe a aba de logs. A primeira construção leva uns 5 a 10 minutos.
+7. **Resources**: o build do Next.js é a parte pesada. Se a VPS tiver pouca memória, limite o app a ~1 GB durante o build (ou faça o deploy com os outros serviços ocupados no mínimo); depois de pronto, 512 MB bastam para rodar. Um build pode levar de 5 a 30 minutos conforme a máquina.
+8. Clique em **Deploy** e acompanhe os logs.
+9. Se você mudar qualquer variável depois, **reinicie/refaça o deploy** do app para ele ler o novo valor.
 
-Se ficar vermelho, veja "Problemas comuns" no fim. O serviço só fica **saudável** depois do passo 5 (o teste de saúde confere o banco).
+Se ficar vermelho, veja "Problemas comuns" no fim. O serviço só fica **saudável** depois que o banco estiver acessível (passos 2 e 3) (o teste de saúde confere o banco).
 
 ---
 
@@ -153,16 +159,17 @@ A senha do dono fica só neste comando; ela **não** é gravada nas variáveis d
 ```bash
 DATABASE_URL_ADMIN='postgres://medcuidar_owner:SENHA_DONO@HOST:5432/NOME_DO_BANCO' pnpm --filter @medcuidar/pg migrate
 ```
-Por segurança, só use isto se o banco estiver acessível por um túnel (o banco não deve ficar aberto na internet).
+Por segurança, só use isto se o banco estiver acessível por um túnel. **Não abra a porta do Postgres na internet**: o caminho recomendado é o console do serviço do portal, que fala com o banco pela rede interna do EasyPanel.
 
 ---
 
 ## 6. Conferir
 
-1. Abra `https://ENDEREÇO/api/health`. Deve mostrar `{"status":"ok","database":"ok"}`.
+1. Abra `https://automacoes-app-controle-remedios.8m5sgi.easypanel.host/api/health`. Deve mostrar `{"status":"ok","database":"ok"}`.
    - `"database":"indisponivel"` → confira `DATABASE_URL` (host, senha, nome do banco) e o passo 3.
-2. Abra `https://ENDEREÇO` → deve ir para a tela **Entrar** (cadeado na barra do navegador).
-3. Siga o roteiro de teste em `docs/lotes/L1-roteiro.md`. O primeiro passo é **Criar conta**.
+2. Abra `https://automacoes-app-controle-remedios.8m5sgi.easypanel.host` → deve ir para a tela **Entrar** (cadeado na barra do navegador).
+3. **Teste o envio de e-mail:** toque em **Criar conta** com um e-mail seu; o e-mail de confirmação deve chegar em até 1 minuto (veja o spam).
+4. Siga o roteiro de teste em `docs/lotes/L1-roteiro.md`. O primeiro passo é **Criar conta**.
 
 Para ver o que o servidor está fazendo: serviço `medcuidar-web` → **Logs**. Os logs **não** mostram e-mails, telefones nem códigos.
 
