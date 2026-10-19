@@ -1,0 +1,19 @@
+# Fora da imagem: segredos, dependências locais, builds, testes e documentos.
+.git
+.github
+.claude
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/test-results
+**/playwright-report
+**/*.log
+.env
+.env.*
+!.env.example
+docs
+design
+prompts
+integrations
+**/*.tsbuildinfo
