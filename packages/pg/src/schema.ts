@@ -30,6 +30,8 @@ export const replenishmentTriggerEnum = pgEnum("replenishment_trigger", values(r
 export const recipientsModeEnum = pgEnum("recipients_mode", values(recipientsModeSchema.options));
 export const notificationKindEnum = pgEnum("notification_kind", values(outboxKindSchema.options));
 export const messageDirectionEnum = pgEnum("message_direction", values(messageDirectionSchema.options));
+export const accessStateEnum = pgEnum("access_state", ["invited", "whatsapp_verified", "active"]);
+export const inviteKindEnum = pgEnum("invite_kind", ["email", "whatsapp"]);
 export const messageTypeEnum = pgEnum("message_type", values(messageTypeSchema.options));
 
 const id = () => uuid("id").primaryKey().default(sql`gen_random_uuid()`);
@@ -66,7 +68,14 @@ export const members = pgTable("members", {
   profileId: uuid("profile_id").notNull().references(() => profiles.id),
   name: text("name").notNull(),
   email: text("email"),
-  /** Id do usuário no Appwrite Auth (login e-mail/senha). */
+  /**
+   * Estado de acesso (docs/06 seção 2): invited (nada) → whatsapp_verified (WhatsApp básico) → active (portal completo).
+   * `active` é o único estado com `appwrite_user_id` e e-mail confirmado (checks abaixo).
+   */
+  accessState: accessStateEnum("access_state").notNull().default("invited"),
+  /** E-mail confirmado (Appwrite). Só existe em `active`. O `email` em si pode estar pré-preenchido em qualquer estado. */
+  emailConfirmedAt: timestamp("email_confirmed_at", { withTimezone: true }),
+  /** Id do usuário no Appwrite Auth (login e-mail/senha). Só existe em `active`. */
   appwriteUserId: text("appwrite_user_id"),
   roleLabel: text("role_label"),
   active: boolean("active").notNull().default(true),
@@ -88,6 +97,9 @@ export const members = pgTable("members", {
   index("members_phone_pending_idx").on(t.phonePending).where(sql`${t.phonePending} is not null`),
   index("members_family_idx").on(t.familyId),
   check("members_phone_verified_fmt", sql`${t.phoneVerified} is null or ${t.phoneVerified} ~ '^[0-9]{10,15}$'`),
+  check("members_active_needs_auth", sql`${t.accessState} <> 'active' or (${t.appwriteUserId} is not null and ${t.email} is not null and ${t.emailConfirmedAt} is not null)`),
+  check("members_auth_only_active", sql`${t.accessState} = 'active' or (${t.appwriteUserId} is null and ${t.emailConfirmedAt} is null)`),
+  check("members_wa_needs_phone", sql`${t.accessState} <> 'whatsapp_verified' or ${t.phoneVerified} is not null`),
   check("members_phone_pending_fmt", sql`${t.phonePending} is null or ${t.phonePending} ~ '^[0-9]{10,15}$'`),
 ]);
 
@@ -120,6 +132,54 @@ export const careAssignments = pgTable("care_assignments", {
 }, (t) => [
   index("care_assignments_patient_idx").on(t.familyId, t.patientId),
   check("care_assignments_time_fmt", sql`${t.startTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' and ${t.endTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+]);
+
+/** Convites (e-mail ou WhatsApp). O código nunca é guardado, só o hash (preso ao número esperado). */
+export const invites = pgTable("invites", {
+  id: id(),
+  familyId: familyId(),
+  kind: inviteKindEnum("kind").notNull(),
+  profileId: uuid("profile_id").notNull().references(() => profiles.id),
+  /** Membro criado/vinculado ao convite (nasce `invited`). */
+  memberId: uuid("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  /** kind = email */
+  email: text("email"),
+  /** kind = whatsapp: só dígitos; o código só vale se vier deste número. */
+  expectedPhone: text("expected_phone"),
+  /** kind = whatsapp: hashConviteCodigo(expected_phone, código). */
+  codeHash: text("code_hash"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  attempts: smallint("attempts").notNull().default(0),
+  consumedAt: ts("consumed_at"),
+  revokedAt: ts("revoked_at"),
+  createdByMemberId: uuid("created_by_member_id").references(() => members.id),
+  createdAt: createdAt(),
+}, (t) => [
+  // um convite de WhatsApp ativo por número esperado (o app revoga o antigo antes de criar outro)
+  uniqueIndex("invites_expected_phone_active_uq").on(t.expectedPhone)
+    .where(sql`${t.kind} = 'whatsapp' and ${t.consumedAt} is null and ${t.revokedAt} is null`),
+  index("invites_family_idx").on(t.familyId, t.createdAt),
+  index("invites_member_idx").on(t.memberId),
+  check("invites_kind_fields", sql`(${t.kind} = 'email' and ${t.email} is not null and ${t.expectedPhone} is null)
+    or (${t.kind} = 'whatsapp' and coalesce(${t.expectedPhone} ~ '^[0-9]{10,15}$', false) and coalesce(${t.codeHash} ~ '^[0-9a-f]{64}$', false))`),
+  check("invites_expiry", sql`${t.expiresAt} > ${t.createdAt}`),
+]);
+
+/** Link de primeiro acesso ao portal (uso único, 24 h). Só o hash do token é guardado. */
+export const firstAccessLinks = pgTable("first_access_links", {
+  id: id(),
+  familyId: familyId(),
+  memberId: uuid("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumedAt: ts("consumed_at"),
+  revokedAt: ts("revoked_at"),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("first_access_links_token_uq").on(t.tokenHash),
+  index("first_access_links_member_idx").on(t.familyId, t.memberId),
+  check("first_access_links_hash_fmt", sql`${t.tokenHash} ~ '^[0-9a-f]{64}$'`),
+  check("first_access_links_expiry", sql`${t.expiresAt} > ${t.createdAt}`),
 ]);
 
 /* ------------------------------------------------------------------ remédios e tratamentos */
@@ -178,7 +238,7 @@ export const treatmentPhases = pgTable("treatment_phases", {
   index("treatment_phases_family_idx").on(t.familyId, t.treatmentId),
   check("treatment_phases_days", sql`${t.startDay} >= 1 and (${t.endDay} is null or ${t.endDay} >= ${t.startDay})`),
   check("treatment_phases_amount", sql`${t.doseAmount} > 0`),
-  check("treatment_phases_schedule", sql`(${t.scheduleType} = 'interval' and ${t.intervalHours} > 0 and ${t.firstDoseTime} is not null)
+  check("treatment_phases_schedule", sql`(${t.scheduleType} = 'interval' and coalesce(${t.intervalHours} > 0, false) and ${t.firstDoseTime} is not null)
     or (${t.scheduleType} = 'fixed_times' and coalesce(array_length(${t.times}, 1), 0) > 0)`),
 ]);
 
@@ -471,5 +531,5 @@ export const FAMILY_TABLES = [
   "profiles", "members", "patients", "care_assignments", "medications", "treatments", "treatment_phases",
   "dose_events", "stock_items", "stock_movements", "prescriptions", "prescription_files", "prescription_items",
   "prescription_shares", "prescription_views", "replenishments", "replenishment_steps", "notifications",
-  "message_log", "audit_log", "api_keys", "idempotency",
+  "message_log", "audit_log", "api_keys", "idempotency", "invites", "first_access_links",
 ] as const;

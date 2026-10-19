@@ -19,6 +19,9 @@ Dependência no `package.json` do consumidor: `"@medcuidar/pg": "workspace:*"` (
 | `resolverMembroPorAppwriteUser(id)` | `{ membroId, familiaId, ativo } \| null` (login) |
 | `resolverApiKeyPorHash(sha256)` | `{ tipo: "familia"\|"plataforma", keyId, familiaId, escopos } \| null` |
 | `verificarTelefonePendente(tel, codigoHash)` | `{ resultado: "verificado"\|"invalido"\|"bloqueado"\|"em_uso", membroId, familiaId }` |
+| `consumirConviteWhatsapp(remetente, hashConviteCodigo(remetente, código))` | `{ resultado: "verificado"\|"invalido"\|"bloqueado"\|"em_uso", membroId, familiaId, conviteId, perfilId }` — convite por WhatsApp preso ao número |
+| `resolverLinkPrimeiroAcesso(hash)`, `consumirLinkPrimeiroAcesso(hash)` | link de primeiro acesso (leitura / uso único) |
+| `hashConviteCodigo`, `gerarTokenPrimeiroAcesso`, `VALIDADE_CONVITE_MS` | helpers de convite (24 h) |
 | `sha256`, `gerarCodigoVerificacao`, `hashCodigoVerificacao`, `gerarApiKey("familia"\|"plataforma")` | helpers de hash/chaves (`cdf_`/`cpl_`); guarde só o hash |
 | `uuidDeterministico(nome)`, `seedDemo()`, `DEMO_FAMILIA_ID`, `demoId(nome)` | ids estáveis e seed |
 | tabelas Drizzle (`families`, `members`, `doseEvents`, …) e `FAMILY_TABLES` | schema |
@@ -51,6 +54,9 @@ await withFamilia(m.familiaId, async (tx) => {
 const [{ saldo }] = await withFamilia(fid, (tx) => tx.select({ saldo: sql<number>`coalesce(sum(${s.stockMovements.quantity}),0)::float` })
   .from(s.stockMovements).where(eq(s.stockMovements.stockItemId, itemId)));
 ```
+
+## Estados de acesso (`members.access_state`)
+`invited` (nada) → `whatsapp_verified` (WhatsApp básico) → `active` (portal completo). Só `active` tem `appwrite_user_id` e `email_confirmed_at` (checks no banco); `whatsapp_verified` exige `phone_verified`. `resolverMembroPorTelefone`/`resolverMembroPorAppwriteUser` devolvem `estadoAcesso`; a API aplica as permissões. Tabelas novas: `invites` e `first_access_links` (fluxo em `docs/07` seção 4.1). Seed: Ana, Beatriz, Cláudia e Lucas `active` (ids do Appwrite fictícios `demo-appwrite-*`), Rosa, Lúcia e Seu João `whatsapp_verified`, Denise `invited`.
 
 ## O que muda para o domínio (`packages/domain`) — nada quebra, mas atenção
 - Nomes snake_case iguais aos de `types.ts`; o Drizzle devolve **camelCase** nas propriedades (`scheduledAt`, `familyId`). Mapear na borda (repositório) ou usar `getTableColumns`/aliases.

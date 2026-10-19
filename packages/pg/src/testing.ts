@@ -47,7 +47,8 @@ export const telefoneAleatorio = (): string => "5599" + String(Math.floor(Math.r
 const ORDEM_LIMPEZA = [
   "message_log", "notifications", "replenishment_steps", "stock_movements", "replenishments", "prescription_views",
   "prescription_shares", "prescription_items", "prescription_files", "prescriptions", "dose_events", "stock_items",
-  "treatment_phases", "treatments", "care_assignments", "patients", "medications", "members", "profiles",
+  "treatment_phases", "treatments", "care_assignments", "patients", "medications", "first_access_links", "invites",
+  "members", "profiles",
   "api_keys", "idempotency", "audit_log", "families",
 ];
 

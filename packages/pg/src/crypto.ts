@@ -15,3 +15,16 @@ export function gerarApiKey(tipo: "familia" | "plataforma"): { chave: string; ha
   const chave = prefixo + randomBytes(32).toString("base64url");
   return { chave, hash: sha256(chave), prefixo };
 }
+
+/** Hash do código de convite por WhatsApp, PRESO ao número esperado (o mesmo código em outro número gera outro hash). */
+export const hashConviteCodigo = (telefone: string, codigo: string): string =>
+  sha256(`medcuidar:convite:${telefone}:${codigo}`);
+
+/** Token do link de primeiro acesso (uso único, 24 h). Guarde só `hash`; envie `token` uma vez ao WhatsApp do usuário. */
+export function gerarTokenPrimeiroAcesso(): { token: string; hash: string } {
+  const token = randomBytes(32).toString("base64url");
+  return { token, hash: sha256(token) };
+}
+
+/** Validade de convites e de links de primeiro acesso. */
+export const VALIDADE_CONVITE_MS = 24 * 60 * 60 * 1000;

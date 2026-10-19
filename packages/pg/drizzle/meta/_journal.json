@@ -15,6 +15,20 @@
       "when": 1792417682466,
       "tag": "0001_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792419551545,
+      "tag": "0002_estados_acesso_convites",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792419557505,
+      "tag": "0003_convites_rls",
+      "breakpoints": true
     }
   ]
 }

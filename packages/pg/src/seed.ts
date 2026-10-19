@@ -30,20 +30,26 @@ export async function seedDemo(): Promise<void> {
       id: profileId(p.name), familyId: F, name: p.name, permissions: p.permissions as Record<string, boolean>, isSystem: true,
     }))).onConflictDoNothing();
 
-    // pessoas: [chave, nome, perfil, papel, recebe avisos da família, telefone verificado (fictício) | null]
-    const people: Array<[string, string, string, string, boolean, string | null]> = [
-      ["ana", "Ana", "Administrador", "filha", true, "5511900000001"],
-      ["beatriz", "Beatriz", "Familiar", "filha", true, "5511900000002"],
-      ["claudia", "Cláudia", "Familiar", "filha", true, "5511900000003"],
-      ["denise", "Denise", "Familiar", "filha", true, null],
-      ["lucas", "Lucas", "Familiar", "sobrinho", true, "5511900000005"],
-      ["rosa", "Rosa", "Cuidadora", "cuidadora", false, null],
-      ["lucia", "Lúcia", "Cuidadora", "cuidadora", false, null],
-      ["joao", "Seu João", "Confirmador", "sogro", false, null],
+    // pessoas: [chave, nome, perfil, papel, recebe avisos da família, estado de acesso, telefone verificado (fictício) | null]
+    // Mostra os três estados: active (login no portal), whatsapp_verified (só WhatsApp) e invited (convidado).
+    type Estado = "invited" | "whatsapp_verified" | "active";
+    const people: Array<[string, string, string, string, boolean, Estado, string | null]> = [
+      ["ana", "Ana", "Administrador", "filha", true, "active", "5511900000001"],
+      ["beatriz", "Beatriz", "Familiar", "filha", true, "active", "5511900000002"],
+      ["claudia", "Cláudia", "Familiar", "filha", true, "active", "5511900000003"],
+      ["denise", "Denise", "Familiar", "filha", true, "invited", null],
+      ["lucas", "Lucas", "Familiar", "sobrinho", true, "active", "5511900000005"],
+      ["rosa", "Rosa", "Cuidadora", "cuidadora", false, "whatsapp_verified", "5511900000006"],
+      ["lucia", "Lúcia", "Cuidadora", "cuidadora", false, "whatsapp_verified", "5511900000007"],
+      ["joao", "Seu João", "Confirmador", "sogro", false, "whatsapp_verified", "5511900000008"],
     ];
-    await tx.insert(s.members).values(people.map(([key, name, profile, role, alerts, phone]) => ({
+    await tx.insert(s.members).values(people.map(([key, name, profile, role, alerts, estado, phone]) => ({
       id: d(`m-${key}`), familyId: F, profileId: profileId(profile), name, roleLabel: role,
       email: `${key}@demo.medcuidar.test`, receivesFamilyAlerts: alerts, phoneVerified: phone, active: true,
+      accessState: estado,
+      // ids do Appwrite FICTÍCIOS, só para o estado active
+      appwriteUserId: estado === "active" ? `demo-appwrite-${key}` : null,
+      emailConfirmedAt: estado === "active" ? today : null,
     }))).onConflictDoNothing();
 
     await tx.insert(s.patients).values([

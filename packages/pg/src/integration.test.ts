@@ -8,9 +8,11 @@ import { eq, sql } from "drizzle-orm";
 import { getDb } from "./client";
 import { withFamilia, withPlataforma } from "./withFamilia";
 import {
-  resolverApiKeyPorHash, resolverMembroPorAppwriteUser, resolverMembroPorTelefone, verificarTelefonePendente,
+  consumirConviteWhatsapp, consumirLinkPrimeiroAcesso, resolverApiKeyPorHash, resolverLinkPrimeiroAcesso, resolverMembroPorAppwriteUser, resolverMembroPorTelefone, verificarTelefonePendente,
 } from "./sistema";
-import { gerarApiKey, hashCodigoVerificacao, sha256 } from "./crypto";
+import {
+  gerarApiKey, gerarTokenPrimeiroAcesso, hashCodigoVerificacao, hashConviteCodigo, sha256, VALIDADE_CONVITE_MS,
+} from "./crypto";
 import { FAMILY_TABLES } from "./schema";
 import * as s from "./schema";
 import {
@@ -267,6 +269,16 @@ describe.skipIf(!disponivel)("Postgres + RLS (papel da aplicação)", () => {
       expect(await sqlstate(ins)).toBe("23505");
     });
 
+    it("fase de tratamento: interval exige horas e primeira dose; fixed_times exige horários", async () => {
+      const fase = (v: Partial<typeof s.treatmentPhases.$inferInsert>) => sqlstate(() => withFamilia(A.id, (tx) =>
+        tx.insert(s.treatmentPhases).values({ familyId: A.id, treatmentId: A.treatmentId, order: Math.floor(Math.random() * 1e6) + 10, startDay: 1, doseAmount: 1, scheduleType: "interval", ...v })));
+      expect(await fase({})).toBe("23514");
+      expect(await fase({ intervalHours: 6 })).toBe("23514");
+      expect(await fase({ scheduleType: "fixed_times" })).toBe("23514");
+      expect(await fase({ intervalHours: 6, firstDoseTime: "06:00" })).toBe("ok");
+      expect(await fase({ scheduleType: "fixed_times", times: ["08:00"] })).toBe("ok");
+    });
+
     it("FK real: dose de tratamento inexistente falha", async () => {
       expect(await sqlstate(() => withFamilia(A.id, (tx) => tx.insert(s.doseEvents).values({
         familyId: A.id, treatmentId: randomUUID(), patientId: A.patientId, medicationId: A.medicationId,
@@ -305,7 +317,7 @@ describe.skipIf(!disponivel)("Postgres + RLS (papel da aplicação)", () => {
       const pend = telefoneAleatorio();
       const m = await novoMembro(B, { phoneVerified: tel });
       await novoMembro(B, { phonePending: pend });
-      expect(await resolverMembroPorTelefone(tel)).toEqual({ membroId: m, familiaId: B.id, ativo: true, familiaAtiva: true });
+      expect(await resolverMembroPorTelefone(tel)).toEqual({ membroId: m, familiaId: B.id, ativo: true, familiaAtiva: true, estadoAcesso: "invited" });
       expect(await resolverMembroPorTelefone(pend)).toBeNull();
       expect(await resolverMembroPorTelefone("abc")).toBeNull();
       expect(await resolverMembroPorTelefone(telefoneAleatorio())).toBeNull();
@@ -376,10 +388,11 @@ describe.skipIf(!disponivel)("Postgres + RLS (papel da aplicação)", () => {
 
     it("resolverMembroPorAppwriteUser e resolverApiKeyPorHash", async () => {
       const aw = `aw_${randomUUID()}`;
-      const m = await novoMembro(A, { appwriteUserId: aw, email: `${randomUUID()}@teste.test` });
-      expect(await resolverMembroPorAppwriteUser(aw)).toEqual({ membroId: m, familiaId: A.id, ativo: true });
+      const ativo = { accessState: "active" as const, emailConfirmedAt: new Date() };
+      const m = await novoMembro(A, { appwriteUserId: aw, email: `${randomUUID()}@teste.test`, ...ativo });
+      expect(await resolverMembroPorAppwriteUser(aw)).toEqual({ membroId: m, familiaId: A.id, ativo: true, estadoAcesso: "active" });
       expect(await resolverMembroPorAppwriteUser("inexistente")).toBeNull();
-      expect(await sqlstate(() => novoMembro(B, { appwriteUserId: aw }))).toBe("23505");
+      expect(await sqlstate(() => novoMembro(B, { appwriteUserId: aw, email: `${randomUUID()}@teste.test`, ...ativo }))).toBe("23505");
 
       const kf = gerarApiKey("familia");
       const kp = gerarApiKey("plataforma");
@@ -398,6 +411,267 @@ describe.skipIf(!disponivel)("Postgres + RLS (papel da aplicação)", () => {
       } finally {
         await admin`delete from platform_api_keys where key_hash = ${kp.hash}`;
       }
+    });
+  });
+
+  /* ------------------------------------------------------------ estados de acesso, convites e primeiro acesso */
+  describe("estados de acesso", () => {
+    const novo = async (f: FamiliaTeste, v: Partial<typeof s.members.$inferInsert> = {}) => {
+      const id = randomUUID();
+      await withFamilia(f.id, (tx) => tx.insert(s.members).values({ id, familyId: f.id, profileId: f.profileId, name: "Pessoa", ...v }));
+      return id;
+    };
+
+    it("todo membro nasce invited", async () => {
+      const id = await novo(A);
+      const [m] = await withFamilia(A.id, (tx) => tx.select().from(s.members).where(eq(s.members.id, id)));
+      expect(m?.accessState).toBe("invited");
+    });
+
+    it("active exige appwrite_user_id, e-mail e e-mail confirmado", async () => {
+      const ok = { accessState: "active" as const, appwriteUserId: `aw_${randomUUID()}`, email: `${randomUUID()}@teste.test`, emailConfirmedAt: new Date() };
+      await novo(A, ok);
+      expect(await sqlstate(() => novo(A, { ...ok, appwriteUserId: null, email: `${randomUUID()}@t.test` }))).toBe("23514");
+      expect(await sqlstate(() => novo(A, { ...ok, appwriteUserId: `aw_${randomUUID()}`, email: null }))).toBe("23514");
+      expect(await sqlstate(() => novo(A, { ...ok, appwriteUserId: `aw_${randomUUID()}`, email: `${randomUUID()}@t.test`, emailConfirmedAt: null }))).toBe("23514");
+    });
+
+    it("appwrite_user_id e e-mail confirmado não existem fora de active (e-mail pré-preenchido pode)", async () => {
+      for (const accessState of ["invited", "whatsapp_verified"] as const) {
+        const base = () => ({ accessState, phoneVerified: telefoneAleatorio() });
+        expect(await sqlstate(() => novo(A, { ...base(), appwriteUserId: `aw_${randomUUID()}` })), accessState).toBe("23514");
+        expect(await sqlstate(() => novo(A, { ...base(), emailConfirmedAt: new Date() })), accessState).toBe("23514");
+      }
+      await novo(A, { email: `${randomUUID()}@pre.test` }); // pré-preenchido pelo admin, ainda não confirmado
+    });
+
+    it("whatsapp_verified exige telefone verificado", async () => {
+      expect(await sqlstate(() => novo(A, { accessState: "whatsapp_verified" }))).toBe("23514");
+      await novo(A, { accessState: "whatsapp_verified", phoneVerified: telefoneAleatorio() });
+    });
+
+    it("trocar o número de um whatsapp_verified o devolve a invited", async () => {
+      const id = await novo(A, { accessState: "whatsapp_verified", phoneVerified: telefoneAleatorio() });
+      await withFamilia(A.id, (tx) => tx.update(s.members).set({ phonePending: telefoneAleatorio() }).where(eq(s.members.id, id)));
+      const [m] = await withFamilia(A.id, (tx) => tx.select().from(s.members).where(eq(s.members.id, id)));
+      expect(m).toMatchObject({ accessState: "invited", phoneVerified: null });
+    });
+
+    it("telefone verificado é único entre famílias", async () => {
+      const tel = telefoneAleatorio();
+      await novo(B, { accessState: "whatsapp_verified", phoneVerified: tel });
+      expect(await sqlstate(() => novo(A, { accessState: "whatsapp_verified", phoneVerified: tel }))).toBe("23505");
+    });
+  });
+
+  describe("convite por WhatsApp", () => {
+    const criarConvite = async (f: FamiliaTeste, tel: string, codigo: string) => {
+      const memberId = randomUUID();
+      const inviteId = randomUUID();
+      await withFamilia(f.id, async (tx) => {
+        await tx.insert(s.members).values({ id: memberId, familyId: f.id, profileId: f.profileId, name: "Convidada" });
+        await tx.insert(s.invites).values({
+          id: inviteId, familyId: f.id, kind: "whatsapp", profileId: f.profileId, memberId, expectedPhone: tel,
+          codeHash: hashConviteCodigo(tel, codigo), expiresAt: new Date(Date.now() + VALIDADE_CONVITE_MS),
+          createdByMemberId: f.memberId,
+        });
+      });
+      return { memberId, inviteId };
+    };
+    const ler = (f: FamiliaTeste, inviteId: string, memberId: string) => withFamilia(f.id, async (tx) => ({
+      inv: (await tx.select().from(s.invites).where(eq(s.invites.id, inviteId)))[0]!,
+      mem: (await tx.select().from(s.members).where(eq(s.members.id, memberId)))[0]!,
+    }));
+    const limparBloqueio = (...tels: string[]) => admin`delete from phone_lockouts where phone in ${admin(tels)}`;
+
+    it("remetente esperado + código certo: consome, verifica o número e deixa whatsapp_verified", async () => {
+      const tel = telefoneAleatorio();
+      const { memberId, inviteId } = await criarConvite(A, tel, "482910");
+      const r = await consumirConviteWhatsapp(tel, hashConviteCodigo(tel, "482910"));
+      expect(r).toEqual({ resultado: "verificado", membroId: memberId, familiaId: A.id, conviteId: inviteId, perfilId: A.profileId });
+      const { inv, mem } = await ler(A, inviteId, memberId);
+      expect(inv.consumedAt).not.toBeNull();
+      expect(mem).toMatchObject({ phoneVerified: tel, accessState: "whatsapp_verified", appwriteUserId: null, emailConfirmedAt: null });
+      expect(await resolverMembroPorTelefone(tel)).toMatchObject({ membroId: memberId, estadoAcesso: "whatsapp_verified" });
+    });
+
+    it("uso único: o mesmo código não vale uma segunda vez", async () => {
+      const tel = telefoneAleatorio();
+      await criarConvite(A, tel, "111222");
+      const h = hashConviteCodigo(tel, "111222");
+      expect((await consumirConviteWhatsapp(tel, h)).resultado).toBe("verificado");
+      expect((await consumirConviteWhatsapp(tel, h)).resultado).toBe("invalido");
+      await limparBloqueio(tel);
+    });
+
+    it("preso ao número: outro remetente com o código certo não consome nem gasta tentativa do convite", async () => {
+      const tel = telefoneAleatorio();
+      const intruso = telefoneAleatorio();
+      const { memberId, inviteId } = await criarConvite(A, tel, "333444");
+      for (const h of [hashConviteCodigo(intruso, "333444"), hashConviteCodigo(tel, "333444")]) {
+        for (let i = 0; i < 6; i++) expect((await consumirConviteWhatsapp(intruso, h)).resultado).not.toBe("verificado");
+      }
+      const { inv, mem } = await ler(A, inviteId, memberId);
+      expect(inv).toMatchObject({ attempts: 0, consumedAt: null, revokedAt: null });
+      expect(mem).toMatchObject({ accessState: "invited", phoneVerified: null });
+      expect((await consumirConviteWhatsapp(intruso, hashConviteCodigo(intruso, "333444"))).resultado).toBe("bloqueado");
+      expect((await consumirConviteWhatsapp(tel, hashConviteCodigo(tel, "333444"))).resultado).toBe("verificado");
+      await limparBloqueio(intruso);
+    });
+
+    it("a resposta não revela se existe convite para o número", async () => {
+      const tel = telefoneAleatorio();
+      const semConvite = telefoneAleatorio();
+      await criarConvite(A, tel, "555666");
+      const errado = await consumirConviteWhatsapp(tel, hashConviteCodigo(tel, "000000"));
+      const outro = await consumirConviteWhatsapp(semConvite, hashConviteCodigo(semConvite, "000000"));
+      expect(errado).toEqual(outro);
+      await limparBloqueio(tel, semConvite);
+    });
+
+    it("expirado não vale, mesmo com o código certo", async () => {
+      const tel = telefoneAleatorio();
+      const { inviteId, memberId } = await criarConvite(A, tel, "777888");
+      await admin`update invites set expires_at = now() - interval '1 second', created_at = now() - interval '25 hours' where id = ${inviteId}`;
+      expect((await consumirConviteWhatsapp(tel, hashConviteCodigo(tel, "777888"))).resultado).toBe("invalido");
+      expect((await ler(A, inviteId, memberId)).mem.accessState).toBe("invited");
+      await limparBloqueio(tel);
+    });
+
+    it("limite de tentativas: 5 erros revogam o convite; o código certo depois não passa", async () => {
+      const tel = telefoneAleatorio();
+      const { inviteId, memberId } = await criarConvite(A, tel, "999000");
+      for (let i = 0; i < 5; i++) {
+        expect((await consumirConviteWhatsapp(tel, hashConviteCodigo(tel, "123123"))).resultado).toBe("invalido");
+        await limparBloqueio(tel); // exercita só o limite do convite, sem o bloqueio por telefone
+      }
+      const { inv } = await ler(A, inviteId, memberId);
+      expect(inv.attempts).toBe(5);
+      expect(inv.revokedAt).not.toBeNull();
+      expect((await consumirConviteWhatsapp(tel, hashConviteCodigo(tel, "999000"))).resultado).toBe("invalido");
+      await limparBloqueio(tel);
+    });
+
+    it("revogado não vale; só um convite ativo por número esperado", async () => {
+      const tel = telefoneAleatorio();
+      const { inviteId } = await criarConvite(A, tel, "121212");
+      expect(await sqlstate(() => criarConvite(B, tel, "343434"))).toBe("23505");
+      await withFamilia(A.id, (tx) => tx.update(s.invites).set({ revokedAt: new Date() }).where(eq(s.invites.id, inviteId)));
+      expect((await consumirConviteWhatsapp(tel, hashConviteCodigo(tel, "121212"))).resultado).toBe("invalido");
+      await criarConvite(B, tel, "343434");
+      await limparBloqueio(tel);
+    });
+
+    it("número já verificado por outro usuário: em_uso e o convite não é consumido", async () => {
+      const tel = telefoneAleatorio();
+      const { inviteId, memberId } = await criarConvite(A, tel, "565656");
+      await withFamilia(B.id, (tx) => tx.insert(s.members).values({
+        familyId: B.id, profileId: B.profileId, name: "Dono do número", accessState: "whatsapp_verified", phoneVerified: tel,
+      }));
+      const r = await consumirConviteWhatsapp(tel, hashConviteCodigo(tel, "565656"));
+      expect(r.resultado).toBe("em_uso");
+      expect(r.membroId).toBeNull();
+      const { inv, mem } = await ler(A, inviteId, memberId);
+      expect(inv.consumedAt).toBeNull();
+      expect(mem.accessState).toBe("invited");
+    });
+
+    it("formato: hash válido; e-mail xor número esperado", async () => {
+      const tel = telefoneAleatorio();
+      expect((await consumirConviteWhatsapp(tel, "123456")).resultado).toBe("invalido");
+      expect((await consumirConviteWhatsapp("abc", sha256("x"))).resultado).toBe("invalido");
+      const memberId = randomUUID();
+      await withFamilia(A.id, (tx) => tx.insert(s.members).values({ id: memberId, familyId: A.id, profileId: A.profileId, name: "X" }));
+      const base = { familyId: A.id, profileId: A.profileId, memberId, expiresAt: new Date(Date.now() + 1000) };
+      const ins = (v: Partial<typeof s.invites.$inferInsert> & { kind: "email" | "whatsapp" }) =>
+        sqlstate(() => withFamilia(A.id, (tx) => tx.insert(s.invites).values({ ...base, ...v })));
+      expect(await ins({ kind: "whatsapp" })).toBe("23514");
+      expect(await ins({ kind: "whatsapp", expectedPhone: tel, codeHash: "puro-123456" })).toBe("23514");
+      expect(await ins({ kind: "email", email: "a@b.test", expectedPhone: tel })).toBe("23514");
+      expect(await ins({ kind: "email", email: "a@b.test" })).toBe("ok");
+    });
+
+    it("RLS: a família B não enxerga nem altera convites e links da A, e sem família não vê nada", async () => {
+      const tel = telefoneAleatorio();
+      const { inviteId, memberId } = await criarConvite(A, tel, "787878");
+      const { hash } = gerarTokenPrimeiroAcesso();
+      await withFamilia(A.id, (tx) => tx.insert(s.firstAccessLinks).values({
+        familyId: A.id, memberId, tokenHash: hash, expiresAt: new Date(Date.now() + VALIDADE_CONVITE_MS),
+      }));
+      await withFamilia(B.id, async (tx) => {
+        expect(await tx.select().from(s.invites).where(eq(s.invites.id, inviteId))).toHaveLength(0);
+        expect(await tx.select().from(s.firstAccessLinks)).toHaveLength(0);
+        expect(await tx.update(s.invites).set({ revokedAt: new Date() }).where(eq(s.invites.id, inviteId)).returning()).toHaveLength(0);
+        expect(await tx.delete(s.firstAccessLinks).returning()).toHaveLength(0);
+      });
+      expect(await getDb().select().from(s.invites)).toHaveLength(0);
+      expect(await getDb().select().from(s.firstAccessLinks)).toHaveLength(0);
+      expect(await sqlstate(() => withFamilia(B.id, (tx) => tx.insert(s.invites).values({
+        familyId: A.id, kind: "email", email: "x@y.test", profileId: A.profileId, memberId, expiresAt: new Date(Date.now() + 1000),
+      })))).toBe("42501");
+      const [{ n } = { n: -1 }] = await admin`select count(*)::int as n from invites where id = ${inviteId} and revoked_at is null`;
+      expect(n).toBe(1);
+    });
+  });
+
+  describe("link de primeiro acesso", () => {
+    const criarLink = async (f: FamiliaTeste) => {
+      const memberId = randomUUID();
+      await withFamilia(f.id, (tx) => tx.insert(s.members).values({
+        id: memberId, familyId: f.id, profileId: f.profileId, name: "Primeiro acesso", email: `${randomUUID()}@pa.test`,
+        accessState: "whatsapp_verified", phoneVerified: telefoneAleatorio(),
+      }));
+      const { token, hash } = gerarTokenPrimeiroAcesso();
+      const [row] = await withFamilia(f.id, (tx) => tx.insert(s.firstAccessLinks).values({
+        familyId: f.id, memberId, tokenHash: hash, expiresAt: new Date(Date.now() + VALIDADE_CONVITE_MS),
+      }).returning());
+      return { memberId, token, hash, linkId: row!.id };
+    };
+
+    it("resolve sem consumir; consome uma única vez", async () => {
+      const { memberId, hash, linkId } = await criarLink(A);
+      const r = await resolverLinkPrimeiroAcesso(hash);
+      expect(r).toMatchObject({ linkId, membroId: memberId, familiaId: A.id, estadoAcesso: "whatsapp_verified" });
+      expect(r?.email).toMatch(/@pa\.test$/);
+      expect(await resolverLinkPrimeiroAcesso(hash)).not.toBeNull();
+      expect(await consumirLinkPrimeiroAcesso(hash)).toEqual({ linkId, membroId: memberId, familiaId: A.id });
+      expect(await consumirLinkPrimeiroAcesso(hash)).toBeNull();
+      expect(await resolverLinkPrimeiroAcesso(hash)).toBeNull();
+    });
+
+    it("consumo concorrente: só um vence", async () => {
+      const { hash } = await criarLink(A);
+      const r = await Promise.all([1, 2, 3, 4].map(() => consumirLinkPrimeiroAcesso(hash)));
+      expect(r.filter((x) => x !== null)).toHaveLength(1);
+    });
+
+    it("expirado, revogado, desconhecido ou fora do formato não resolvem", async () => {
+      const exp = await criarLink(A);
+      await admin`update first_access_links set expires_at = now() - interval '1 second', created_at = now() - interval '25 hours' where id = ${exp.linkId}`;
+      expect(await resolverLinkPrimeiroAcesso(exp.hash)).toBeNull();
+      expect(await consumirLinkPrimeiroAcesso(exp.hash)).toBeNull();
+      const rev = await criarLink(A);
+      await withFamilia(A.id, (tx) => tx.update(s.firstAccessLinks).set({ revokedAt: new Date() }).where(eq(s.firstAccessLinks.id, rev.linkId)));
+      expect(await resolverLinkPrimeiroAcesso(rev.hash)).toBeNull();
+      expect(await consumirLinkPrimeiroAcesso(sha256("desconhecido"))).toBeNull();
+      expect(await resolverLinkPrimeiroAcesso("token-puro")).toBeNull();
+    });
+
+    it("só o hash fica no banco: token em claro é recusado pelo formato", async () => {
+      const { token, memberId } = await criarLink(A);
+      expect(await sqlstate(() => withFamilia(A.id, (tx) => tx.insert(s.firstAccessLinks).values({
+        familyId: A.id, memberId, tokenHash: token, expiresAt: new Date(Date.now() + 1000),
+      })))).toBe("23514");
+    });
+
+    it("fluxo completo: link consumido e membro ativado (active) com Appwrite e e-mail confirmado", async () => {
+      const { memberId, hash } = await criarLink(A);
+      expect((await consumirLinkPrimeiroAcesso(hash))?.membroId).toBe(memberId);
+      await withFamilia(A.id, (tx) => tx.update(s.members).set({
+        accessState: "active", appwriteUserId: `aw_${randomUUID()}`, emailConfirmedAt: new Date(),
+      }).where(eq(s.members.id, memberId)));
+      const [m] = await withFamilia(A.id, (tx) => tx.select().from(s.members).where(eq(s.members.id, memberId)));
+      expect(m?.accessState).toBe("active");
     });
   });
 

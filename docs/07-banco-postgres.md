@@ -37,7 +37,9 @@ Chaves `uuid` (`gen_random_uuid()`), datas `timestamptz` (UTC), `date` para data
 |---|---|
 | `families` | `name`, `timezone` (`America/Sao_Paulo`), `settings` jsonb (`FamilySettings`), `active`, `deleted_at` |
 | `profiles` | por família; único `(family_id, name)`; `permissions` jsonb |
-| `members` | `profile_id → profiles`; `email`, `appwrite_user_id` (único, parcial), `phone_verified` (**único no sistema**, parcial), `phone_pending`, `verification_code_hash/expires_at/attempts`, `receives_family_alerts`, `active`, `removed_at` |
+| `members` | `profile_id → profiles`; **`access_state`** (`invited` \| `whatsapp_verified` \| `active`, padrão `invited`), `email`, `email_confirmed_at`, `appwrite_user_id` (único, parcial), `phone_verified` (**único no sistema**, parcial), `phone_pending`, `verification_code_hash/expires_at/attempts`, `receives_family_alerts`, `active`, `removed_at`. Checks: `active` exige `appwrite_user_id` + e-mail + `email_confirmed_at`; fora de `active` esses dois não existem (o `email` pré-preenchido pode); `whatsapp_verified` exige `phone_verified` |
+| `invites` | convite por `email` ou `whatsapp`: `profile_id`, `member_id` (membro criado, nasce `invited`), `email` **xor** `expected_phone` (só dígitos), `code_hash` (hash preso ao número, nunca o código), `expires_at` (24 h), `attempts`, `consumed_at`, `revoked_at`, `created_by_member_id`. Único **um convite WhatsApp ativo por `expected_phone`** (índice parcial: sem `consumed_at`/`revoked_at`), então o app revoga o antigo antes de criar outro |
+| `first_access_links` | `member_id`, `token_hash` (sha256, único; o token só existe no link enviado), `expires_at` (24 h), `consumed_at`, `revoked_at` |
 | `patients` | `self_member_id → members` (opcional: paciente que também é usuário), `reminder_recipients_mode` |
 | `care_assignments` | paciente × membro × dias da semana × janela `HH:mm` × prioridade |
 | `medications` | `route`, `control_unit`, `drops_per_ml` (colírio), `package_size` |
@@ -73,9 +75,23 @@ Integridade entre famílias: as FKs são simples (não compostas). O RLS impede 
 | `resolve_member_by_phone(tel)` | `resolverMembroPorTelefone` | telefone **verificado** → membro e família (sem passo "qual família") |
 | `resolve_member_by_appwrite_user(id)` | `resolverMembroPorAppwriteUser` | sessão do Appwrite Auth → membro e família |
 | `resolve_api_key(hash)` | `resolverApiKeyPorHash` | chave `cdf_` (família) ou `cpl_` (plataforma); ignora revogadas; marca `last_used_at` |
+| `consume_whatsapp_invite(tel, hash)` | `consumirConviteWhatsapp` | convite por WhatsApp (ver seção 4.1) |
+| `resolve_first_access_link(hash)` / `consume_first_access_link(hash)` | `resolverLinkPrimeiroAcesso` / `consumirLinkPrimeiroAcesso` | link de primeiro acesso: resolver (só leitura) e consumir (uso único, atômico) |
 | `verify_pending_phone(tel, hash)` | `verificarTelefonePendente` | o remetente envia o código; vira `verificado`, `invalido`, `bloqueado` (5 erros/15 min) ou `em_uso` |
 
-- Gatilho `members_phone_change`: informar um `phone_pending` novo zera o `phone_verified` do membro ("trocar o número invalida o verificado").
+- Gatilho `members_phone_change`: informar um `phone_pending` novo zera o `phone_verified` do membro ("trocar o número invalida o verificado"); quem era `whatsapp_verified` volta a `invited`.
+- `resolve_member_by_phone` e `resolve_member_by_appwrite_user` devolvem também `access_state` (`estadoAcesso`). **A API decide o que cada estado pode**: `invited` não pode nada; `whatsapp_verified` só as permissões básicas pelo WhatsApp (check de dose, próxima dose, estoque, avisos); `active` tudo o que o perfil permite. O banco só garante a coerência dos dados (checks acima).
+
+### 4.1 Estados de acesso, convites e primeiro acesso (docs/06 seção 2)
+
+Fluxo: o admin cria o membro (`invited`) e o convite em `withFamilia`, guardando só `hashConviteCodigo(telefone, código)` e `expires_at = agora + 24 h` (`VALIDADE_CONVITE_MS`); mostra o código uma vez. O convidado envia o código ao WhatsApp do sistema; o N8N chama a API com o **remetente real**, que chama `consumirConviteWhatsapp(remetente, hashConviteCodigo(remetente, código))`:
+
+- Só encontra o convite pelo **número do remetente** (`expected_phone`). Outro número, mesmo com o código certo, não acha o convite, **não gasta tentativa dele** e recebe a mesma resposta de "código errado" (não revela se existe convite). O custo do erro vai para o remetente (`phone_lockouts`: 5 erros em 15 min bloqueiam aquele número).
+- Erro com o número esperado: `attempts + 1`; no 5º erro o convite é revogado.
+- Sucesso: `consumed_at` (uso único), `phone_verified = remetente`, `access_state = whatsapp_verified` (se ainda `invited`). Número já verificado por outro usuário → `em_uso`, convite intacto. Expirado, revogado ou consumido → `invalido`.
+- Depois do `verificado`, o app cria o link de primeiro acesso: `gerarTokenPrimeiroAcesso()` → grava `first_access_links` (`hash`, 24 h) e envia o `token` ao WhatsApp verificado.
+- Primeiro acesso: `resolverLinkPrimeiroAcesso(sha256(token))` para a tela (não gasta o link); ao concluir, `consumirLinkPrimeiroAcesso` (atômico: só um de vários pedidos concorrentes vence) e então o app, em `withFamilia`, cria o usuário no Appwrite e atualiza o membro para `active` (`appwrite_user_id`, `email`, `email_confirmed_at`). Convite por e-mail usa `invites.kind = 'email'` (sem código; o e-mail é enviado pelo Appwrite) e o mesmo caminho até `active`.
+- `invites` e `first_access_links` têm RLS por família: a família B não lê, altera nem apaga os da A. As funções acima são as únicas que enxergam entre famílias, e só pelo hash.
 
 Limite conhecido: quem controla o código da aplicação pode escolher qualquer `app.familia_id`. O RLS protege contra bug de consulta (esquecer o filtro, id trocado), não contra código malicioso do servidor. A identidade da família sempre vem da sessão/chave/telefone resolvidos, nunca de parâmetro livre.
 
@@ -108,7 +124,7 @@ Regras de uso:
 
 ## 6. Testes
 
-`packages/pg/src/*.test.ts` — `unit.test.ts` (ids, hashes, validação) e `integration.test.ts` (Postgres real, papel `medcuidar_app`): isolamento por RLS (leitura, insert, update, delete, SQL cru, sem contexto, tabelas de plataforma), índices únicos de dose/movimento/notificação/mensagem/idempotência, telefone verificado único e fluxo de verificação, rollback, e limites do papel (sem superusuário/BYPASSRLS, não desliga RLS, não cria nem altera tabelas). Cada execução cria duas famílias descartáveis e as apaga ao final; o seed demo não é tocado.
+`packages/pg/src/*.test.ts` — `unit.test.ts` (ids, hashes, validação) e `integration.test.ts` (Postgres real, papel `medcuidar_app`): isolamento por RLS (leitura, insert, update, delete, SQL cru, sem contexto, tabelas de plataforma), índices únicos de dose/movimento/notificação/mensagem/idempotência, telefone verificado único e fluxo de verificação, rollback, convites e estados de acesso (checks de `active`, convite preso ao número, uso único, expiração, limite de tentativas, `em_uso`, link de primeiro acesso, RLS das tabelas novas), e limites do papel (sem superusuário/BYPASSRLS, não desliga RLS, não cria nem altera tabelas). Cada execução cria duas famílias descartáveis e as apaga ao final; o seed demo não é tocado.
 
 ## 7. Divergências e pendências
 
