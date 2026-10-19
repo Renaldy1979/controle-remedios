@@ -51,7 +51,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await page.getByRole("button", { name: "Criar a família" }).click();
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { name: "Primeiros passos" })).toBeVisible();
-    await expect(page.getByText("Doses, estoque e receitas chegam nos próximos lotes")).toBeVisible();
+    await expect(page.getByText("Cadastre um remédio com estoque e esquema e as doses do dia aparecem aqui.")).toBeVisible();
     await expect(page.getByRole("link", { name: "Configurações" })).toBeVisible();
   });
 
