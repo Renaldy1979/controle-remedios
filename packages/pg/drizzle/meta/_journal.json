@@ -29,6 +29,13 @@
       "when": 1792419557505,
       "tag": "0003_convites_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792444719547,
+      "tag": "0004_dose_lembrar_de_novo",
+      "breakpoints": true
     }
   ]
 }

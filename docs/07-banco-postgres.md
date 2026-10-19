@@ -45,7 +45,7 @@ Chaves `uuid` (`gen_random_uuid()`), datas `timestamptz` (UTC), `date` para data
 | `medications` | `route`, `control_unit`, `drops_per_ml` (colírio), `package_size` |
 | `treatments` | paciente × remédio; `status`, `start_date/end_date`, `low_stock_days` |
 | `treatment_phases` | `(treatment_id, order)` único; check: `interval` exige `interval_hours`+`first_dose_time`, `fixed_times` exige `times` |
-| `dose_events` | **único `(treatment_id, scheduled_at)`**; único `source_message_id` (parcial); `status`, `channel`, `confirmed_by_member_id` |
+| `dose_events` | **único `(treatment_id, scheduled_at)`**; único `source_message_id` (parcial); `status`, `channel`, `confirmed_by_member_id`; `remind_again_at` (pedido "lembrar de novo", migração 0004: o Lote 2 grava, o envio é do Lote 4) |
 | `stock_items` | único `(family_id, patient_id, medication_id)`; `is_estimate`; `cached_balance` é só cache |
 | `stock_movements` | **livro-razão**; **único `dose_event_id`** (parcial); check: `type='dose'` exige `dose_event_id`; `quantity <> 0`. Compensações de "desfazer" são `adjustment` sem `dose_event_id` (`note: undo:<doseId>:<n>`), como o domínio já faz |
 | `prescriptions`, `prescription_files`, `prescription_items`, `prescription_shares`, `prescription_views` | receita e anexos (`storage_file_id` = arquivo no bucket do Appwrite, só URL assinada), itens `(prescription_id, medication_id)` único, compartilhamentos e visualizações auditáveis |
@@ -125,6 +125,12 @@ Regras de uso:
 ## 6. Testes
 
 `packages/pg/src/*.test.ts` — `unit.test.ts` (ids, hashes, validação) e `integration.test.ts` (Postgres real, papel `medcuidar_app`): isolamento por RLS (leitura, insert, update, delete, SQL cru, sem contexto, tabelas de plataforma), índices únicos de dose/movimento/notificação/mensagem/idempotência, telefone verificado único e fluxo de verificação, rollback, convites e estados de acesso (checks de `active`, convite preso ao número, uso único, expiração, limite de tentativas, `em_uso`, link de primeiro acesso, RLS das tabelas novas), e limites do papel (sem superusuário/BYPASSRLS, não desliga RLS, não cria nem altera tabelas). Cada execução cria duas famílias descartáveis e as apaga ao final; o seed demo não é tocado.
+
+## 6.1 Migração 0004 (Lote 2)
+
+`0004_dose_lembrar_de_novo.sql`: acrescenta `dose_events.remind_again_at timestamptz` (nulo). Nenhuma tabela nova: `notifications` (avisos do sino, `dedupe_key` único por família), `stock_items` e `stock_movements` já existiam e seguem com RLS por família (o teste de isolamento do Lote 2 cobre `dose_events`, `stock_items`, `stock_movements` e `notifications`). O limite de estoque baixo por remédio é `treatments.low_stock_days` (nulo = padrão da família em `families.settings.default_low_stock_days`). Aplicar no staging: `node /app/migrate/migrate.mjs` com `DATABASE_URL_ADMIN` temporária (ver `docs/09`).
+
+Convenções do livro-razão usadas pelo portal: compra = `purchase`; saldo inicial = `purchase` com `note = 'Saldo inicial'`; ajuste manual = `adjustment` com `note = 'Ajuste: <motivo>'`; baixa de dose = `dose` (único por `dose_event_id`); desfazer/refazer = `adjustment` com `note = 'undo:<dose>:<n>'` / `'redo:<dose>:<n>'`. O aviso de estoque baixo usa `dedupe_key = low_stock:<stock_item>:<ciclo>:<membro>`, onde o ciclo é a última entrada (compra ou ajuste positivo que não seja undo/redo): um aviso por ciclo e por pessoa.
 
 ## 7. Divergências e pendências
 

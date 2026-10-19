@@ -1,0 +1,1 @@
+ALTER TABLE "dose_events" ADD COLUMN "remind_again_at" timestamp with time zone;

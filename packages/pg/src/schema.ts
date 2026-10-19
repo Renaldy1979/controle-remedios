@@ -258,6 +258,8 @@ export const doseEvents = pgTable("dose_events", {
   sourceMessageId: text("source_message_id"),
   skippedReason: text("skipped_reason"),
   amount: doublePrecision("amount").notNull(),
+  /** Pedido "lembrar de novo" (Lote 2 registra; o envio é do Lote 4): quando o lembrete deve ser repetido. */
+  remindAgainAt: ts("remind_again_at"),
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex("dose_events_treatment_time_uq").on(t.treatmentId, t.scheduledAt),
