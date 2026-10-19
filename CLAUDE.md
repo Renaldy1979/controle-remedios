@@ -28,6 +28,10 @@ Padrão de referência: projeto `controle-financeiro` do dono (`withFamilia`, `r
 - **Interface em pt-BR.** Código e nomes técnicos em inglês.
 - Estoque de colírio é **estimativa** (gotas por ml configurável); a UI sempre sinaliza isso.
 
+## Entrega por lotes (`docs/08-lotes.md`)
+- Cada lote termina com algo **testável pelo dono** em staging, com roteiro em `docs/lotes/L<n>-roteiro.md`. O lote só está pronto com testes verdes, conferência do orquestrador **e validação do dono** registrada em `docs/lotes/L<n>-validacao.md`. Não comece o lote seguinte sem o "validado".
+- A pasta do pacote Postgres é `packages/pg` (`@medcuidar/pg`) enquanto o `packages/db` antigo (Appwrite) existir.
+
 ## Convenções
 - Monorepo: `apps/web` (portal + API `/api/v1`), `packages/domain`, `packages/shared`, `packages/db` (Postgres + Drizzle), `integrations/n8n`, `docs`, `design`. (`apps/functions`, `packages/channels` e `scripts/appwrite` são do escopo v1 e serão removidos conforme `docs/06` seção 7.)
 - Cada agente só edita as pastas que o plano lhe atribui. Mudou fora da sua pasta? Abra uma nota em `docs/handoffs/` em vez de editar.

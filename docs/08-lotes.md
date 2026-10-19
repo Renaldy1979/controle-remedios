@@ -1,0 +1,78 @@
+# 08 — Entrega por lotes
+
+**Regra:** cada lote termina com algo que o dono **abre e testa** num ambiente de staging, com um **roteiro de teste** passo a passo. O lote só é dado como pronto quando (1) os testes automáticos passam, (2) o orquestrador conferiu e (3) **o dono validou o roteiro**. O lote seguinte só começa depois do "validado".
+
+Fluxo de cada lote: construir → testes automáticos → orquestrador confere → publicar no staging → dono roda o roteiro → registrar o resultado em `docs/lotes/L<n>-validacao.md` (ok, ajustes pedidos, pendências) → corrigir → "validado".
+
+**Ambiente de teste:** staging no EasyPanel (portal Next.js + Postgres), com URL para abrir no computador e no celular. O dono cria os serviços no EasyPanel seguindo `docs/09-deploy-staging.md` (entregue no Lote 1).
+
+## Modelo de entrada na família (definido pelo dono)
+- **Primeiro usuário = administrador.** Cria a conta (e-mail e senha), **valida o e-mail** (Appwrite) e informa e valida o **WhatsApp**. Sem WhatsApp verificado ele usa o portal normalmente, só não recebe mensagens.
+- **Convite por e-mail:** o convidado faz o mesmo processo do admin (valida o e-mail, define a senha).
+- **Convite por WhatsApp:** o admin gera um código de convite para a pessoa. O convidado salva o número do sistema e **envia o código** por WhatsApp; o número é reconhecido como verificado e ele **entra na família já validado**. Indicado para quem usa WhatsApp mas não tem familiaridade com e-mail.
+- *Interpretação a confirmar:* o usuário que entra só por WhatsApp não precisa de e-mail nem senha; ele age pelo WhatsApp (as permissões do perfil valem igual). Pode acrescentar e-mail e senha depois para usar o portal.
+
+---
+
+## Lote 1 — Acesso e cadastros
+**Você testa:** abrir o portal pelo link, criar a conta de administrador, validar o e-mail, entrar, cadastrar a família, convidar um membro por e-mail, configurar perfis e cadastrar pacientes, remédios e esquemas.
+- Staging no ar com HTTPS (portal + Postgres).
+- Criar conta (e-mail e senha), validar e-mail, entrar/sair, redefinir senha.
+- Primeira entrada cria a **família** e o administrador. Campo do número de WhatsApp (fica "pendente": a validação real chega no Lote 4).
+- Convidar por e-mail e aceitar o convite; gerar o código de convite por WhatsApp (o uso do código chega no Lote 4).
+- Perfis e permissões (matriz) e usuários da família; a tela se adapta ao perfil (Confirmador não vê Configurações).
+- Cadastro de **pacientes** (um ou mais; paciente pode ter conta), **remédios** (marcas alternativas, via de uso, unidade) e **esquemas com fases**.
+- Isolamento: uma segunda família criada no staging não enxerga nada da primeira.
+
+**Roteiro:** 1) criar conta e validar e-mail; 2) criar a família; 3) convidar uma filha por e-mail e entrar com ela; 4) confirmar que o perfil Confirmador não vê Configurações; 5) cadastrar Adelino e Maria; 6) cadastrar o Zypred com duas fases (3 em 3 h por 15 dias, depois 6 em 6 h); 7) criar uma segunda família com outro e-mail e conferir que não vê os dados da primeira.
+
+**Fora do lote:** doses, estoque, receitas, WhatsApp.
+**Precisa do dono:** criar no EasyPanel o Postgres e o serviço do portal (passo a passo no `docs/09`); confirmar que o Appwrite envia e-mail (SMTP).
+
+## Lote 2 — Doses e estoque (o núcleo do problema)
+**Você testa:** a agenda do dia, dar o check, ver o estoque baixar e o aviso de estoque baixo.
+- Doses do dia geradas a partir das fases; **Início** com próximas doses, atrasadas e esquecidas.
+- Confirmar dose, desfazer, registrar que tomou depois; quem deu e quando.
+- **Estoque:** saldo inicial (compra), baixa automática a cada dose confirmada, ajuste manual, previsão de término (colírio sinalizado como estimativa).
+- Limite configurável (padrão e por remédio); ao atingir, **aviso no portal** (sino) para todos os usuários com permissão de comprar ou administrar.
+- Pacientes que dão dose a outros pacientes; permissões valendo (Confirmador só dá o check e vê a próxima).
+
+**Roteiro:** 1) cadastrar um remédio com 10 comprimidos e esquema de 1 por dia; 2) confirmar 3 doses e ver o saldo cair; 3) desfazer uma e ver o saldo voltar; 4) baixar o estoque até o limite e ver o aviso no sino de dois usuários; 5) ver a previsão de término mudar ao trocar a fase; 6) entrar como Confirmador e conferir o que ele vê.
+
+## Lote 3 — Receitas e reposição
+**Você testa:** anexar a foto da receita pelo celular, ver o histórico e conduzir uma reposição até o estoque ser atualizado.
+- Upload de fotos/PDF no bucket do Appwrite, páginas, validade, situação (vigente, vence em X dias, vencida), visualizador e histórico.
+- Compartilhar dentro do portal e controle de quem pode ver.
+- **Reposição** em 4 etapas (pedir receita, receita recebida, comprado, estoque atualizado) com "Eu cuido disso" e responsável por etapa; registrar a compra soma ao estoque.
+
+**Roteiro:** 1) anexar uma receita com duas páginas pelo celular; 2) ver o aviso "vence em X dias"; 3) abrir a reposição de um remédio no limite; 4) outra pessoa assume a compra; 5) registrar a compra e ver o estoque e a previsão atualizarem; 6) conferir que um perfil sem permissão não vê a receita.
+
+## Lote 4 — WhatsApp
+**Você testa:** validar o número, receber o lembrete, responder "tomei" e ver o estoque baixar, receber o aviso de estoque e perguntar o próximo remédio.
+- **API `/api/v1`** com chaves, identificação por telefone e proteção contra repetição; OpenAPI.
+- Validação do número (dono envia o código ao sistema) e **convite por WhatsApp**.
+- Fluxos do N8N, um por gatilho (conversa, lembrete de dose, estoque baixo, resumo diário, teste de conexão), importáveis no seu N8N.
+- Conversa híbrida: confirmar dose sem IA; perguntas livres com IA.
+- Primeiro com o **simulador** (sem número) e depois com o **número de teste**.
+
+**Roteiro:** 1) validar o seu número; 2) receber o lembrete de uma dose; 3) responder "tomei" e conferir no portal; 4) baixar o estoque ao limite e receber o aviso; 5) perguntar "como está o estoque?"; 6) usuário sem número verificado não recebe nada; 7) convidar uma pessoa pelo código de WhatsApp.
+**Precisa do dono:** número de WhatsApp do sistema, URL e credenciais do Evolution Go e do N8N (fora do chat).
+
+## Lote 5 — Qualidade, segurança e piloto
+**Você testa:** o uso real com a família por duas semanas.
+- Revisão de segurança e LGPD (RLS, chaves, logs sem dados pessoais, URLs assinadas), acessibilidade, e2e, backup e restauração testados.
+- Trocar as chaves usadas em desenvolvimento, apagar dados de demonstração.
+- Cadastro real dos sogros e acompanhamento com conferência paralela ao papel.
+
+---
+
+## O que cada lote entrega (definição de pronto)
+1. URL de staging com a versão do lote e dados de exemplo.
+2. Roteiro de teste de uma página (acima, refinado) em `docs/lotes/L<n>-roteiro.md`.
+3. Testes automáticos verdes (unidade, integração e e2e do que mudou), lint e tipos limpos.
+4. Lista de limitações conhecidas.
+5. Registro da validação do dono em `docs/lotes/L<n>-validacao.md`.
+
+## Situação atual
+- Fundação Postgres (sessão R1) em andamento: é o primeiro passo do Lote 1.
+- Reaproveitados nos próximos lotes: domínio, telas e design já feitos.
