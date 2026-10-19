@@ -8,7 +8,7 @@ expect.extend(axeMatchers);
 afterEach(() => cleanup());
 
 // jsdom não implementa matchMedia nem scrollTo
-if (!window.matchMedia) {
+if (typeof window !== "undefined" && !window.matchMedia) {
   window.matchMedia = ((query: string) => ({
     matches: false,
     media: query,
@@ -20,4 +20,4 @@ if (!window.matchMedia) {
     dispatchEvent: () => false,
   })) as typeof window.matchMedia;
 }
-window.scrollTo = (() => {}) as typeof window.scrollTo;
+if (typeof window !== "undefined") window.scrollTo = (() => {}) as typeof window.scrollTo;

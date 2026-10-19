@@ -19,7 +19,14 @@ export interface PatientVM {
   note: string;
   usesPhone: boolean;
   phone: string;
+  /** aaaa-mm-dd ou vazio */
+  birthDate?: string;
+  /** o paciente também tem conta (usuário) */
+  selfMemberId?: string | null;
+  selfMemberName?: string;
 }
+
+export type AccessState = "invited" | "whatsapp_verified" | "active";
 
 export interface PersonVM {
   id: string;
@@ -31,6 +38,22 @@ export interface PersonVM {
   whatsappActive: boolean;
   receivesAlerts: boolean;
   permissions: PermissionMap;
+  /** Lote 1 (origem real): estado de acesso e dados do convite */
+  accessState?: AccessState;
+  email?: string;
+  /** número informado e ainda não validado (a validação chega no Lote 4) */
+  phonePending?: string;
+  active?: boolean;
+  isSelf?: boolean;
+  invite?: { kind: "email" | "whatsapp"; expiresLabel: string; expired: boolean };
+}
+
+export interface AccountVM {
+  email: string;
+  name: string;
+  /** só dígitos; vazio = não informado */
+  phonePending: string;
+  phoneVerified: string;
 }
 
 export interface Member {
@@ -111,6 +134,8 @@ export interface MedicationVM {
   route: MedRoute;
   routeLabel: string;
   unitLabel: string;
+  /** só colírio/gotas (estimativa) */
+  dropsPerMl?: number;
   doseText: string;
   scheduleText: string;
   phaseText: string;
@@ -120,6 +145,8 @@ export interface MedicationVM {
   /** dia atual do tratamento (null = uso contínuo) */
   treatmentDay: number | null;
   firstTime: string;
+  /** aaaa-mm-dd: dia 1 do esquema (origem real) */
+  startDate?: string;
   otc: boolean;
   stock: StockVM;
   rx: MedRxLinkVM;
@@ -270,6 +297,8 @@ export interface Snapshot {
   permissionRows: PermissionRowVM[];
   notifications: NotificationSettingsVM;
   alertCount: number;
+  /** origem real: dados da própria conta (e-mail e WhatsApp pendente) */
+  account?: AccountVM;
 }
 
 export interface AttachDraft {
@@ -301,16 +330,52 @@ export interface ShareTarget {
 
 export interface MemberInput {
   name: string;
-  /** telefone com DDD; o servidor normaliza para E.164 */
+  /** celular com DDD; o servidor guarda só dígitos com 55 */
   phone: string;
   profileName: string;
   relation: string;
+  /** convite: por e-mail (padrão na origem real) ou por WhatsApp */
+  kind?: "email" | "whatsapp";
+  email?: string;
+}
+
+/** Resultado de um convite. O código do convite por WhatsApp aparece UMA vez (o servidor guarda só o hash). */
+export interface InviteResult {
+  kind: "email" | "whatsapp";
+  memberName: string;
+  /** e-mail: o Appwrite conseguiu enviar o e-mail? */
+  emailSent?: boolean;
+  /** whatsapp: código de 6 dígitos, mostrado só agora */
+  code?: string;
+  expectedPhone?: string;
+  expiresLabel: string;
+}
+
+export interface PatientInput {
+  id?: string;
+  name: string;
+  /** aaaa-mm-dd ou vazio */
+  birthDate: string;
+  notes: string;
+  usesPhone: boolean;
+  selfMemberId: string | null;
+}
+
+export interface MedicationInput {
+  patientId: string;
+  name: string;
+  alternatives: string[];
+  routeLabel: string;
+  unitLabel: string;
+  dropsPerMl?: number;
 }
 
 export interface SchemeInput {
   single: boolean;
   firstTime: string;
   phases: PhaseVM[];
+  /** aaaa-mm-dd: dia 1 do esquema */
+  startDate?: string;
 }
 
 export interface MedicationPatch {
@@ -318,6 +383,8 @@ export interface MedicationPatch {
   alternatives?: string[];
   routeLabel?: string;
   perDose?: number;
+  unitLabel?: string;
+  dropsPerMl?: number;
 }
 
 type Maybe<T> = T | Promise<T>;
@@ -346,9 +413,21 @@ export interface Actions {
   setNotification(patch: Partial<NotificationSettingsVM>): Done;
   updateMedication(id: string, patch: MedicationPatch): Done;
   saveScheme(medId: string, input: SchemeInput): Done;
-  inviteMember(input: MemberInput): Done;
+  /** devolve o resultado do convite (com o código, no WhatsApp), ou null se falhou */
+  inviteMember(input: MemberInput): Maybe<InviteResult | null>;
   updateMember(id: string, input: MemberInput): Done;
+  /** na origem real, "remover" = desativar (derruba as sessões); é reversível */
   removeMember(id: string): Done;
+  reactivateMember(id: string): Done;
+  resendInvite(memberId: string): Maybe<InviteResult | null>;
+  revokeInvite(memberId: string): Done;
+  /** devolve o id do paciente, ou null se falhou */
+  savePatient(input: PatientInput): Maybe<string | null>;
+  deletePatient(id: string): Done;
+  /** devolve o id do remédio, ou null se falhou */
+  createMedication(input: MedicationInput): Maybe<string | null>;
+  /** WhatsApp da própria conta: fica pendente (a validação real chega no Lote 4). Vazio remove. */
+  saveMyPhone(phone: string): Done;
   deleteMedication(id: string): Done;
   restoreMedication(id: string): Done;
   /** Só desenvolvimento (origem mock): testa o que cada perfil enxerga. */
@@ -364,7 +443,7 @@ export interface ConnectionStatus {
 
 export interface DataSource {
   /** de onde vêm os dados: define o que a interface mostra (ex.: "Ver como" só no mock) */
-  readonly kind: "mock" | "appwrite";
+  readonly kind: "mock" | "postgres";
   getSnapshot(): Snapshot;
   /** Prévia "passa de X para Y dias" ao registrar compra/ajuste. A regra oficial virá de packages/domain. */
   previewStockDays(medId: string, delta: number): Maybe<number>;

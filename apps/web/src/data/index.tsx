@@ -38,7 +38,7 @@ export function useConnection(): ConnectionStatus & { retry: () => Promise<void>
   return { ...status, retry: ds.connection?.retry ?? (async () => undefined) };
 }
 
-export function useDataKind(): "mock" | "appwrite" {
+export function useDataKind(): "mock" | "postgres" {
   return useSource().kind;
 }
 

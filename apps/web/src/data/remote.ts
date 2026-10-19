@@ -1,6 +1,6 @@
-import type { ActionResult } from "@/server/actions";
-import * as srv from "@/server/actions";
-import type { Actions, AttachDraft, ConnectionStatus, DataSource, NotificationSettingsVM, Snapshot } from "./types";
+import type { ActionResult } from "@/server/pg/actions";
+import * as srv from "@/server/pg/actions";
+import type { Actions, ConnectionStatus, DataSource, InviteResult, NotificationSettingsVM, Snapshot } from "./types";
 
 const hhmm = () => new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date());
 
@@ -8,13 +8,15 @@ export interface RemoteHooks {
   onError(message: string): void;
 }
 
+const NEXT_LOT = "Isto chega nos próximos lotes.";
+
 /**
- * DataSource da origem real: o retrato vem do servidor (já calculado por @medcuidar/domain) e cada
- * ação é uma Server Action que devolve o retrato novo. As ações rodam em fila (uma por vez) para
- * que as respostas nunca se atropelem. Só confirmar dose e os interruptores têm resposta imediata.
+ * DataSource da origem real (Postgres): o retrato vem do servidor e cada ação é uma Server Action que devolve o
+ * retrato novo. As ações rodam em fila (uma por vez) para que as respostas nunca se atropelem.
+ * Doses, estoque, receitas e reposição ainda não existem aqui (Lotes 2 e 3): essas ações só avisam.
  */
 export class RemoteDataSource implements DataSource {
-  readonly kind = "appwrite" as const;
+  readonly kind = "postgres" as const;
   private snap: Snapshot;
   private listeners = new Set<() => void>();
   private queue: Promise<unknown> = Promise.resolve();
@@ -79,7 +81,7 @@ export class RemoteDataSource implements DataSource {
     if (!r.ok) {
       this.hooks.onError(r.message);
       if (r.unauthorized && typeof window !== "undefined") window.location.assign("/login");
-      await this.refresh(); // desfaz qualquer resposta otimista
+      await this.refresh();
       return false;
     }
     this.snap = r.snapshot;
@@ -105,59 +107,64 @@ export class RemoteDataSource implements DataSource {
     this.emit();
   }
 
-  previewStockDays = async (medId: string, delta: number): Promise<number> => {
-    const r = await srv.previewStockDaysAction(medId, delta);
-    return r.ok ? r.days : 0;
+  previewStockDays = async (): Promise<number> => 0;
+
+  private notYet = (): boolean => {
+    this.hooks.onError(NEXT_LOT);
+    return false;
   };
 
+  private async withData<T>(fn: () => Promise<ActionResult<T>>): Promise<T | null> {
+    let out: T | null = null;
+    const ok = await this.exec(fn, (d) => {
+      out = d ?? null;
+    });
+    return ok ? out : null;
+  }
+
   actions: Actions = {
-    confirmDose: (doseId) => {
-      this.patch((s) => {
-        const doses = s.doses.map((d) => (d.id === doseId ? { ...d, status: "taken" as const, doneBy: s.member.name, doneAt: "agora", channel: "panel" as const, whenLabel: "Tomada agora" } : d));
-        return { ...s, doses, alertCount: doses.filter((d) => d.status === "late" || d.status === "missed").length };
-      });
-      return this.exec(() => srv.confirmDoseAction(doseId));
+    // Lotes 2 e 3
+    confirmDose: this.notYet,
+    undoDose: this.notYet,
+    snoozeDose: this.notYet,
+    registerLate: this.notYet,
+    assumeReplenishment: this.notYet,
+    advanceReplenishment: this.notYet,
+    saveRx: () => {
+      this.hooks.onError(NEXT_LOT);
+      return null;
     },
-    undoDose: (id) => this.exec(() => srv.undoDoseAction(id)),
-    snoozeDose: (id, minutes) => this.exec(() => srv.snoozeDoseAction(id, minutes)),
-    registerLate: (id) => this.actions.confirmDose(id),
-    assumeReplenishment: (medId) => this.exec(() => srv.assumeReplenishmentAction(medId)),
-    advanceReplenishment: (medId, opts) => this.exec(() => srv.advanceReplenishmentAction(medId, opts?.quantity)),
-    saveRx: async (draft: AttachDraft) => {
-      const { files, ...rest } = draft;
-      const form = new FormData();
-      form.set("draft", JSON.stringify(rest));
-      for (const f of files ?? []) form.append("files", f);
-      let id: string | null = null;
-      const ok = await this.exec(() => srv.saveRxAction(form), (data) => {
-        id = data ?? null;
-      });
-      return ok ? id : null;
+    deleteRx: this.notYet,
+    restoreRx: this.notYet,
+    markSuperseded: this.notYet,
+    recordRxView: () => undefined,
+    shareRx: this.notYet,
+    registerPurchase: this.notYet,
+    adjustStock: this.notYet,
+    setNotification: (patch: Partial<NotificationSettingsVM>) => {
+      this.patch((s) => ({ ...s, notifications: { ...s.notifications, ...patch } }));
+      return this.notYet();
     },
-    deleteRx: (id) => this.exec(() => srv.deleteRxAction(id)),
-    restoreRx: (id) => this.exec(() => srv.restoreRxAction(id)),
-    markSuperseded: (id) => this.exec(() => srv.markSupersededAction(id)),
-    recordRxView: async (id) => {
-      await srv.recordRxViewAction(id);
-    },
-    shareRx: (id, target, channel) => this.exec(() => srv.shareRxAction(id, target, channel)),
-    registerPurchase: (medId, qty) => this.exec(() => srv.registerPurchaseAction(medId, qty)),
-    adjustStock: (medId, newBalance, reason) => this.exec(() => srv.adjustStockAction(medId, newBalance, reason)),
+    viewAs: () => undefined,
+
+    // Lote 1
     setPermission: (rowId, profile, value) => {
       this.patch((s) => ({ ...s, permissionRows: s.permissionRows.map((r) => (r.id === rowId ? { ...r, values: r.values.map((v, i) => (s.profiles[i] === profile ? value : v)) } : r)) }));
       return this.exec(() => srv.setPermissionAction(rowId, profile, value));
     },
-    setNotification: (patch: Partial<NotificationSettingsVM>) => {
-      this.patch((s) => ({ ...s, notifications: { ...s.notifications, ...patch } }));
-      return this.exec(() => srv.setNotificationAction(patch));
-    },
     updateMedication: (id, patch) => this.exec(() => srv.updateMedicationAction(id, patch)),
     saveScheme: (medId, input) => this.exec(() => srv.saveSchemeAction(medId, input)),
-    inviteMember: (input) => this.exec(() => srv.inviteMemberAction(input)),
+    inviteMember: (input): Promise<InviteResult | null> => this.withData(() => srv.inviteMemberAction(input)),
     updateMember: (id, input) => this.exec(() => srv.updateMemberAction(id, input)),
     removeMember: (id) => this.exec(() => srv.removeMemberAction(id)),
+    reactivateMember: (id) => this.exec(() => srv.reactivateMemberAction(id)),
+    resendInvite: (id): Promise<InviteResult | null> => this.withData(() => srv.resendInviteAction(id)),
+    revokeInvite: (id) => this.exec(() => srv.revokeInviteAction(id)),
+    savePatient: (input) => this.withData(() => srv.savePatientAction(input)),
+    deletePatient: (id) => this.exec(() => srv.deletePatientAction(id)),
+    createMedication: (input) => this.withData(() => srv.createMedicationAction(input)),
     deleteMedication: (id) => this.exec(() => srv.deleteMedicationAction(id)),
     restoreMedication: (id) => this.exec(() => srv.restoreMedicationAction(id)),
-    viewAs: () => undefined,
+    saveMyPhone: (phone) => this.exec(() => srv.saveMyPhoneAction(phone)),
   };
 }

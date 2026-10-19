@@ -66,9 +66,15 @@ importers:
       '@medcuidar/functions':
         specifier: workspace:^
         version: link:../functions
+      '@medcuidar/pg':
+        specifier: workspace:*
+        version: link:../../packages/pg
       '@medcuidar/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      drizzle-orm:
+        specifier: ^0.36.4
+        version: 0.36.4(@types/react@19.3.0)(postgres@3.4.9)(react@19.3.1)
       next:
         specifier: '15'
         version: 15.5.28(@babel/core@7.29.7)(@playwright/test@1.64.1)(@types/node@20.19.43)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -136,6 +142,9 @@ importers:
       postcss:
         specifier: ^8.5.30
         version: 8.5.30
+      postgres:
+        specifier: ^3.4.5
+        version: 3.4.9
       tailwindcss:
         specifier: '3'
         version: 3.4.19(tsx@4.23.15)

@@ -7,6 +7,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // apoio de testes do pacote do banco (não faz parte do bundle da aplicação)
+      "@medcuidar/pg-testing": fileURLToPath(new URL("../../packages/pg/src/testing.ts", import.meta.url)),
       "server-only": fileURLToPath(new URL("./src/test/server-only-stub.ts", import.meta.url)),
     },
   },
