@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { withFamilia } from "@medcuidar/pg";
+import { localParts } from "@medcuidar/domain";
 import * as s from "@medcuidar/pg/schema";
 import { bancoDisponivel, conectarAdmin, encerrar, limparFamilias, prepararBanco, type Admin } from "@medcuidar/pg-testing";
 import { SYSTEM_PROFILES, familySettingsSchema, type PermissionMap } from "@medcuidar/shared";
@@ -140,6 +141,20 @@ describe.skipIf(!up)("Lote 2 — doses e estoque no Postgres", () => {
       await meds.restoreMedication(f.admin, f.medId);
       await admin`update treatments set status = 'paused' where family_id = ${f.familyId}`;
       expect((await ensureDosesForDay(f.familyId, "2026-10-23")).created).toBe(0);
+    });
+
+    it("remédio recém-cadastrado: montar o esquema real não deixa sobrar a dose do esquema padrão das 08:00", async () => {
+      const f = await novaFamilia("Padrao");
+      const today = localParts(new Date(), TZ).date;
+      const id = await meds.createMedication(f.admin, { patientId: f.patientId, name: "Novo", alternatives: [], route: "tablet", controlUnit: "unit" });
+      await ensureDosesForDay(f.familyId, today); // esquema padrão: 1 dose às 08:00
+      const count = async () => ((await admin`select count(*)::int as n from dose_events where medication_id = ${id}`)[0]!["n"] as number);
+      expect(await count()).toBe(1);
+      await meds.saveScheme(f.admin, id, { startDate: today, firstTime: "06:00", phases: [{ everyHours: 8, fromDay: 1, toDay: null, perDose: 1 }] });
+      await ensureDosesForDay(f.familyId, today);
+      expect(await count()).toBe(3);
+      const times = await admin`select scheduled_at from dose_events where medication_id = ${id} order by scheduled_at`;
+      expect(times.map((r) => localParts(r["scheduled_at"] as Date, TZ).minutes)).toEqual([360, 840, 1320]);
     });
 
     it("trocar o esquema refaz só as doses futuras ainda não tocadas", async () => {

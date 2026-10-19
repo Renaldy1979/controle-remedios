@@ -8,10 +8,10 @@ export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   if (dataSourceKind() === "postgres") {
-    const [{ requireContext }, { buildSnapshot }, { prepareDay }] = await Promise.all([import("@/server/pg/access"), import("@/server/pg/snapshot"), import("@/server/pg/prepare")]);
+    const [{ requireContext }, { buildSnapshot }, { prepareDaySafe }] = await Promise.all([import("@/server/pg/access"), import("@/server/pg/snapshot"), import("@/server/pg/prepare")]);
     // sem sessão, e-mail por confirmar, sem família ou desativado: cada caso vai para a tela certa
     const ctx = await requireContext();
-    await prepareDay(ctx); // doses de hoje (idempotente), atraso/esquecida e aviso de estoque baixo
+    await prepareDaySafe(ctx); // doses de hoje (idempotente), atraso/esquecida e aviso de estoque baixo
     const initial = await buildSnapshot(ctx);
     return (
       <DataShell initial={initial}>

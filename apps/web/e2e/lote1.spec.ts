@@ -121,7 +121,8 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await toast(page, "Esquema de Zypred salvo");
 
     await open(page, "/pacientes");
-    await expect(page.getByRole("heading", { name: /Maria Souza/ })).toBeVisible();
+    await page.getByRole("tab", { name: "Maria" }).click();
+    await expect(page.getByText(/Maria Souza/).first()).toBeVisible();
     await expect(page.getByText("Zypred", { exact: true })).toBeVisible();
     await expect(page.getByText(/Fase 1 de 2 · dia 1/)).toBeVisible();
     await expect(page.getByText("de 3 em 3 h")).toBeVisible();
@@ -160,7 +161,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await dp.getByLabel("Repita a senha").fill(PASSWORD);
     await dp.getByRole("button", { name: "Criar senha e entrar" }).click();
     await expect(dp).toHaveURL(/\/$/);
-    await expect(dp.getByText("Olá, Filha Teste")).toBeVisible();
+    await expect(dp.getByText(/(Olá|Bom dia|Boa tarde|Boa noite), Filha Teste/)).toBeVisible();
     // o link é de uso único
     const again = await daughter.newPage();
     await again.goto(link);
@@ -177,7 +178,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await toast(page, "Filha Teste atualizada");
 
     await dp.reload();
-    await expect(dp.getByText("Olá, Filha Teste")).toBeVisible();
+    await expect(dp.getByText(/(Olá|Bom dia|Boa tarde|Boa noite), Filha Teste/)).toBeVisible();
     await expect(dp.getByRole("link", { name: "Configurações" })).toHaveCount(0);
     await dp.goto("/configuracoes");
     await expect(dp.getByText("Seu perfil não tem ajustes liberados.")).toBeVisible();

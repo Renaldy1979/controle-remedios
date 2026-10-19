@@ -7,7 +7,6 @@ import { PERMISSION_GROUPS, SYSTEM_PROFILES, can, permissionMapSchema, type Cont
 import type {
   AccessState, DoseVM, MedicationVM, PatientVM, PermissionRowVM, PersonVM, ReplenishmentVM, Role, Snapshot, StockMovementVM, StockVM, Tone,
 } from "@/data/types";
-import { fmtDuration } from "@/lib/format";
 import { ROUTE_LABEL, UNIT_LABEL } from "@/lib/labels";
 import { formatPhone } from "@/lib/phone";
 import { intervalTimes } from "@/lib/times";

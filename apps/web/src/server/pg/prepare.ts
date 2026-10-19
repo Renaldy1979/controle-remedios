@@ -18,3 +18,12 @@ export async function prepareDay(
   await refreshDoseStatuses(ctx.familyId, ctx.settings, now);
   await evaluateLowStockForFamily(ctx.familyId, now);
 }
+
+/** Como `prepareDay`, mas uma falha aqui (ex.: banco lento) nunca derruba a tela nem uma ação já concluída: só registra o código do erro. */
+export async function prepareDaySafe(ctx: Parameters<typeof prepareDay>[0], now?: Date): Promise<void> {
+  try {
+    await prepareDay(ctx, now);
+  } catch (e) {
+    console.error("[prepare] falhou", (e as Error).name, (e as { code?: unknown }).code ?? "");
+  }
+}

@@ -1,8 +1,8 @@
 import "server-only";
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
-import { localParts } from "@medcuidar/domain";
+import { localParts, zonedToUtc } from "@medcuidar/domain";
 import type { ControlUnit, MedRoute } from "@medcuidar/shared";
 import { validateScheme, type PhaseInput } from "@/lib/scheme";
 import { audit } from "./audit";
@@ -144,10 +144,16 @@ export async function saveScheme(actor: Actor, medicationId: string, input: Sche
         doseAmount: p.perDose,
       })),
     );
-    // as doses de hoje que ainda não chegaram e ainda não foram tocadas são refeitas com o esquema novo
-    // (a rotina do dia as gera de novo; doses tomadas, atrasadas e as que já têm movimento de estoque ficam)
+    // Refaz as doses ainda não tocadas (sem check, sem movimento de estoque):
+    //  - remédio já em uso (alguma dose tomada): só as que ainda não chegaram;
+    //  - remédio recém-cadastrado, ainda sem nenhuma dose tomada: o esquema ainda está sendo montado, então vale desde
+    //    o começo de hoje (assim a dose do esquema padrão das 08:00 não sobra como "esquecida").
+    // A rotina do dia gera de novo as doses do esquema novo; doses tomadas e o histórico ficam como estão.
+    const [used] = await tx.select({ id: s.doseEvents.id }).from(s.doseEvents).where(and(eq(s.doseEvents.treatmentId, t.id), eq(s.doseEvents.status, "taken"))).limit(1);
+    const now = new Date();
+    const cutoff = used ? now : zonedToUtc(localParts(now, actor.timezone).date, 0, actor.timezone);
     await tx.delete(s.doseEvents).where(and(
-      eq(s.doseEvents.treatmentId, t.id), eq(s.doseEvents.status, "pending"), gt(s.doseEvents.scheduledAt, new Date()),
+      eq(s.doseEvents.treatmentId, t.id), inArray(s.doseEvents.status, used ? ["pending"] : ["pending", "late", "missed"]), gt(s.doseEvents.scheduledAt, new Date(cutoff.getTime() - (used ? 0 : 1))),
       sql`${s.doseEvents.id} not in (select dose_event_id from stock_movements where dose_event_id is not null)`,
     ));
     await audit(tx, actor, "scheme.save", "treatment", t.id, { phases: input.phases.length });

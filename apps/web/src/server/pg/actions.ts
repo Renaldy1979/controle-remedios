@@ -25,8 +25,8 @@ async function run<T>(fn: (ctx: import("./access").Ctx) => Promise<T>): Promise<
   if (!ctx) return { ok: false, message: "Sua sessão expirou. Entre de novo.", unauthorized: true };
   try {
     const data = await fn(ctx);
-    const { prepareDay } = await import("./prepare");
-    await prepareDay(ctx); // gera as doses de hoje (idempotente), atraso/esquecida e aviso de estoque baixo
+    const { prepareDaySafe } = await import("./prepare");
+    await prepareDaySafe(ctx); // gera as doses de hoje (idempotente), atraso/esquecida e aviso de estoque baixo
     return { ok: true, snapshot: await buildSnapshot(ctx), ...(data === undefined ? {} : { data }) };
   } catch (e) {
     if (e instanceof ForbiddenError) return { ok: false, message: "Seu perfil não tem permissão para fazer isso." };

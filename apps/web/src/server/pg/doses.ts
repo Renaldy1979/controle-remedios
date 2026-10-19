@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, like, lt, lte, or } from "drizzle-orm";
 import { withFamilia, type Tx } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import {
@@ -271,7 +271,8 @@ export async function listDoseHistory(actor: DoseActor, filters: DoseHistoryFilt
   requirePermission(actor, "doses.history.view");
   return withFamilia(actor.familyId, async (tx) => {
     const tz = actor.timezone;
-    const conds = [lte(s.doseEvents.scheduledAt, now)];
+    // já chegou a hora, ou foi tomada (inclusive adiantada)
+    const conds = [or(lte(s.doseEvents.scheduledAt, now), eq(s.doseEvents.status, "taken"))!];
     if (filters.patientId) conds.push(eq(s.doseEvents.patientId, filters.patientId));
     if (filters.medicationId) conds.push(eq(s.doseEvents.medicationId, filters.medicationId));
     if (filters.memberId) conds.push(eq(s.doseEvents.confirmedByMemberId, filters.memberId));
