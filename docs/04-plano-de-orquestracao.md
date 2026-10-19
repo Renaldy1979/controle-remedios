@@ -1,3 +1,5 @@
+﻿> **Atenção:** o escopo foi redefinido em 19/10/2026. Onde este documento conflitar com `docs/06-escopo-v2.md`, vale o 06 (login por e-mail/senha no Appwrite, Postgres + Drizzle, API `/api/v1` + N8N com um fluxo por gatilho).
+
 # 04 — Plano de orquestração
 
 Objetivo: vários agentes especializados trabalhando em paralelo **sem pisar um no outro**, todos presos aos mesmos documentos. Vale tanto para sessões do Claude Code quanto para agentes no Maestri.
