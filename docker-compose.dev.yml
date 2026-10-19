@@ -1,0 +1,44 @@
+# Postgres 16 de DESENVOLVIMENTO do MedCuidar (porta host 5440). Não usa nem toca outros containers.
+# Subir: pnpm db:up   |   Apagar tudo: pnpm db:reset
+services:
+  postgres:
+    image: postgres:16
+    container_name: medcuidar-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres_dev_only}
+      POSTGRES_DB: medcuidar
+      OWNER_DB_PASSWORD: ${OWNER_DB_PASSWORD:-medcuidar_owner_dev}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-medcuidar_app_dev}
+    # Limites modestos: a máquina de desenvolvimento tem pouca memória.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=48MB
+      - -c
+      - max_connections=30
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - effective_cache_size=128MB
+      - -c
+      - fsync=on
+      - -c
+      - timezone=UTC
+    mem_limit: 384m
+    ports:
+      - "${POSTGRES_PORT:-5440}:5432"
+    volumes:
+      - medcuidar_pgdata:/var/lib/postgresql/data
+      - ./docker/init-roles.sh:/docker-entrypoint-initdb.d/00-init-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d medcuidar"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  medcuidar_pgdata:
