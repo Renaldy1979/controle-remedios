@@ -97,9 +97,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       <Avatar name={p.fullName} role="patient" size={36} />
                       <span className="min-w-0 flex-1">
                         <span className="block font-bold">{p.name}</span>
-                        <span className="block text-cap text-ink2">
-                          {taken} de {ds.length} doses
-                        </span>
+                        <span className="block text-cap text-ink2">{ds.length ? `${taken} de ${ds.length} doses` : "Sem doses ainda"}</span>
                       </span>
                       {alert ? <Icon name="warning" size={20} className="text-lt" /> : null}
                       {alert ? <span className="sr-only">tem doses que pedem atenção</span> : null}
@@ -111,15 +109,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </section>
         ) : null}
         <div className="mt-auto flex flex-col gap-3 border-t border-bd pt-4">
-          {kind === "appwrite" && snap.family.canSwitch ? (
-            <Link href="/familia" className="flex min-h-touch items-center gap-2 rounded-md px-3 text-ink2 hover:bg-sf2">
-              <Icon name="swap_horiz" size={22} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-bold">{snap.family.name}</span>
-                <span className="block text-cap">Trocar de família</span>
-              </span>
-            </Link>
-          ) : null}
+          {kind === "postgres" ? <p className="truncate px-3 text-cap font-bold text-ink2">{snap.family.name}</p> : null}
           <div className="flex items-center gap-3">
             <Avatar name={member.name} role="admin" size={40} />
             <div className="min-w-0 flex-1">
@@ -128,7 +118,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             <ThemeToggle />
           </div>
-          {kind === "appwrite" ? (
+          {kind === "postgres" ? (
+            <Link href="/conta" className="flex min-h-touch items-center gap-2 rounded-md px-3 font-bold text-ink2 hover:bg-sf2">
+              <Icon name="account_circle" size={22} />
+              Minha conta
+            </Link>
+          ) : null}
+          {kind === "postgres" ? (
             <form action={logoutAction}>
               <button type="submit" className="flex min-h-touch w-full items-center gap-2 rounded-md px-3 font-bold text-ink2 hover:bg-sf2">
                 <Icon name="logout" size={22} />
@@ -159,6 +155,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <div className="flex items-center">
             <ThemeToggle />
+            {kind === "postgres" ? (
+              <Link href="/conta" aria-label="Minha conta" className="flex h-11 w-11 items-center justify-center rounded-md text-ink2 hover:bg-brt">
+                <Icon name="account_circle" size={24} />
+              </Link>
+            ) : null}
             <Link href="/#alertas" aria-label={snap.alertCount ? `${snap.alertCount} alertas de doses` : "Nenhum alerta"} className="relative flex h-11 w-11 items-center justify-center rounded-md text-ink2 hover:bg-brt">
               <Icon name="notifications" size={24} />
               {snap.alertCount > 0 ? <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-pill bg-danger px-1 text-[13px] font-bold text-white">{snap.alertCount}</span> : null}

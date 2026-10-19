@@ -2,13 +2,15 @@
 import Link from "next/link";
 import { can, type PermissionKey } from "@medcuidar/shared";
 import { cx } from "@/lib/format";
-import { useSnapshot } from "@/data";
+import { useDataKind, useSnapshot } from "@/data";
 import { Guard } from "@/components/app/Guard";
 import { Icon } from "@/components/ui/Icon";
 import { MedicationsPanel } from "./settings/MedicationsPanel";
 import { SchemesPanel } from "./settings/SchemesPanel";
 import { StockPanel } from "./settings/StockPanel";
 import { UsersPanel } from "./settings/UsersPanel";
+import { PatientsPanel } from "./settings/PatientsPanel";
+import { ComingSoon } from "./lote1/ComingSoon";
 import { ProfilesPanel } from "./settings/ProfilesPanel";
 import { NoticesPanel } from "./settings/NoticesPanel";
 
@@ -16,7 +18,8 @@ export const SECTIONS = [
   { id: "remedios", label: "Remédios", icon: "medication", help: "Nome, marcas, tipo de uso e dose", permission: "medications.manage" },
   { id: "esquemas", label: "Esquemas", icon: "timeline", help: "Fases, horários e duração", permission: "treatments.manage" },
   { id: "estoque", label: "Estoque", icon: "inventory_2", help: "Compras, ajustes e movimentações", permission: "stock.view" },
-  { id: "usuarios", label: "Usuários", icon: "group", help: "Pacientes e pessoas da família", permission: "members.manage" },
+  { id: "pacientes", label: "Pacientes", icon: "elderly", help: "Quem toma os remédios", permission: "patients.manage" },
+  { id: "usuarios", label: "Pessoas", icon: "group", help: "Convidar, perfis de acesso e desativar", permission: "members.manage" },
   { id: "perfis", label: "Perfis", icon: "admin_panel_settings", help: "O que cada perfil pode fazer", permission: "profiles.manage" },
   { id: "avisos", label: "Avisos", icon: "notifications", help: "Quando e para quem avisar", permission: "settings.manage" },
 ] as const satisfies ReadonlyArray<{ id: string; label: string; icon: string; help: string; permission: PermissionKey }>;
@@ -76,18 +79,21 @@ function Settings({ section }: { section?: string }) {
 }
 
 function Panel({ id }: { id: SectionId }) {
+  const real = useDataKind() === "postgres";
   switch (id) {
+    case "pacientes":
+      return <PatientsPanel />;
     case "remedios":
       return <MedicationsPanel />;
     case "esquemas":
       return <SchemesPanel />;
     case "estoque":
-      return <StockPanel />;
+      return real ? <ComingSoon icon="inventory_2" title="O estoque chega no Lote 2" lot="Lote 2" what="Aqui você vai registrar compras, ajustar o estoque e ver a previsão de término." /> : <StockPanel />;
     case "usuarios":
       return <UsersPanel />;
     case "perfis":
       return <ProfilesPanel />;
     case "avisos":
-      return <NoticesPanel />;
+      return real ? <ComingSoon icon="notifications" title="Os avisos chegam nos próximos lotes" lot="Lote 2" what="Aqui você vai escolher quando e para quem avisar sobre doses e estoque baixo." /> : <NoticesPanel />;
   }
 }
