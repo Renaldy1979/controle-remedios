@@ -9,6 +9,7 @@ import { SelectField, TextArea, TextField } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/Layout";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
+import { maskDate } from "@/lib/date-mask";
 import { parseDate } from "@/lib/format";
 
 const toDisplay = (iso: string) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "");
@@ -141,7 +142,7 @@ function PatientDialog({ patient, onClose, onSave }: { patient: PatientVM | null
     >
       <form className="flex flex-col gap-4" onSubmit={(ev) => { ev.preventDefault(); void submit(); }}>
         <TextField label="Nome completo" data-autofocus value={name} error={err.name} onChange={(e) => setName(e.target.value)} />
-        <TextField label="Data de nascimento" optional inputMode="numeric" placeholder="dd/mm/aaaa" value={birth} error={err.birth} onChange={(e) => setBirth(e.target.value)} />
+        <TextField label="Data de nascimento" optional inputMode="numeric" placeholder="dd/mm/aaaa" value={birth} error={err.birth} maxLength={10} autoComplete="bday" onChange={(e) => setBirth(maskDate(e.target.value))} />
         <TextArea label="Observações" optional hint="Ex.: tem Alzheimer; não usa celular. Evite dados que não ajudem no cuidado." maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} />
         <Checkbox checked={usesPhone} onChange={setUsesPhone} label="Usa celular" description="Desmarque se alguém precisa dar os remédios e confirmar por ele(a)." />
         <SelectField label="Tem conta no portal?" optional hint="Se o paciente também usa o portal, ligue ao usuário dele(a)." value={selfId} onChange={(e) => setSelfId(e.target.value)}>
