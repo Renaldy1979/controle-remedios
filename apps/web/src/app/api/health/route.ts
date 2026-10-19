@@ -13,8 +13,14 @@ export async function GET() {
       const [{ getDb }, { sql }] = await Promise.all([import("@medcuidar/pg"), import("drizzle-orm")]);
       await getDb().execute(sql`select 1`);
       database = "ok";
-    } catch {
+    } catch (e) {
       database = "indisponivel";
+      // Só o CÓDIGO do erro (nunca a mensagem, o endereço ou a senha), para o log dizer a causa:
+      // 28P01 senha errada, 28000 papel inexistente, 3D000 banco inexistente, 42501 sem permissão,
+      // ENOTFOUND nome do serviço errado, ECONNREFUSED/ETIMEDOUT banco inacessível.
+      const err = e as { code?: unknown; cause?: { code?: unknown } };
+      const code = String(err.code ?? err.cause?.code ?? "desconhecido").slice(0, 40);
+      console.error(`[health] banco indisponível (codigo=${code})`);
     }
   }
   const ok = database !== "indisponivel";
