@@ -14,7 +14,7 @@ ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /app
 COPY . .
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile --filter @medcuidar/web...
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile --ignore-scripts --filter @medcuidar/web...
 
 # ---------- 2) compilação ----------
 FROM deps AS build
