@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useActions, useSnapshot, type MedicationVM } from "@/data";
+import { useActions, useCan, useDataKind, useSnapshot, type MedicationInput, type MedicationVM } from "@/data";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog, Dialog } from "@/components/ui/Dialog";
 import { SelectField, TextField } from "@/components/ui/Field";
@@ -84,7 +84,7 @@ export function MedicationsPanel() {
   );
 }
 
-function NewMedicationDialog({ onClose, onSave }: { onClose: () => void; onSave: (i: { patientId: string; name: string; alternatives: string[]; routeLabel: string; unitLabel: string; dropsPerMl?: number }) => Promise<boolean> }) {
+function NewMedicationDialog({ onClose, onSave }: { onClose: () => void; onSave: (i: MedicationInput) => Promise<boolean> }) {
   const snap = useSnapshot();
   const [patientId, setPatientId] = useState(snap.patients[0]?.id ?? "");
   const [name, setName] = useState("");
@@ -92,7 +92,11 @@ function NewMedicationDialog({ onClose, onSave }: { onClose: () => void; onSave:
   const [route, setRoute] = useState(ROUTE_LABELS[1]!);
   const [unit, setUnit] = useState(UNIT_LABELS[0]!);
   const [drops, setDrops] = useState(DEFAULT_DROPS);
-  const [err, setErr] = useState<{ name?: string; drops?: string }>({});
+  const [stock, setStock] = useState("");
+  const isReal = useDataKind() === "postgres";
+  const canStock = useCan("stock.adjust");
+  const withStock = isReal && canStock;
+  const [err, setErr] = useState<{ name?: string; drops?: string; stock?: string }>({});
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
@@ -100,10 +104,12 @@ function NewMedicationDialog({ onClose, onSave }: { onClose: () => void; onSave:
     if (!name.trim()) e.name = "Dê um nome ao remédio.";
     const d = Number(drops.replace(",", "."));
     if (unit === "Gotas" && !(d > 0)) e.drops = "Informe quantas gotas tem em 1 ml (padrão 20).";
+    const st = stock.trim() === "" ? 0 : Number(stock.replace(",", "."));
+    if (withStock && !(Number.isFinite(st) && st >= 0)) e.stock = "Informe um número (ou deixe em branco).";
     setErr(e);
-    if (e.name || e.drops) return;
+    if (e.name || e.drops || e.stock) return;
     setBusy(true);
-    await onSave({ patientId, name: name.trim(), alternatives: parseAlternatives(alts), routeLabel: route, unitLabel: unit, ...(unit === "Gotas" ? { dropsPerMl: d } : {}) });
+    await onSave({ patientId, name: name.trim(), alternatives: parseAlternatives(alts), routeLabel: route, unitLabel: unit, ...(unit === "Gotas" ? { dropsPerMl: d } : {}), ...(withStock && st > 0 ? { initialStock: st } : {}) });
     setBusy(false);
   };
 
@@ -143,6 +149,7 @@ function NewMedicationDialog({ onClose, onSave }: { onClose: () => void; onSave:
           </SelectField>
         </div>
         {unit === "Gotas" ? <TextField label="Gotas por ml" inputMode="decimal" hint="Padrão: 20. O estoque de colírio é sempre uma estimativa." value={drops} error={err.drops} onChange={(e) => setDrops(e.target.value)} /> : null}
+        {withStock ? <TextField label={`Estoque inicial (${unit.toLowerCase()})`} optional inputMode="decimal" hint="Quanto tem agora. Vira a primeira entrada do estoque; depois use Registrar compra." value={stock} error={err.stock} onChange={(e) => setStock(e.target.value)} /> : null}
         <p className="flex items-start gap-2 text-cap text-ink2">
           <Icon name="info" size={16} className="mt-0.5 flex-none" />
           O remédio nasce com 1 dose por dia, às 08:00. Ajuste horários e fases em Esquemas.

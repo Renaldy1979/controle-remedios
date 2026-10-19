@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useActions, useCan, usePreviewStockDays, useSnapshot } from "@/data";
@@ -6,15 +7,27 @@ import { StockCard } from "@/components/domain/StockCard";
 import { Button } from "@/components/ui/Button";
 import { SelectField, TextField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
-import { IconBlock } from "@/components/ui/Layout";
+import { EmptyState, IconBlock } from "@/components/ui/Layout";
 import { useToast } from "@/components/ui/Toast";
 
 export function StockPanel() {
   const snap = useSnapshot();
   const canAdjust = useCan("stock.adjust");
   const params = useSearchParams();
-  const sorted = snap.medications.slice().sort((a, b) => a.stock.daysLeft - b.stock.daysLeft);
+  // por urgência: menos dias primeiro; remédios sem estoque registrado vão para o fim
+  const sorted = snap.medications.slice().sort((a, b) => Number(a.stock.tracked === false) - Number(b.stock.tracked === false) || a.stock.daysLeft - b.stock.daysLeft);
   const name = (id: string) => snap.patients.find((p) => p.id === id)?.name ?? "";
+
+  if (snap.medications.length === 0) {
+    return (
+      <EmptyState
+        icon="inventory_2"
+        title="Nenhum remédio cadastrado"
+        text="O estoque é acompanhado por remédio. Cadastre o remédio e o esquema primeiro."
+        action={<Link href="/configuracoes/remedios" className="inline-flex min-h-touch items-center gap-1 font-bold text-br">Ir para Remédios</Link>}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -44,6 +57,7 @@ export function StockPanel() {
       <section aria-label="Movimentações">
         <h3 className="mb-3 font-display text-t2 font-bold">Movimentações</h3>
         <ul className="divide-y divide-bd rounded-lg border border-bd bg-sf">
+          {snap.stockMovements.length === 0 ? <li className="p-4 text-ink2">Nenhuma movimentação ainda. Registre uma compra para começar.</li> : null}
           {snap.stockMovements.map((m) => (
             <li key={m.id} className="flex items-center gap-3 p-3">
               <IconBlock name={m.icon} tone={m.tone} size={40} />
@@ -97,7 +111,7 @@ function PurchaseForm({ initialMed }: { initialMed?: string }) {
         {snap.medications.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
       </SelectField>
       <TextField label={`Quantidade comprada (${med.unitLabel.toLowerCase()})`} inputMode="decimal" value={qty} error={err} onChange={(e) => { setQty(e.target.value); setErr(""); }} />
-      {valid && after !== null ? <p className="rounded-md bg-ok-bg p-3 font-bold text-ok">Passa de {med.stock.daysLeft} para {after} dias</p> : null}
+      {valid && after !== null ? <p className="rounded-md bg-ok-bg p-3 font-bold text-ok" data-testid="purchase-preview">{med.stock.tracked === false ? `Fica com ${after} dias de estoque` : `Passa de ${med.stock.daysLeft} para ${after} dias`}</p> : null}
       <Button type="submit" icon="shopping_bag">Registrar compra</Button>
     </form>
   );

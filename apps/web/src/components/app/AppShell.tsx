@@ -30,6 +30,19 @@ const NAV: NavItem[] = [
 
 const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
 
+/** Sino: na origem real leva aos avisos (com o número de não lidos); no mock mantém o atalho para as doses em atenção. */
+function Bell({ snap, kind }: { snap: ReturnType<typeof useSnapshot>; kind: "mock" | "postgres" }) {
+  const real = kind === "postgres";
+  const count = real ? (snap.unreadNotices ?? 0) : snap.alertCount;
+  const label = real ? (count ? `Avisos: ${count} ${count === 1 ? "novo" : "novos"}` : "Avisos: nenhum novo") : count ? `${count} alertas de doses` : "Nenhum alerta";
+  return (
+    <Link href={real ? "/avisos" : "/#alertas"} aria-label={label} className="relative flex h-11 w-11 items-center justify-center rounded-md text-ink2 hover:bg-brt">
+      <Icon name={count && real ? "notifications_active" : "notifications"} size={24} />
+      {count > 0 ? <span data-testid="bell-count" className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-pill bg-danger px-1 text-[13px] font-bold text-white">{count}</span> : null}
+    </Link>
+  );
+}
+
 function Logo() {
   return (
     <span className="flex items-center gap-2.5 font-display text-t2 font-extrabold text-ink">
@@ -48,6 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const kind = useDataKind();
   const conn = useConnection();
   const { member } = snap;
+  const todayIso = snap.todayDate.split("/").reverse().join("-");
   const items = NAV.filter((n) => n.anyOf.some((p) => can(member, p)));
   const current = NAV.find((n) => isActive(pathname, n.href));
 
@@ -88,7 +102,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <h2 className="mb-2 px-3 text-cap font-bold text-ink3">Pacientes</h2>
             <ul className="flex flex-col gap-1">
               {snap.patients.map((p) => {
-                const ds = snap.doses.filter((d) => d.patientId === p.id);
+                const ds = snap.doses.filter((d) => d.patientId === p.id && (!d.date || d.date === todayIso));
                 const taken = ds.filter((d) => d.status === "taken").length;
                 const alert = ds.some((d) => d.status === "late" || d.status === "missed");
                 return (
@@ -160,10 +174,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Icon name="account_circle" size={24} />
               </Link>
             ) : null}
-            <Link href="/#alertas" aria-label={snap.alertCount ? `${snap.alertCount} alertas de doses` : "Nenhum alerta"} className="relative flex h-11 w-11 items-center justify-center rounded-md text-ink2 hover:bg-brt">
-              <Icon name="notifications" size={24} />
-              {snap.alertCount > 0 ? <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-pill bg-danger px-1 text-[13px] font-bold text-white">{snap.alertCount}</span> : null}
-            </Link>
+            <Bell snap={snap} kind={kind} />
           </div>
         </header>
 
@@ -172,7 +183,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <p aria-hidden="true" className="font-display text-t1 font-extrabold">
             {current?.title ?? "MedCuidar"}
           </p>
-          <p className="num text-ink2">{snap.nowLabel}</p>
+          <div className="flex items-center gap-4">
+            <p className="num text-ink2">{snap.nowLabel}</p>
+            {kind === "postgres" ? <Bell snap={snap} kind={kind} /> : null}
+          </div>
         </header>
 
         <main id="conteudo" tabIndex={-1} className="mx-auto w-full max-w-[1240px] flex-1 p-4 pb-28 desk:p-8 desk:pb-8">

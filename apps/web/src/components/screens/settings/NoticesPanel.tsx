@@ -9,13 +9,13 @@ import { SelectField, TextField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 
 /** Campo que só salva ao sair do campo ou apertar Enter (não manda uma requisição por tecla). */
-function CommitField({ label, value, onCommit, disabled, inputMode }: { label: string; value: string; onCommit: (v: string) => void; disabled?: boolean; inputMode?: "numeric" }) {
+export function CommitField({ label, value, onCommit, disabled, inputMode }: { label: string; value: string; onCommit: (v: string) => void; disabled?: boolean; inputMode?: "numeric" }) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
   return <TextField label={label} inputMode={inputMode} disabled={disabled} value={v} onChange={(e) => setV(e.target.value)} onBlur={() => v !== value && onCommit(v)} onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()} />;
 }
 
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
+export function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-3 rounded-lg border border-bd bg-sf p-4">
       <h3 className="font-display text-t2 font-bold">{title}</h3>

@@ -15,10 +15,12 @@ interface StockCardProps {
   patientName: string;
   /** mostra situação da receita, reposição e ações (tela Início) */
   withActions?: boolean;
+  /** Lote 2: sem receita nem reposição (chegam no Lote 3); só "Registrar compra" */
+  simple?: boolean;
 }
 
 /** Cartão de estoque: dias na cor do nível, barra de 30 dias, chip de nível; colírio/líquido = estimativa. */
-export function StockCard({ med, patientName, withActions }: StockCardProps) {
+export function StockCard({ med, patientName, withActions, simple }: StockCardProps) {
   const lvl = STOCK_LEVEL[med.stock.level];
   const { open } = useOverlay();
   const rep = useReplenishmentActions(med);
@@ -29,22 +31,30 @@ export function StockCard({ med, patientName, withActions }: StockCardProps) {
 
   const r = med.replenishment;
   const rxId = med.rx.rxId;
+  const tracked = med.stock.tracked !== false;
 
   return (
-    <article aria-label={`${med.name}, ${patientName}: ${med.stock.daysLeft} dias, ${lvl.label}`} className="flex flex-col gap-3 rounded-lg border border-bd bg-sf p-4 shadow-sm">
+    <article aria-label={tracked ? `${med.name}, ${patientName}: ${med.stock.daysLeft} dias, ${lvl.label}` : `${med.name}, ${patientName}: estoque ainda não registrado`} className="flex flex-col gap-3 rounded-lg border border-bd bg-sf p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-t3 font-bold">{med.name}</h3>
           <p className="text-ink2">{patientName}</p>
         </div>
-        <StatusChip compact label={lvl.label} icon={lvl.icon} tone={lvl.tone} />
+        {tracked ? <StatusChip compact label={lvl.label} icon={lvl.icon} tone={lvl.tone} /> : <StatusChip compact label="Sem registro" icon="help" tone="neu" />}
       </div>
-      <div className="flex items-baseline gap-3">
-        <span className={cx("num text-t1 font-extrabold", STOCK_TEXT[med.stock.level])}>{med.stock.daysLeft === 1 ? "1 dia" : `${med.stock.daysLeft} dias`}</span>
-        <span className="text-ink2">{med.stock.runsOutLabel}</span>
-      </div>
-      <StockBar pct={med.stock.barPct} level={med.stock.level} label={`${med.stock.daysLeft} dias de estoque numa escala de 30 dias`} />
-      <p className="text-cap text-ink2">{med.stock.quantityText}</p>
+      {tracked ? (
+        <>
+          <div className="flex items-baseline gap-3">
+            <span className={cx("num text-t1 font-extrabold", STOCK_TEXT[med.stock.level])}>{med.stock.coversUntilEnd ? "Cobre o tratamento" : med.stock.daysLeft === 1 ? "1 dia" : `${med.stock.daysLeft} dias`}</span>
+            <span className="text-ink2">{med.stock.runsOutLabel}</span>
+          </div>
+          <StockBar pct={med.stock.barPct} level={med.stock.level} label={`${med.stock.daysLeft} dias de estoque numa escala de 30 dias`} />
+        </>
+      ) : (
+        <p className="rounded-md bg-neub p-3 font-bold text-neuf">Estoque ainda não registrado. Registre uma compra para acompanhar.</p>
+      )}
+      <p className="text-cap text-ink2" data-testid="stock-quantity" data-quantity={med.stock.quantity}>{tracked ? med.stock.quantityText : ""}</p>
+      {tracked && med.stock.thresholdDays ? <p className="text-cap text-ink2">Avisa quando faltarem {med.stock.thresholdDays} dias.</p> : null}
       {med.stock.approximate ? (
         <p className="flex items-start gap-1.5 text-cap text-ink2">
           <Icon name="info" size={18} className="mt-0.5 text-br" />
@@ -52,7 +62,15 @@ export function StockCard({ med, patientName, withActions }: StockCardProps) {
         </p>
       ) : null}
 
-      {withActions ? (
+      {simple ? (
+        canStock ? (
+          <div className="flex flex-wrap gap-2">
+            <ButtonLink href={`/configuracoes/estoque?med=${med.id}`} variant="secondary" icon="shopping_bag">
+              Registrar compra
+            </ButtonLink>
+          </div>
+        ) : null
+      ) : withActions ? (
         <>
           <p className={cx("inline-flex w-fit items-center gap-1.5 rounded-pill px-3 py-1 text-cap font-bold", TONE_BG[med.rx.tone])}>
             <Icon name={med.rx.icon} size={18} />

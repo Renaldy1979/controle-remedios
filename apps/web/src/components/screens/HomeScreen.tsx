@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useSnapshot, useCan } from "@/data";
+import { useSnapshot, useCan, useDataKind } from "@/data";
 import { Guard } from "@/components/app/Guard";
 import { DoseCard } from "@/components/domain/DoseCard";
 import { StockCard } from "@/components/domain/StockCard";
@@ -8,6 +8,7 @@ import { useDoseActions } from "@/components/domain/useDoseActions";
 import { Icon } from "@/components/ui/Icon";
 import { IconBlock, SectionHeader } from "@/components/ui/Layout";
 import { plural } from "@/lib/format";
+import { Lote1Home } from "./lote1/Lote1Home";
 
 export function HomeScreen() {
   return (
@@ -19,19 +20,27 @@ export function HomeScreen() {
 
 function Home() {
   const snap = useSnapshot();
+  const real = useDataKind() === "postgres";
   const canConfirm = useCan("doses.confirm");
   const canStock = useCan("stock.view");
   const { confirm, snooze } = useDoseActions();
 
   const alerts = snap.doses.filter((d) => d.status === "late" || d.status === "missed");
   const next = snap.doses.filter((d) => d.status === "pending");
-  const lowStock = !canStock ? [] : snap.medications.filter((m) => m.stock.daysLeft <= 14).sort((a, b) => a.stock.daysLeft - b.stock.daysLeft);
-  const taken = snap.doses.filter((d) => d.status === "taken").sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? "")).slice(0, 5);
+  const lowStock = !canStock
+    ? []
+    : snap.medications.filter((m) => (real ? m.stock.tracked !== false && m.stock.level !== "ok" : m.stock.daysLeft <= 14)).sort((a, b) => a.stock.daysLeft - b.stock.daysLeft);
+  const taken = real
+    ? (snap.recentTaken ?? [])
+    : snap.doses.filter((d) => d.status === "taken").sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? "")).slice(0, 5);
   const name = (id: string) => snap.patients.find((p) => p.id === id)?.name ?? "";
 
   const hour = Number(/·\s*(\d{2}):/.exec(snap.nowLabel)?.[1] ?? 12);
   const greeting = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
   const summary = [alerts.length ? `${plural(alerts.length, "dose pede", "doses pedem")} atenção agora` : "Tudo em dia por enquanto", next[0] ? `próxima às ${next[0].time}` : null].filter(Boolean).join(" · ");
+
+  // origem real, ainda sem remédios: o caminho é cadastrar (primeiros passos)
+  if (real && snap.medications.length === 0) return <Lote1Home />;
 
   return (
     <div className="flex flex-col gap-6">
@@ -92,7 +101,7 @@ function Home() {
               <ul className="flex flex-col gap-3">
                 {lowStock.map((m) => (
                   <li key={m.id}>
-                    <StockCard med={m} patientName={name(m.patientId)} withActions />
+                    <StockCard med={m} patientName={name(m.patientId)} withActions={!real} simple={real} />
                   </li>
                 ))}
               </ul>
@@ -102,15 +111,25 @@ function Home() {
 
           <section aria-label="Últimas doses tomadas">
             <SectionHeader title="Últimas doses tomadas" />
-            <ul className="flex flex-col gap-2">
-              {taken.map((d) => (
-                <li key={d.id}>
-                  <DoseCard dose={d} variant="taken" />
-                </li>
-              ))}
-            </ul>
+            {taken.length === 0 ? (
+              <p className="rounded-lg border border-bd bg-sf p-4 text-ink2">Nenhuma dose tomada ainda.</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {taken.map((d) => (
+                  <li key={d.id}>
+                    <DoseCard dose={d} variant="taken" />
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
+          {real ? (
+            <section aria-label="Receitas e reposição" className="flex items-start gap-3 rounded-lg border border-bd bg-pn-bg p-4 text-pn">
+              <Icon name="info" size={22} className="mt-0.5 flex-none" />
+              <p>Receitas e reposição chegam no Lote 3. O aviso no WhatsApp chega no Lote 4.</p>
+            </section>
+          ) : (
           <section aria-label="Últimas interações">
             <SectionHeader title="Últimas interações" />
             <ul className="divide-y divide-bd rounded-lg border border-bd bg-sf">
@@ -126,12 +145,15 @@ function Home() {
               ))}
             </ul>
           </section>
+          )}
         </div>
       </div>
-      <p className="flex items-center gap-2 text-cap text-ink3">
-        <Icon name="info" size={16} />
-        Dados de demonstração (família fictícia).
-      </p>
+      {real ? null : (
+        <p className="flex items-center gap-2 text-cap text-ink3">
+          <Icon name="info" size={16} />
+          Dados de demonstração (família fictícia).
+        </p>
+      )}
     </div>
   );
 }

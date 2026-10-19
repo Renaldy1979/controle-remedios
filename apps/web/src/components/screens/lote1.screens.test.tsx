@@ -10,7 +10,7 @@ import { SettingsScreen } from "./SettingsScreen";
 import { AccountScreen } from "./lote1/AccountScreen";
 import { ComingSoon } from "./lote1/ComingSoon";
 import { Lote1Home } from "./lote1/Lote1Home";
-import { PatientsOverview } from "./lote1/PatientsOverview";
+import { PatientsScreen } from "./PatientsScreen";
 import { AcceptInviteForm, ConfirmEmailForm, CreateFamilyForm, ForgotPasswordForm, ResetPasswordForm, SignInForm, SignUpForm, VerifyPending } from "./auth/AuthForms";
 import { AuthFrame } from "./auth/AuthFrame";
 
@@ -116,22 +116,22 @@ describe("Lote 1 — telas de entrada", () => {
 });
 
 describe("Lote 1 — portal logado (origem Postgres)", () => {
-  it("Início mostra os primeiros passos e avisa que doses e estoque chegam depois", async () => {
+  it("Início sem remédios mostra os primeiros passos e diz o que vem nos próximos lotes", async () => {
     const { container } = renderApp(shell("/", <Lote1Home />), { source: fakePg(lote1Snapshot()) });
     expect(screen.getByRole("heading", { name: "Primeiros passos" })).toBeInTheDocument();
-    expect(screen.getByText(/Doses, estoque e receitas chegam nos próximos lotes/)).toBeInTheDocument();
+    expect(screen.getByText(/Receitas e reposição chegam no Lote 3/)).toBeInTheDocument();
     expect(screen.getByText(/1\. Família criada/)).toBeInTheDocument();
     expect(screen.getByText(/4\. Cadastrar os remédios/)).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it("Pacientes lista os pacientes, sem tabs de doses, e vazio vira convite para cadastrar", async () => {
-    const { container, unmount } = renderApp(shell("/pacientes", <PatientsOverview />), { source: fakePg(lote1Snapshot()) });
-    expect(screen.getByRole("heading", { name: /Adelino Souza, 84 anos/ })).toBeInTheDocument();
-    expect(screen.getAllByText(/Sem conta no portal/).length).toBe(2);
+  it("Pacientes lista os pacientes e vazio vira convite para cadastrar", async () => {
+    const { container, unmount } = renderApp(shell("/pacientes", <PatientsScreen />), { source: fakePg(lote1Snapshot()) });
+    expect(screen.getByText(/Adelino Souza, 84 anos/)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Maria" })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
     unmount();
-    renderApp(shell("/pacientes", <PatientsOverview />), { source: fakePg(lote1Snapshot({ patients: [] })) });
+    renderApp(shell("/pacientes", <PatientsScreen />), { source: fakePg(lote1Snapshot({ patients: [] })) });
     expect(screen.getByText("Nenhum paciente cadastrado")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Cadastrar paciente" })).toHaveAttribute("href", "/configuracoes/pacientes");
   });
@@ -142,9 +142,13 @@ describe("Lote 1 — portal logado (origem Postgres)", () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it("Estoque e Avisos em Configurações viram 'próximo lote' na origem real", async () => {
-    renderApp(shell("/configuracoes/estoque", <SettingsScreen section="estoque" />), { source: fakePg(lote1Snapshot()) });
-    expect(screen.getByText("O estoque chega no Lote 2")).toBeInTheDocument();
+  it("Estoque sem remédios orienta a cadastrar; Avisos mostram o limite padrão", async () => {
+    const { unmount } = renderApp(shell("/configuracoes/estoque", <SettingsScreen section="estoque" />), { source: fakePg(lote1Snapshot()) });
+    expect(screen.getByText("Nenhum remédio cadastrado")).toBeInTheDocument();
+    unmount();
+    renderApp(shell("/configuracoes/avisos", <SettingsScreen section="avisos" />), { source: fakePg(lote1Snapshot()) });
+    expect(screen.getByText("Estoque baixo", { selector: "h3" })).toBeInTheDocument();
+    expect(screen.getByText(/chegam no Lote 4/)).toBeInTheDocument();
   });
 
   it("Minha conta: WhatsApp pendente, nunca 'verificado', e explica que a validação é do Lote 4", async () => {

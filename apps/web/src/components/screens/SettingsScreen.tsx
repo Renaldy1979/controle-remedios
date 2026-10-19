@@ -10,7 +10,7 @@ import { SchemesPanel } from "./settings/SchemesPanel";
 import { StockPanel } from "./settings/StockPanel";
 import { UsersPanel } from "./settings/UsersPanel";
 import { PatientsPanel } from "./settings/PatientsPanel";
-import { ComingSoon } from "./lote1/ComingSoon";
+import { NoticesPanelLive } from "./lote2/NoticesPanelLive";
 import { ProfilesPanel } from "./settings/ProfilesPanel";
 import { NoticesPanel } from "./settings/NoticesPanel";
 
@@ -88,12 +88,12 @@ function Panel({ id }: { id: SectionId }) {
     case "esquemas":
       return <SchemesPanel />;
     case "estoque":
-      return real ? <ComingSoon icon="inventory_2" title="O estoque chega no Lote 2" lot="Lote 2" what="Aqui você vai registrar compras, ajustar o estoque e ver a previsão de término." /> : <StockPanel />;
+      return <StockPanel />;
     case "usuarios":
       return <UsersPanel />;
     case "perfis":
       return <ProfilesPanel />;
     case "avisos":
-      return real ? <ComingSoon icon="notifications" title="Os avisos chegam nos próximos lotes" lot="Lote 2" what="Aqui você vai escolher quando e para quem avisar sobre doses e estoque baixo." /> : <NoticesPanel />;
+      return real ? <NoticesPanelLive /> : <NoticesPanel />;
   }
 }

@@ -91,8 +91,8 @@ function Home() {
       <section aria-label="Próximos lotes" className="flex items-start gap-3 rounded-lg border border-bd bg-pn-bg p-4 text-pn">
         <Icon name="info" size={24} className="mt-0.5 flex-none" />
         <p>
-          <strong>Doses, estoque e receitas chegam nos próximos lotes.</strong> Aqui já dá para cadastrar a família, os pacientes e os remédios. O número de WhatsApp de cada pessoa fica
-          &quot;pendente&quot; até a validação, que também vem depois.
+          <strong>Cadastre um remédio com estoque e esquema e as doses do dia aparecem aqui.</strong> Receitas e reposição chegam no Lote 3; o WhatsApp, no Lote 4. O número de WhatsApp de cada pessoa fica
+          &quot;pendente&quot; até a validação, que vem no Lote 4.
         </p>
       </section>
     </div>
