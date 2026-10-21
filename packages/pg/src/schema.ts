@@ -305,6 +305,9 @@ export const stockMovements = pgTable("stock_movements", {
   index("stock_movements_item_idx").on(t.familyId, t.stockItemId),
   check("stock_movements_dose_link", sql`${t.type} <> 'dose' or ${t.doseEventId} is not null`),
   check("stock_movements_qty", sql`${t.quantity} <> 0`),
+  // a compra de uma reposição soma ao estoque uma só vez (migração 0005)
+  uniqueIndex("stock_movements_replenishment_purchase_uq").on(t.replenishmentId)
+    .where(sql`${t.replenishmentId} is not null and ${t.type} = 'purchase'`),
 ]);
 
 /* ------------------------------------------------------------------ receitas */
@@ -397,6 +400,10 @@ export const replenishmentSteps = pgTable("replenishment_steps", {
   replenishmentId: uuid("replenishment_id").notNull().references(() => replenishments.id, { onDelete: "cascade" }),
   step: integer("step").notNull(),
   ownerMemberId: uuid("owner_member_id").references(() => members.id),
+  /** Quando a pessoa atual assumiu a etapa ("desde …"); migração 0005. */
+  claimedAt: ts("claimed_at"),
+  /** Etapa que não se aplica (remédio sem receita pula as etapas 1 e 2); migração 0005. */
+  notApplicable: boolean("not_applicable").notNull().default(false),
   doneAt: ts("done_at"),
   note: text("note"),
   prescriptionId: uuid("prescription_id").references(() => prescriptions.id),

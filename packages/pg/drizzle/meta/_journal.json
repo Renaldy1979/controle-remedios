@@ -36,6 +36,13 @@
       "when": 1792444719547,
       "tag": "0004_dose_lembrar_de_novo",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792607956428,
+      "tag": "0005_lote3_receitas_reposicao",
+      "breakpoints": true
     }
   ]
 }

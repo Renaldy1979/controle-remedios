@@ -1,0 +1,3 @@
+ALTER TABLE "replenishment_steps" ADD COLUMN "claimed_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "replenishment_steps" ADD COLUMN "not_applicable" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "stock_movements_replenishment_purchase_uq" ON "stock_movements" USING btree ("replenishment_id") WHERE "stock_movements"."replenishment_id" is not null and "stock_movements"."type" = 'purchase';
