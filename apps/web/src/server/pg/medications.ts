@@ -19,6 +19,8 @@ export interface MedicationData {
   dropsPerMl?: number;
   /** Estoque inicial (compra de abertura). Exige a permissão de estoque. */
   initialStock?: number;
+  /** Exige receita (Lote 3). Padrão: não exige (quem cadastra marca no formulário). */
+  requiresPrescription?: boolean;
 }
 
 const DEFAULT_DROPS_PER_ML = 20;
@@ -46,6 +48,7 @@ export async function createMedication(actor: Actor, input: MedicationData): Pro
         route: input.route,
         controlUnit: input.controlUnit,
         dropsPerMl: input.controlUnit === "drop" ? (input.dropsPerMl ?? DEFAULT_DROPS_PER_ML) : null,
+        requiresPrescription: input.requiresPrescription ?? false,
       })
       .returning({ id: s.medications.id });
     const [t] = await tx
@@ -73,6 +76,7 @@ export interface MedicationChanges {
   route?: MedRoute;
   controlUnit?: ControlUnit;
   dropsPerMl?: number;
+  requiresPrescription?: boolean;
 }
 
 export async function updateMedication(actor: Actor, medicationId: string, patch: MedicationChanges): Promise<void> {
@@ -87,6 +91,7 @@ export async function updateMedication(actor: Actor, medicationId: string, patch
         ...(patch.name !== undefined ? { name: patch.name } : {}),
         ...(patch.alternatives !== undefined ? { alternativeNames: patch.alternatives } : {}),
         ...(patch.route !== undefined ? { route: patch.route } : {}),
+        ...(patch.requiresPrescription !== undefined ? { requiresPrescription: patch.requiresPrescription } : {}),
         controlUnit: unit,
         dropsPerMl: unit === "drop" ? (patch.dropsPerMl ?? cur.dropsPerMl ?? DEFAULT_DROPS_PER_ML) : null,
       })

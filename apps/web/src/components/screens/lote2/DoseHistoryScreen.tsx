@@ -104,7 +104,8 @@ function History() {
       : r.status === "missed" ? "Ninguém confirmou" : r.status === "late" ? "Ainda sem confirmação" : "";
     return [r.patientName, r.doseText, who].filter(Boolean).join(" · ");
   };
-  const days = Array.from(new Set(rows.map((r) => r.dateLabel)));
+  const events = status === "all" && person === "all" ? (data?.events ?? []) : [];
+  const days = Array.from(new Set([...rows.map((r) => r.dateLabel), ...events.map((e) => e.dateLabel)])).sort((a, b) => b.split("/").reverse().join("").localeCompare(a.split("/").reverse().join("")));
   const noFilters = period === "7" && patient === "all" && med === "all" && person === "all" && status === "all";
 
   return (
@@ -155,7 +156,7 @@ function History() {
       </div>
       {data?.truncated ? <p className="text-cap text-ink2">Mostrando os registros mais recentes. Use os filtros para ver os mais antigos.</p> : null}
 
-      {!loading && rows.length === 0 ? (
+      {!loading && rows.length === 0 && events.length === 0 ? (
         <EmptyState
           icon="search_off"
           title={noFilters ? "Ainda não há doses no histórico" : "Nenhum registro com esses filtros"}
@@ -169,15 +170,26 @@ function History() {
               <h2 className="mb-3 text-cap font-bold tracking-wide text-ink2">{d === fmtDate(today) ? `HOJE · ${d}` : d}</h2>
               <Timeline
                 label={d}
-                items={rows.filter((r) => r.dateLabel === d).map((r) => ({
-                  id: r.id,
-                  icon: DOSE_STATUS[r.status].icon,
-                  tone: DOSE_STATUS[r.status].tone,
-                  title: `${r.medName} · ${r.time}`,
-                  statusLabel: DOSE_STATUS[r.status].label,
-                  detail: detail(r),
-                  time: r.time,
-                }))}
+                items={[
+                  ...rows.filter((r) => r.dateLabel === d).map((r) => ({
+                    id: r.id,
+                    icon: DOSE_STATUS[r.status].icon,
+                    tone: DOSE_STATUS[r.status].tone,
+                    title: `${r.medName} · ${r.time}`,
+                    statusLabel: DOSE_STATUS[r.status].label,
+                    detail: detail(r),
+                    time: r.time,
+                  })),
+                  ...events.filter((e) => e.dateLabel === d).map((e) => ({
+                    id: e.id,
+                    icon: e.icon,
+                    tone: e.tone,
+                    title: e.title,
+                    statusLabel: e.kind === "prescription" ? "Receita" : "Reposição",
+                    detail: [e.detail, e.who].filter(Boolean).join(" · "),
+                    time: e.time,
+                  })),
+                ].sort((a, b) => (b.time ?? "").localeCompare(a.time ?? ""))}
               />
             </section>
           ))}
@@ -213,6 +225,32 @@ function History() {
           </tbody>
         </Table>
       )}
+      {view === "table" && events.length > 0 ? (
+        <section aria-label="Receitas e reposição">
+          <h2 className="mb-2 font-display text-t2 font-bold">Receitas e reposição</h2>
+          <Table>
+            <caption className="sr-only">Eventos de receitas e reposição</caption>
+            <thead>
+              <tr>
+                <Th>Dia e hora</Th>
+                <Th>O que aconteceu</Th>
+                <Th>Detalhe</Th>
+                <Th>Quem</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.map((e) => (
+                <tr key={e.id}>
+                  <Td>{e.dateLabel} {e.time}</Td>
+                  <Td>{e.title}</Td>
+                  <Td>{e.detail || "—"}</Td>
+                  <Td>{e.who || "—"}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -87,6 +87,58 @@ export async function saveNoticeSettingsAction(input: unknown) {
   });
 }
 
+// ---------- receitas (Lote 3) ----------
+
+const draftSchema = z.object({
+  patientId: id,
+  date: z.string().max(10),
+  doctor: optText(120),
+  specialty: optText(80),
+  medicationIds: z.array(id).min(1, "Escolha pelo menos um remédio desta receita.").max(30),
+  validity: z.enum(["30", "60", "180", "none"]),
+  notes: optText(1000),
+  controlled: z.boolean().optional(),
+  copies: z.number().int().min(1).max(9).optional(),
+  replacesId: id.nullish(),
+  editId: id.nullish(),
+});
+
+/** Anexar/editar receita: FormData com `draft` (JSON) e `files` (as páginas: foto ou PDF). Os bytes sobem ao bucket privado do Appwrite. */
+export async function saveRxAction(form: FormData): Promise<ActionResult<string>> {
+  return run(async (ctx) => {
+    const draft = parse(draftSchema, JSON.parse(String(form.get("draft") ?? "{}")));
+    const raw = form.getAll("files").filter((f): f is File => typeof f !== "string");
+    if (raw.length > 20) throw new (await import("./errors")).UserError("No máximo 20 páginas por receita.");
+    const files = await Promise.all(raw.map(async (f) => ({ bytes: Buffer.from(await f.arrayBuffer()) })));
+    return (await import("./prescriptions")).saveRx(ctx, draft, files);
+  });
+}
+export async function deleteRxAction(rxId: string) {
+  return run(async (ctx) => (await import("./prescriptions")).deleteRx(ctx, parse(id, rxId)));
+}
+export async function restoreRxAction(rxId: string) {
+  return run(async (ctx) => (await import("./prescriptions")).restoreRx(ctx, parse(id, rxId)));
+}
+export async function markSupersededAction(rxId: string) {
+  return run(async (ctx) => (await import("./prescriptions")).markSuperseded(ctx, parse(id, rxId)));
+}
+/** Compartilhar dentro do portal (o envio pelo WhatsApp é do Lote 4). */
+export async function shareRxAction(rxId: string, target: { memberIds: string[] }) {
+  return run(async (ctx) => (await import("./prescriptions")).shareRx(ctx, parse(id, rxId), parse(z.array(id).min(1).max(30), target.memberIds)));
+}
+
+// ---------- reposição (Lote 3) ----------
+
+export async function assumeReplenishmentAction(medicationId: string, takeOver = false) {
+  return run(async (ctx) => (await import("./replenishment")).claim(ctx, parse(id, medicationId), { takeOver: parse(z.boolean(), takeOver) }));
+}
+export async function advanceReplenishmentAction(medicationId: string, qty?: number) {
+  return run(async (ctx) => (await import("./replenishment")).completeStep(ctx, parse(id, medicationId), qty === undefined ? {} : { quantity: parse(quantity, qty) }));
+}
+export async function cancelReplenishmentAction(medicationId: string) {
+  return run(async (ctx) => (await import("./replenishment")).cancel(ctx, parse(id, medicationId)));
+}
+
 // ---------- avisos do sino (Lote 2) ----------
 
 export async function markNoticesReadAction(ids?: string[]) {
@@ -113,6 +165,11 @@ async function query<T>(fn: (ctx: import("./access").Ctx) => Promise<T>): Promis
 }
 
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+/** Registro de quem viu a receita; não devolve o retrato (a tela não recarrega ao abrir o visualizador). */
+export async function recordRxViewAction(rxId: string) {
+  return query(async (ctx) => (await import("./prescriptions")).recordView(ctx, parse(id, rxId)));
+}
 
 export async function loadDoseHistoryAction(filters: unknown) {
   return query(async (ctx) => {
@@ -234,22 +291,24 @@ const drops = z.number().finite().positive().max(200);
 
 export async function createMedicationAction(input: unknown) {
   return run(async (ctx) => {
-    const i = parse(z.object({ patientId: id, name: name(), alternatives, routeLabel: route, unitLabel: unit, dropsPerMl: drops.optional(), initialStock: quantity.optional() }), input);
+    const i = parse(z.object({ patientId: id, name: name(), alternatives, routeLabel: route, unitLabel: unit, dropsPerMl: drops.optional(), initialStock: quantity.optional(), requiresPrescription: z.boolean().optional() }), input);
     return (await import("./medications")).createMedication(ctx, {
       patientId: i.patientId, name: i.name, alternatives: i.alternatives, route: i.routeLabel, controlUnit: i.unitLabel, ...(i.dropsPerMl ? { dropsPerMl: i.dropsPerMl } : {}), ...(i.initialStock ? { initialStock: i.initialStock } : {}),
+      ...(i.requiresPrescription !== undefined ? { requiresPrescription: i.requiresPrescription } : {}),
     });
   });
 }
 
 export async function updateMedicationAction(medicationId: string, patch: unknown) {
   return run(async (ctx) => {
-    const p = parse(z.object({ name: name().optional(), alternatives: alternatives.optional(), routeLabel: route.optional(), unitLabel: unit.optional(), dropsPerMl: drops.optional() }).strict(), patch);
+    const p = parse(z.object({ name: name().optional(), alternatives: alternatives.optional(), routeLabel: route.optional(), unitLabel: unit.optional(), dropsPerMl: drops.optional(), requiresPrescription: z.boolean().optional() }).strict(), patch);
     await (await import("./medications")).updateMedication(ctx, parse(id, medicationId), {
       ...(p.name !== undefined ? { name: p.name } : {}),
       ...(p.alternatives !== undefined ? { alternatives: p.alternatives } : {}),
       ...(p.routeLabel !== undefined ? { route: p.routeLabel } : {}),
       ...(p.unitLabel !== undefined ? { controlUnit: p.unitLabel } : {}),
       ...(p.dropsPerMl !== undefined ? { dropsPerMl: p.dropsPerMl } : {}),
+      ...(p.requiresPrescription !== undefined ? { requiresPrescription: p.requiresPrescription } : {}),
     });
   });
 }

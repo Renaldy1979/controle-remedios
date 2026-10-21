@@ -2,6 +2,7 @@ import "server-only";
 import { localParts } from "@medcuidar/domain";
 import type { FamilySettings } from "@medcuidar/shared";
 import { ensureDosesForDay, refreshDoseStatuses } from "./doses";
+import { evaluateRxExpiryForFamily } from "./prescriptions";
 import { evaluateLowStockForFamily } from "./stock";
 
 /**
@@ -17,6 +18,7 @@ export async function prepareDay(
   await ensureDosesForDay(ctx.familyId, date);
   await refreshDoseStatuses(ctx.familyId, ctx.settings, now);
   await evaluateLowStockForFamily(ctx.familyId, now);
+  await evaluateRxExpiryForFamily(ctx.familyId, ctx.timezone, now); // receitas que vencem em 15/7/3/0 dias
 }
 
 /** Como `prepareDay`, mas uma falha aqui (ex.: banco lento) nunca derruba a tela nem uma ação já concluída: só registra o código do erro. */

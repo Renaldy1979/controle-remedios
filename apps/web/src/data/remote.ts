@@ -1,6 +1,6 @@
 import type { ActionResult } from "@/server/pg/actions";
 import * as srv from "@/server/pg/actions";
-import type { Actions, ConnectionStatus, DataSource, DoseHistoryFilters, DoseHistoryResult, InviteResult, NotificationSettingsVM, Snapshot } from "./types";
+import type { Actions, AttachDraft, ConnectionStatus, DataSource, DoseHistoryFilters, DoseHistoryResult, InviteResult, NotificationSettingsVM, Snapshot } from "./types";
 
 const hhmm = () => new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date());
 
@@ -129,6 +129,15 @@ export class RemoteDataSource implements DataSource {
     return null;
   };
 
+  /** Anexar/editar receita: as páginas vão num FormData (a Server Action sobe para o bucket); devolve o id da receita ou null. */
+  private async saveRx(draft: AttachDraft): Promise<string | null> {
+    const { files, ...rest } = draft;
+    const form = new FormData();
+    form.set("draft", JSON.stringify(rest));
+    for (const f of files ?? []) form.append("files", f);
+    return this.withData(() => srv.saveRxAction(form));
+  }
+
   private notYet = (): boolean => {
     this.hooks.onError(NEXT_LOT);
     return false;
@@ -168,17 +177,21 @@ export class RemoteDataSource implements DataSource {
     },
 
     // Lote 3
-    assumeReplenishment: this.notYet,
-    advanceReplenishment: this.notYet,
-    saveRx: () => {
-      this.hooks.onError(NEXT_LOT);
-      return null;
+    assumeReplenishment: (medId, opts) => this.exec(() => srv.assumeReplenishmentAction(medId, opts?.takeOver === true)),
+    cancelReplenishment: (medId) => this.exec(() => srv.cancelReplenishmentAction(medId)),
+    advanceReplenishment: (medId, opts) => this.exec(() => srv.advanceReplenishmentAction(medId, opts?.quantity)),
+    saveRx: (draft) => this.saveRx(draft),
+    deleteRx: (id) => this.exec(() => srv.deleteRxAction(id)),
+    restoreRx: (id) => this.exec(() => srv.restoreRxAction(id)),
+    markSuperseded: (id) => this.exec(() => srv.markSupersededAction(id)),
+    recordRxView: async (id) => {
+      try {
+        await srv.recordRxViewAction(id); // só registra; não troca o retrato (a tela não pisca)
+      } catch {
+        /* sem conexão: o registro de quem viu é feito na próxima abertura */
+      }
     },
-    deleteRx: this.notYet,
-    restoreRx: this.notYet,
-    markSuperseded: this.notYet,
-    recordRxView: () => undefined,
-    shareRx: this.notYet,
+    shareRx: (id, target, channel) => (channel === "WhatsApp" ? this.notYet() : this.exec(() => srv.shareRxAction(id, { memberIds: target.memberIds ?? [] }))),
     viewAs: () => undefined,
 
     // Lote 1

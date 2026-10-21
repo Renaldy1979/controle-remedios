@@ -1,11 +1,11 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { addDays, effectiveRecipientsMode, localParts, resolveResponsible, zonedToUtc } from "@medcuidar/domain";
 import { PERMISSION_GROUPS, SYSTEM_PROFILES, can, permissionMapSchema, type ControlUnit, type PermissionMap } from "@medcuidar/shared";
 import type {
-  AccessState, DoseVM, MedicationVM, PatientVM, PermissionRowVM, PersonVM, ReplenishmentVM, Role, Snapshot, StockMovementVM, StockVM, Tone,
+  AccessState, DoseVM, MedicationVM, PatientVM, PermissionRowVM, PersonVM, Role, Snapshot, StockMovementVM, StockVM, Tone,
 } from "@/data/types";
 import { ROUTE_LABEL, UNIT_LABEL } from "@/lib/labels";
 import { formatPhone } from "@/lib/phone";
@@ -15,6 +15,8 @@ import { DEFAULT_LOW_STOCK_DAYS, UNTRACKED_STOCK, computeStock, doseWhenLabel, q
 import { effectiveStatus } from "./doses";
 import { toDomainPhase, toDomainTreatment } from "./mappers";
 import { listNotices } from "./notices";
+import { storageConfigured } from "./rx-storage";
+import { buildRxParts } from "./rx-vm";
 import { stampLabel } from "./stamp";
 
 const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"] as const;
@@ -37,10 +39,6 @@ const roleOfProfile = (name: string): Role =>
 
 /** Quem não pode ver estoque recebe um modelo vazio (a tela também esconde o bloco). */
 const HIDDEN_STOCK: StockVM = { quantity: 0, quantityText: "", approximate: false, daysLeft: 0, level: "ok", runsOutLabel: "", barPct: 0, tracked: false };
-const NO_REPL: ReplenishmentVM = {
-  step: 0, done: false, steps: [], stepText: "", ownerText: "", ownerTone: "neu", canAssume: false, assumeLabel: "", advanceLabel: "",
-  needsAttach: false, needsQuantity: false, log: [], mine: false,
-};
 
 /** Retrato que as telas consomem, montado do Postgres dentro de withFamilia. Já vem sem o que o perfil não pode ver. */
 export async function buildSnapshot(ctx: Ctx, now: Date = new Date()): Promise<Snapshot> {
@@ -76,7 +74,19 @@ export async function buildSnapshot(ctx: Ctx, now: Date = new Date()): Promise<S
       : [];
     const movements = seeStock ? await tx.select().from(s.stockMovements).orderBy(desc(s.stockMovements.createdAt), desc(s.stockMovements.id)).limit(40) : [];
     const assignments = seeDoses ? await tx.select().from(s.careAssignments) : [];
-    return { members, profiles, patients, medications, treatments, phases, invites, doses, recentTakenRows, stockItems, sums, movements, assignments };
+
+    // Lote 3: receitas (só as não excluídas), páginas, quem viu e compartilhou, e as reposições abertas
+    const seeRx = canDo("prescriptions.view");
+    const rxRows = await tx.select().from(s.prescriptions).where(isNull(s.prescriptions.deletedAt));
+    const rxIds = rxRows.map((r) => r.id);
+    const rxItems = rxIds.length ? await tx.select().from(s.prescriptionItems).where(inArray(s.prescriptionItems.prescriptionId, rxIds)) : [];
+    const rxFiles = seeRx && rxIds.length ? await tx.select().from(s.prescriptionFiles).where(inArray(s.prescriptionFiles.prescriptionId, rxIds)) : [];
+    const rxViews = seeRx && rxIds.length ? await tx.select().from(s.prescriptionViews).where(inArray(s.prescriptionViews.prescriptionId, rxIds)) : [];
+    const rxShares = seeRx && rxIds.length ? await tx.select().from(s.prescriptionShares).where(inArray(s.prescriptionShares.prescriptionId, rxIds)) : [];
+    const repls = await tx.select().from(s.replenishments).where(notInArray(s.replenishments.status, ["done", "cancelled"]));
+    const replSteps = repls.length ? await tx.select().from(s.replenishmentSteps).where(inArray(s.replenishmentSteps.replenishmentId, repls.map((r) => r.id))) : [];
+    const rx = { rows: rxRows, items: rxItems, files: rxFiles, views: rxViews, shares: rxShares, repls, steps: replSteps };
+    return { members, profiles, patients, medications, treatments, phases, invites, doses, recentTakenRows, stockItems, sums, movements, assignments, rx };
   });
 
   const profileById = new Map(L.profiles.map((p) => [p.id, p]));
@@ -150,6 +160,14 @@ export async function buildSnapshot(ctx: Ctx, now: Date = new Date()): Promise<S
     }).vm;
   };
 
+  const rxParts = await buildRxParts({
+    L: L.rx, tz: ctx.timezone, today, familyId: ctx.familyId,
+    me: { id: ctx.memberId, permissions: ctx.member.permissions, profileName: ctx.member.profileName },
+    members: L.members.map((m) => ({ id: m.id, name: m.name, active: m.active, removedAt: m.removedAt, accessState: m.accessState, permissions: permsOf(profileById.get(m.profileId)), profileName: profileById.get(m.profileId)?.name ?? "" })),
+    patients: L.patients.map((p) => ({ id: p.id, name: p.name })),
+    medications: L.medications.map((m) => ({ id: m.id, name: m.name, requiresPrescription: m.requiresPrescription, packageSize: m.packageSize })),
+  });
+
   const medsVM: MedicationVM[] = [];
   for (const med of L.medications) {
     const t = L.treatments.find((x) => x.medicationId === med.id && patientIds.has(x.patientId));
@@ -158,6 +176,7 @@ export async function buildSnapshot(ctx: Ctx, now: Date = new Date()): Promise<S
     const day = dayDiff(t.startDate, today) + 1;
     const current = (day >= 1 ? phases.find((p) => day >= p.startDay && (p.endDay === null || day <= p.endDay)) : undefined) ?? phases[0];
     const first = phases[0]?.firstDoseTime ?? "08:00";
+    const rx = rxParts.linkFor(t.patientId, med.id);
     const per = current?.doseAmount ?? 1;
     const every = current?.intervalHours ?? 24;
     const unit = med.controlUnit as ControlUnit;
@@ -181,8 +200,8 @@ export async function buildSnapshot(ctx: Ctx, now: Date = new Date()): Promise<S
       startDate: t.startDate,
       otc: !med.requiresPrescription,
       stock: stockVmFor(med, t, phases),
-      rx: { kind: "none", text: "Receitas chegam no Lote 3", label: "Receitas chegam no Lote 3", icon: "description", tone: "neu", alert: false },
-      replenishment: NO_REPL,
+      rx,
+      replenishment: rxParts.replFor(t.patientId, med.id, rx),
     });
   }
 
@@ -286,7 +305,7 @@ export async function buildSnapshot(ctx: Ctx, now: Date = new Date()): Promise<S
     medications: medsVM,
     doses,
     recentTaken,
-    prescriptions: [],
+    prescriptions: rxParts.prescriptions,
     history: [],
     interactions: [],
     stockMovements,
@@ -301,6 +320,15 @@ export async function buildSnapshot(ctx: Ctx, now: Date = new Date()): Promise<S
     alertCount,
     notices,
     unreadNotices: unread,
+    rxStorageReady: storageConfigured(),
+    rxAudience: canDo("prescriptions.view")
+      ? L.members
+          .filter((m) => m.active && !m.removedAt && m.accessState === "active")
+          .map((m): PersonVM => {
+            const prof = profileById.get(m.profileId);
+            return { id: m.id, name: m.name, relation: "", profileName: prof?.name ?? "", role: roleOfProfile(prof?.name ?? ""), phone: "", whatsappActive: false, receivesAlerts: false, permissions: permsOf(prof) };
+          })
+      : [],
     account: { email: ctx.account.email, name: me?.name ?? ctx.member.name, phonePending: me?.phonePending ?? "", phoneVerified: me?.phoneVerified ?? "" },
   };
 }

@@ -58,7 +58,7 @@ describe("Lote 2 — Início (origem Postgres)", () => {
     expect(screen.getByRole("heading", { name: "Últimas doses tomadas" })).toBeInTheDocument();
     expect(screen.queryByText(/Dados de demonstração/)).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Últimas interações" })).not.toBeInTheDocument();
-    expect(screen.getByText(/Receitas e reposição chegam no Lote 3/)).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Receitas que pedem atenção" })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
   });
 

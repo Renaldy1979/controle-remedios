@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { cx } from "@/lib/format";
-import { useActions, useSnapshot } from "@/data";
+import { useActions, useDataKind, useSnapshot } from "@/data";
 import { useOverlay } from "@/components/app/overlay-context";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
@@ -28,6 +28,8 @@ export function ShareSheet({ rxId, initialTab = "family" }: { rxId: string; init
   const actions = useActions();
   const toast = useToast();
   const rx = snap.prescriptions.find((r) => r.id === rxId);
+  const real = useDataKind() === "postgres";
+  const audience = (snap.rxAudience ?? snap.people).filter((p) => !real || p.id !== snap.member.id);
   const [tab, setTab] = useState<"family" | "whatsapp">(initialTab);
   const [sel, setSel] = useState<Record<string, boolean>>({});
   const [purpose, setPurpose] = useState<Purpose>("pharmacy");
@@ -41,7 +43,7 @@ export function ShareSheet({ rxId, initialTab = "family" }: { rxId: string; init
 
   const buyer = snap.medications.find((m) => rx.medicationIds.includes(m.id) && m.replenishment.owner)?.replenishment.owner;
   const targetName: Record<Target, string> = { pharmacy: "Farmácia São João", group: "Grupo da família", buyer: buyer ?? "Quem assumiu a compra", other: other || "outro número" };
-  const chosen = snap.people.filter((p) => sel[p.id]);
+  const chosen = audience.filter((p) => sel[p.id]);
 
   const sendFamily = async () => {
     if (!chosen.length) return;
@@ -65,12 +67,12 @@ export function ShareSheet({ rxId, initialTab = "family" }: { rxId: string; init
   return (
     <Dialog title="Compartilhar receita" description={`Receita de ${meds} · ${patient}`} icon="share" size="md" onClose={close}>
       <div className="flex flex-col gap-4">
-        <Tabs label="Como compartilhar" items={[{ value: "family", label: "Na família", icon: "groups" }, { value: "whatsapp", label: "Pelo WhatsApp", icon: "chat" }]} value={tab} onChange={setTab} idPrefix="share" />
-        <div {...tabPanelProps("share", tab)} className="flex flex-col gap-4">
-          {tab === "family" ? (
+        {real ? <p className="text-ink2">Escolha quem da família pode receber esta receita. Só aparecem pessoas com permissão para ver receitas; quem abrir fica registrado.</p> : <Tabs label="Como compartilhar" items={[{ value: "family", label: "Na família", icon: "groups" }, { value: "whatsapp", label: "Pelo WhatsApp", icon: "chat" }]} value={tab} onChange={setTab} idPrefix="share" />}
+        <div {...(real ? {} : tabPanelProps("share", tab))} className="flex flex-col gap-4">
+          {tab === "family" || real ? (
             <>
               <ul className="flex flex-col divide-y divide-bd">
-                {snap.people.map((p) => {
+                {audience.map((p) => {
                   const blocked = rx.cannotView.includes(p.name);
                   const view = rx.views.find((v) => v.who === p.name);
                   return (

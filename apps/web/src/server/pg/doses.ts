@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, desc, eq, gte, inArray, isNull, like, lt, lte, or } from "drizzle-orm";
+import { can } from "@medcuidar/shared";
 import { withFamilia, type Tx } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import {
@@ -7,7 +8,7 @@ import {
   type ConfirmDoseRepo, type DoseEvent, type StockMovement, type TreatmentPhase, type UndoDoseRepo,
 } from "@medcuidar/domain";
 import type { DoseStatus, FamilySettings } from "@medcuidar/shared";
-import type { DoseHistoryFilters, DoseHistoryResult } from "@/data/types";
+import type { DoseHistoryFilters, DoseHistoryResult, HistoryEventVM, Tone } from "@/data/types";
 import { localParts } from "@medcuidar/domain";
 import { audit } from "./audit";
 import { UserError } from "./errors";
@@ -266,6 +267,62 @@ export async function snoozeDose(actor: DoseActor, doseId: string, minutes: numb
 
 const HISTORY_LIMIT = 300;
 
+const HISTORY_EVENTS: Record<string, { kind: "prescription" | "replenishment"; icon: string; tone: Tone; label: string }> = {
+  "rx.attached": { kind: "prescription", icon: "description", tone: "ok", label: "Receita anexada" },
+  "rx.edited": { kind: "prescription", icon: "edit_note", tone: "neu", label: "Receita editada" },
+  "rx.shared": { kind: "prescription", icon: "share", tone: "br", label: "Receita compartilhada" },
+  "rx.superseded": { kind: "prescription", icon: "swap_horiz", tone: "br", label: "Receita substituída" },
+  "rx.deleted": { kind: "prescription", icon: "delete", tone: "neu", label: "Receita excluída" },
+  "rx.restored": { kind: "prescription", icon: "restore_from_trash", tone: "neu", label: "Receita restaurada" },
+  "replenishment.opened": { kind: "replenishment", icon: "playlist_add", tone: "br", label: "Reposição aberta" },
+  "replenishment.claimed": { kind: "replenishment", icon: "front_hand", tone: "br", label: "Assumiu a reposição" },
+  "replenishment.step_done": { kind: "replenishment", icon: "checklist", tone: "br", label: "Etapa de reposição concluída" },
+  "replenishment.done": { kind: "replenishment", icon: "task_alt", tone: "ok", label: "Reposição concluída" },
+  "replenishment.cancelled": { kind: "replenishment", icon: "cancel", tone: "neu", label: "Reposição cancelada" },
+};
+
+/** Eventos de receita e reposição (da auditoria, só ids) no mesmo período do histórico de doses. Receita exige `prescriptions.view`. */
+async function listHistoryEvents(tx: Tx, actor: DoseActor, filters: DoseHistoryFilters): Promise<HistoryEventVM[]> {
+  const tz = actor.timezone;
+  const seeRx = can(actor.member, "prescriptions.view");
+  const actions = Object.entries(HISTORY_EVENTS).filter(([, v]) => v.kind === "replenishment" || seeRx).map(([k]) => k);
+  const conds = [inArray(s.auditLog.action, actions)];
+  if (filters.memberId) conds.push(eq(s.auditLog.actorMemberId, filters.memberId));
+  if (filters.from) conds.push(gte(s.auditLog.at, zonedToUtc(filters.from, 0, tz)));
+  if (filters.to) conds.push(lt(s.auditLog.at, zonedToUtc(addDays(filters.to, 1), 0, tz)));
+  const rows = await tx
+    .select({ a: s.auditLog, who: s.members.name })
+    .from(s.auditLog)
+    .leftJoin(s.members, eq(s.members.id, s.auditLog.actorMemberId))
+    .where(and(...conds))
+    .orderBy(desc(s.auditLog.at))
+    .limit(200);
+  const meds = new Map((await tx.select({ id: s.medications.id, name: s.medications.name }).from(s.medications)).map((m) => [m.id, m.name]));
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  const out: HistoryEventVM[] = [];
+  for (const { a, who } of rows) {
+    const spec = HISTORY_EVENTS[a.action];
+    if (!spec) continue;
+    const meta = a.meta ?? {};
+    const medIds = Array.isArray(meta["medicationIds"]) ? (meta["medicationIds"] as string[]) : [];
+    const patientId = typeof meta["patientId"] === "string" ? (meta["patientId"] as string) : "";
+    if (filters.patientId && patientId !== filters.patientId) continue;
+    if (filters.medicationId && !medIds.includes(filters.medicationId)) continue;
+    const at = localParts(a.at, tz);
+    const pages = typeof meta["pages"] === "number" ? `${meta["pages"]} ${meta["pages"] === 1 ? "página" : "páginas"}` : "";
+    const qty = typeof meta["quantity"] === "number" && a.action === "replenishment.done" ? `entraram ${String(Math.round((meta["quantity"] as number) * 100) / 100).replace(".", ",")} no estoque` : "";
+    out.push({
+      id: a.id, kind: spec.kind,
+      dateLabel: `${at.date.slice(8, 10)}/${at.date.slice(5, 7)}/${at.date.slice(0, 4)}`,
+      time: `${p2(Math.floor(at.minutes / 60))}:${p2(at.minutes % 60)}`,
+      icon: spec.icon, tone: spec.tone, title: spec.label,
+      detail: [medIds.map((m) => meds.get(m)).filter(Boolean).join(", "), pages, qty].filter(Boolean).join(" · "),
+      who: who ?? "", patientId,
+    });
+  }
+  return out;
+}
+
 /** Histórico de doses (passadas e de hoje) com filtros aplicados no banco. Exige `doses.history.view`. */
 export async function listDoseHistory(actor: DoseActor, filters: DoseHistoryFilters, now: Date = new Date()): Promise<DoseHistoryResult> {
   requirePermission(actor, "doses.history.view");
@@ -304,9 +361,11 @@ export async function listDoseHistory(actor: DoseActor, filters: DoseHistoryFilt
       .orderBy(asc(s.members.name));
 
     const p2 = (n: number) => String(n).padStart(2, "0");
+    const events = filters.status ? [] : await listHistoryEvents(tx, actor, filters);
     return {
       truncated,
       people,
+      events,
       rows: list.map(({ d, med, patient, who, eff, medUnit, medRoute }) => {
         const at = localParts(d.scheduledAt, tz);
         const done = d.confirmedAt ? stampLabel(d.confirmedAt, tz).replace(/^(\d{2}\/\d{2})\/\d{4}/, "$1") : "";

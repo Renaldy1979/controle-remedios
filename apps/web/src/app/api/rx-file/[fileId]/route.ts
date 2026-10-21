@@ -1,46 +1,44 @@
 import { can } from "@medcuidar/shared";
 import { NextResponse } from "next/server";
-import { clients } from "@/server/clients";
-import { getContext } from "@/server/context";
-import { audit, str, type R } from "@/server/data";
-import { PRESCRIPTION_BUCKET } from "@/server/env";
+import { dataSourceKind } from "@/server/env";
 import { verifyFileSignature } from "@/server/files";
 
 export const dynamic = "force-dynamic";
 
-const deny = (status: number) => new NextResponse(null, { status, headers: { "Cache-Control": "no-store" } });
+const deny = (status: number, body?: string) => new NextResponse(body ?? null, { status, headers: { "Cache-Control": "no-store" } });
 
-/** Imagem de uma página de receita: sessão + permissão + assinatura de curta duração. Nunca público. */
+/**
+ * Página de uma receita (foto ou PDF), entregue SÓ por aqui: sessão válida + permissão de ver receitas + assinatura de curta
+ * duração presa a arquivo, variante, pessoa e família + a página pertencer à família e a receita não estar excluída.
+ * O bucket do Appwrite é privado: não existe URL pública do arquivo.
+ */
 export async function GET(req: Request, { params }: { params: Promise<{ fileId: string }> }) {
+  if (dataSourceKind() !== "postgres") return deny(404);
   const { fileId } = await params;
   const q = new URL(req.url).searchParams;
+  const { getContext } = await import("@/server/pg/access");
   const ctx = await getContext();
   if (!ctx) return deny(401);
   if (!can(ctx.member, "prescriptions.view")) return deny(403);
   const memberId = q.get("m") ?? "";
-  if (memberId !== ctx.member.id) return deny(403);
+  if (memberId !== ctx.memberId) return deny(403);
+  const variant = q.get("v") === "thumb" ? "thumb" : "full";
   if (!(await verifyFileSignature(fileId, q.get("v") ?? "", Number(q.get("exp")), memberId, ctx.familyId, q.get("sig") ?? ""))) return deny(403);
 
   try {
-    // o registro do arquivo precisa ser da família (FamilyScopedDb) e a receita não pode estar excluída
-    const file = (await ctx.db.get("prescription_files", fileId)) as unknown as R;
-    const rx = (await ctx.db.get("prescriptions", str(file, "prescription_id"))) as unknown as R;
-    if (rx["deleted_at"]) return deny(404);
-    const mime = str(file, "mime");
-    const storageId = str(file, "storage_file_id");
-    const { storage } = clients();
-    let bytes: ArrayBuffer;
-    let contentType = mime;
-    if (q.get("v") === "thumb") {
-      if (!mime.startsWith("image/")) return deny(404); // PDF não tem miniatura: a tela mostra o papel desenhado
-      bytes = await storage.getFilePreview({ bucketId: PRESCRIPTION_BUCKET, fileId: storageId, width: 360, quality: 60 });
-      contentType = "image/jpeg";
-    } else {
-      bytes = await storage.getFileView({ bucketId: PRESCRIPTION_BUCKET, fileId: storageId });
-      await audit(ctx.db, ctx.member.id, "rx.file_opened", "prescription_file", fileId, {});
-    }
-    return new NextResponse(bytes, { headers: { "Content-Type": contentType, "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff", "Content-Disposition": "inline" } });
-  } catch {
-    return deny(404);
+    const [{ authorizeFile }, { rxStorage }] = await Promise.all([import("@/server/pg/prescriptions"), import("@/server/pg/rx-storage")]);
+    const file = await authorizeFile(ctx, fileId, variant);
+    if (!file) return deny(404);
+    if (variant === "thumb" && !file.mime.startsWith("image/")) return deny(404); // PDF não tem miniatura: a tela mostra o papel desenhado
+    const got = await rxStorage().read(file.storageFileId, variant);
+    if (!got) return deny(404);
+    return new NextResponse(got.bytes, {
+      headers: { "Content-Type": got.contentType, "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff", "Content-Disposition": "inline" },
+    });
+  } catch (e) {
+    const { UserError } = await import("@/server/pg/errors");
+    if (e instanceof UserError) return deny(503, e.message); // armazenamento não configurado ou fora do ar: mensagem clara, não 500
+    console.error("[rx-file] falhou", (e as Error).name);
+    return deny(500);
   }
 }

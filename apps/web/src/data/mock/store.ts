@@ -481,6 +481,12 @@ export class MockDataSource implements DataSource {
         return this.addEvent({ kind: "replenishment", icon: "front_hand", tone: "br", medIds: [medId], patientId: MEDS.find((x) => x.id === medId)!.patientId, label: "Assumiu a reposição", detail: `${m.name} ${verb}` }, { ...r, repl: { ...r.repl, [medId]: next } });
       });
     },
+    cancelReplenishment: (medId) =>
+      this.set((r) => {
+        const rest = { ...r.repl };
+        delete rest[medId];
+        return { ...r, repl: rest };
+      }),
     advanceReplenishment: (medId, opts) => {
       const m = this.member();
       this.set((r) => {

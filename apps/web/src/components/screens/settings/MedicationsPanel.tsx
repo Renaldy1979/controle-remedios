@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useActions, useCan, useDataKind, useSnapshot, type MedicationInput, type MedicationVM } from "@/data";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Controls";
 import { ConfirmDialog, Dialog } from "@/components/ui/Dialog";
 import { SelectField, TextField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
@@ -93,6 +94,7 @@ function NewMedicationDialog({ onClose, onSave }: { onClose: () => void; onSave:
   const [unit, setUnit] = useState(UNIT_LABELS[0]!);
   const [drops, setDrops] = useState(DEFAULT_DROPS);
   const [stock, setStock] = useState("");
+  const [needsRx, setNeedsRx] = useState(true);
   const isReal = useDataKind() === "postgres";
   const canStock = useCan("stock.adjust");
   const withStock = isReal && canStock;
@@ -109,7 +111,7 @@ function NewMedicationDialog({ onClose, onSave }: { onClose: () => void; onSave:
     setErr(e);
     if (e.name || e.drops || e.stock) return;
     setBusy(true);
-    await onSave({ patientId, name: name.trim(), alternatives: parseAlternatives(alts), routeLabel: route, unitLabel: unit, ...(unit === "Gotas" ? { dropsPerMl: d } : {}), ...(withStock && st > 0 ? { initialStock: st } : {}) });
+    await onSave({ patientId, name: name.trim(), alternatives: parseAlternatives(alts), routeLabel: route, unitLabel: unit, ...(unit === "Gotas" ? { dropsPerMl: d } : {}), ...(withStock && st > 0 ? { initialStock: st } : {}), ...(isReal ? { requiresPrescription: needsRx } : {}) });
     setBusy(false);
   };
 
@@ -150,6 +152,7 @@ function NewMedicationDialog({ onClose, onSave }: { onClose: () => void; onSave:
         </div>
         {unit === "Gotas" ? <TextField label="Gotas por ml" inputMode="decimal" hint="Padrão: 20. O estoque de colírio é sempre uma estimativa." value={drops} error={err.drops} onChange={(e) => setDrops(e.target.value)} /> : null}
         {withStock ? <TextField label={`Estoque inicial (${unit.toLowerCase()})`} optional inputMode="decimal" hint="Quanto tem agora. Vira a primeira entrada do estoque; depois use Registrar compra." value={stock} error={err.stock} onChange={(e) => setStock(e.target.value)} /> : null}
+        {isReal ? <Checkbox checked={needsRx} onChange={setNeedsRx} label="Este remédio exige receita" description="Desmarque para remédio vendido sem receita: a reposição pula as etapas da receita." /> : null}
         <p className="flex items-start gap-2 text-cap text-ink2">
           <Icon name="info" size={16} className="mt-0.5 flex-none" />
           O remédio nasce com 1 dose por dia, às 08:00. Ajuste horários e fases em Esquemas.
@@ -168,6 +171,8 @@ function MedicationForm({ med, onDeleted }: { med: MedicationVM; onDeleted: () =
   const [route, setRoute] = useState(med.routeLabel);
   const [unit, setUnit] = useState(med.unitLabel);
   const [dropsPerMl, setDropsPerMl] = useState(String(med.dropsPerMl ?? DEFAULT_DROPS));
+  const [needsRx, setNeedsRx] = useState(!med.otc);
+  const isReal = useDataKind() === "postgres";
   const [confirm, setConfirm] = useState(false);
   const [err, setErr] = useState<{ name?: string; drops?: string }>({});
   useEffect(() => setErr({}), [name, dropsPerMl]);
@@ -179,7 +184,7 @@ function MedicationForm({ med, onDeleted }: { med: MedicationVM; onDeleted: () =
     if (unit === "Gotas" && !(d > 0)) e.drops = "Informe quantas gotas tem em 1 ml (padrão 20).";
     setErr(e);
     if (e.name || e.drops) return;
-    if ((await actions.updateMedication(med.id, { name: name.trim(), alternatives: alts, routeLabel: route, unitLabel: unit, ...(unit === "Gotas" ? { dropsPerMl: d } : {}) })) === false) return;
+    if ((await actions.updateMedication(med.id, { name: name.trim(), alternatives: alts, routeLabel: route, unitLabel: unit, ...(unit === "Gotas" ? { dropsPerMl: d } : {}), ...(isReal ? { requiresPrescription: needsRx } : {}) })) === false) return;
     toast({ icon: "check_circle", message: `${name.trim()} salvo` });
   };
 
@@ -216,6 +221,7 @@ function MedicationForm({ med, onDeleted }: { med: MedicationVM; onDeleted: () =
         </SelectField>
         {unit === "Gotas" ? <TextField label="Gotas por ml" inputMode="decimal" hint="Padrão: 20. O estoque de colírio é sempre uma estimativa." value={dropsPerMl} error={err.drops} onChange={(e) => setDropsPerMl(e.target.value)} /> : null}
       </div>
+      {isReal ? <Checkbox checked={needsRx} onChange={setNeedsRx} label="Este remédio exige receita" description="Desmarque para remédio vendido sem receita: a reposição pula as etapas da receita." /> : null}
       <p className="flex items-start gap-2 text-cap text-ink2">
         <Icon name="info" size={16} className="mt-0.5 flex-none" />
         A quantidade por dose e os horários ficam em Esquemas.

@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays, cx, fmtDate, parseDate } from "@/lib/format";
+import { maskDate } from "@/lib/date-mask";
+import { preparePage } from "@/lib/image-prep";
 import { useActions, useSnapshot, type AttachDraft } from "@/data";
 import { useOverlay, type Overlay } from "@/components/app/overlay-context";
 import { AccessIndicator } from "@/components/domain/Rx";
@@ -31,6 +33,8 @@ const VALIDITY: Array<{ value: AttachDraft["validity"]; label: string; days: num
   { value: "none", label: "Sem validade", days: null },
 ];
 
+const MAX_PAGES = 20;
+const MAX_BYTES = 15 * 1024 * 1024;
 const mbText = (n: number) => n.toFixed(1).replace(".", ",");
 
 type Preset = Extract<Overlay, { type: "attach" }>["preset"];
@@ -98,7 +102,9 @@ export function AttachFlow({ preset }: { preset?: Preset }) {
     void (async () => {
       let id: string | null = null;
       try {
-        id = await actions.saveRx({ ...draftRef.current!, pages: pages.length || 1, files: pages.map((p) => p.file).filter((f): f is File => !!f) });
+        // gira/reduz as fotos no aparelho antes de enviar; PDF segue como está
+        const files = await Promise.all(pages.map((p) => (p.file ? preparePage(p.file, p.rot) : Promise.resolve(undefined))));
+        id = await actions.saveRx({ ...draftRef.current!, pages: pages.length || 1, files: files.filter((f): f is File => !!f) });
       } catch {
         id = null;
       }
@@ -121,7 +127,22 @@ export function AttachFlow({ preset }: { preset?: Preset }) {
 
   const onFiles = (files: FileList | null) => {
     if (!files?.length) return;
-    const added: Page[] = Array.from(files).map((f) => ({ file: f, rot: 0, mb: Math.max(0.1, f.size / 1048576), pdf: f.type === "application/pdf", name: f.name, src: f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined }));
+    const room = MAX_PAGES - pages.length;
+    const picked = Array.from(files);
+    if (picked.length > room) toast({ error: true, message: `No máximo ${MAX_PAGES} páginas por receita.` });
+    const ok = picked.slice(0, Math.max(0, room)).filter((f) => {
+      if (f.size > MAX_BYTES) {
+        toast({ error: true, message: `"${f.name}" passa de 15 MB e não foi adicionado.` });
+        return false;
+      }
+      if (!/^(image\/(jpeg|png|webp|heic)|application\/pdf)$/.test(f.type)) {
+        toast({ error: true, message: `"${f.name}" não é foto nem PDF.` });
+        return false;
+      }
+      return true;
+    });
+    if (!ok.length) return;
+    const added: Page[] = ok.map((f) => ({ file: f, rot: 0, mb: Math.max(0.1, f.size / 1048576), pdf: f.type === "application/pdf", name: f.name, src: f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined }));
     setPages((prev) => {
       setCur(prev.length);
       return [...prev, ...added];
@@ -215,7 +236,13 @@ export function AttachFlow({ preset }: { preset?: Preset }) {
   return (
     <Dialog title={title} size="attach" onClose={close} footer={footer} description={step === "capture" || step === "preview" || step === "form" ? `Passo ${stepNo} de 3` : undefined}>
       <div className="flex flex-col gap-4">
-        {step === "capture" || step === "preview" || step === "form" ? <AccessIndicator people={snap.people} /> : null}
+        {snap.rxStorageReady === false ? (
+          <p role="alert" className="flex items-start gap-2 rounded-md bg-lt-bg p-3 font-bold text-lt">
+            <Icon name="warning" size={22} className="mt-0.5 flex-none" />
+            O armazenamento das receitas ainda não foi configurado. Quem cuida da instalação precisa concluir o passo &quot;Lote 3&quot; do guia antes de anexar.
+          </p>
+        ) : null}
+        {step === "capture" || step === "preview" || step === "form" ? <AccessIndicator people={snap.rxAudience ?? snap.people} /> : null}
 
         {step === "capture" ? (
           <div className="flex flex-col gap-3">
@@ -293,7 +320,7 @@ export function AttachFlow({ preset }: { preset?: Preset }) {
                 </option>
               ))}
             </SelectField>
-            <TextField label="Data da receita" inputMode="numeric" placeholder="dd/mm/aaaa" value={date} error={errors.date} onChange={(e) => { setDate(e.target.value); setErrors({ ...errors, date: undefined }); }} />
+            <TextField label="Data da receita" inputMode="numeric" placeholder="dd/mm/aaaa" value={date} error={errors.date} onChange={(e) => { setDate(maskDate(e.target.value)); setErrors({ ...errors, date: undefined }); }} />
             <fieldset>
               <legend className="mb-1.5 font-bold">Remédios desta receita</legend>
               <div className="flex flex-wrap gap-2">
@@ -355,10 +382,10 @@ export function AttachFlow({ preset }: { preset?: Preset }) {
 
         {step === "error" ? (
           <div className="flex flex-col gap-3">
-            <ProgressBar value={Math.max(progress, 62)} failed label="Envio interrompido" detail="Sem conexão. As fotos continuam guardadas neste aparelho." />
+            <ProgressBar value={Math.max(progress, 62)} failed label="Envio interrompido" detail={typeof navigator !== "undefined" && navigator.onLine === false ? "Sem conexão. As fotos continuam guardadas neste aparelho." : "A receita não foi salva. O motivo apareceu no aviso. As fotos continuam neste aparelho."} />
             <p role="alert" className="flex items-start gap-2 rounded-md bg-ms-bg p-3 font-bold text-ms">
-              <Icon name="wifi_off" size={22} className="mt-0.5" />
-              Nada foi perdido. Tente de novo agora ou deixe para enviar quando a internet voltar.
+              <Icon name={typeof navigator !== "undefined" && navigator.onLine === false ? "wifi_off" : "error"} size={22} className="mt-0.5" />
+              Nada foi perdido. Tente de novo agora{typeof navigator !== "undefined" && navigator.onLine === false ? " ou deixe para enviar quando a internet voltar" : ""}.
             </p>
           </div>
         ) : null}

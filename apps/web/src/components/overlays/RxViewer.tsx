@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useId, useState } from "react";
-import { useActions, useSnapshot } from "@/data";
+import { useActions, useDataKind, useSnapshot } from "@/data";
 import { useOverlay } from "@/components/app/overlay-context";
 import { useDialogBehavior } from "@/components/ui/Dialog";
 import { Button, IconButton } from "@/components/ui/Button";
@@ -32,6 +32,8 @@ export function RxViewer({ rxId, initialPage, forceState }: Props) {
 
   const pages = rx?.pages ?? 1;
   const url = rx?.pageUrls?.[page]?.full;
+  const isPdf = rx?.pageUrls?.[page]?.mime === "application/pdf";
+  const real = useDataKind() === "postgres";
   // registra a visualização (auditoria de acesso) uma vez por abertura
   useEffect(() => {
     void actions.recordRxView(rxId);
@@ -65,7 +67,13 @@ export function RxViewer({ rxId, initialPage, forceState }: Props) {
         <h2 id={titleId} className="min-w-0 flex-1 truncate font-bold">
           Receita de {rx.medNames.join(" e ")} · página {page + 1} de {pages}
         </h2>
-        <IconButton icon="download" label="Baixar receita" tone="inverse" onClick={() => toast({ icon: "download", message: "Baixar fica disponível quando o armazenamento for ligado" })} />
+        {real && url ? (
+          <a href={url} download={`receita-pagina-${page + 1}`} aria-label="Baixar esta página" className="flex h-11 w-11 items-center justify-center rounded-md hover:bg-white/15">
+            <Icon name="download" size={24} />
+          </a>
+        ) : (
+          <IconButton icon="download" label="Baixar receita" tone="inverse" onClick={() => toast({ icon: "download", message: "Baixar fica disponível quando o armazenamento for ligado" })} />
+        )}
       </div>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto p-4">
@@ -83,7 +91,9 @@ export function RxViewer({ rxId, initialPage, forceState }: Props) {
             </Button>
           </div>
         ) : null}
-        {state !== "error" && url ? (
+        {state !== "error" && url && isPdf ? (
+          <iframe src={url} title={alt} onLoad={() => setState("ok")} className={state === "ok" ? "block h-full w-full max-w-[900px] rounded-md bg-white" : "hidden"} />
+        ) : state !== "error" && url ? (
           <img src={url} alt={alt} onLoad={() => setState("ok")} onError={() => setState("error")} className={state === "ok" ? "block" : "hidden"} style={{ width: `${Math.round(360 * zoom)}px`, maxWidth: zoom === 1 ? "100%" : "none" }} />
         ) : state === "ok" ? (
           <div style={{ width: `${Math.min(420, 360) * zoom}px`, maxWidth: zoom === 1 ? "100%" : "none" }}>

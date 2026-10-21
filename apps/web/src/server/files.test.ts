@@ -17,9 +17,12 @@ describe("URL assinada de arquivo de receita", () => {
     const url = await signFileUrl("file-1", "thumb", "mem-1", "fam-1", now);
     expect(url.startsWith("/api/rx-file/file-1?")).toBe(true);
     const { exp, m, v, sig } = parse(url);
-    expect(exp).toBe(now + 600);
+    expect(exp - now).toBeGreaterThanOrEqual(300);
+    expect(exp - now).toBeLessThanOrEqual(600);
     expect(await verifyFileSignature("file-1", v, exp, m, "fam-1", sig, now)).toBe(true);
-    expect(await verifyFileSignature("file-1", v, exp, m, "fam-1", sig, now + 601)).toBe(false);
+    expect(await verifyFileSignature("file-1", v, exp, m, "fam-1", sig, exp + 1)).toBe(false);
+    // a mesma URL vale dentro da janela (a tela atualiza a cada minuto sem trocar a imagem)
+    expect(await signFileUrl("file-1", "thumb", "mem-1", "fam-1", now + 60)).toBe(await signFileUrl("file-1", "thumb", "mem-1", "fam-1", now + 61));
   });
 
   it("não serve a outro arquivo, outra variante, outra pessoa ou outra família", async () => {

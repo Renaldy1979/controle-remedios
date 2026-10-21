@@ -9,6 +9,13 @@ import { stampLabel } from "./stamp";
 
 const LIMIT = 30;
 
+/** Para onde o aviso leva (só para onde a pessoa pode ir): estoque, a receita ou o Início (cartões de reposição). */
+function hrefOf(kind: string, payload: Record<string, unknown>, can_: { canStock: boolean; canRx: boolean }, med: string): string {
+  if (kind === "low_stock" && can_.canStock) return `/configuracoes/estoque${med ? `?med=${med}` : ""}`;
+  if (kind === "prescription_expiring" && can_.canRx && typeof payload["prescriptionId"] === "string") return `/receitas/${payload["prescriptionId"] as string}`;
+  return "/";
+}
+
 /** Avisos do sino da PESSOA logada (o RLS isola a família; aqui filtramos também pelo membro). */
 export async function listNotices(actor: Actor, now: Date = new Date()): Promise<{ notices: NoticeVM[]; unread: number }> {
   return withFamilia(actor.familyId, async (tx) => {
@@ -27,7 +34,7 @@ export async function listNotices(actor: Actor, now: Date = new Date()): Promise
         body: r.body ?? "",
         whenLabel: sameDay ? `hoje às ${label.slice(-5)}` : label.replace(/\/\d{4}/, ""),
         read: r.readAt !== null,
-        href: r.kind === "low_stock" && canStock ? `/configuracoes/estoque${med ? `?med=${med}` : ""}` : "/",
+        href: hrefOf(r.kind, r.payload, { canStock, canRx: can(actor.member, "prescriptions.view") }, med),
       };
     });
     return { notices, unread: u?.n ?? 0 };

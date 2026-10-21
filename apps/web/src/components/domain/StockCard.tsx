@@ -78,13 +78,12 @@ export function StockCard({ med, patientName, withActions, simple }: StockCardPr
           </p>
           <ReplProgressCompact repl={r} />
           <div className="flex flex-wrap gap-2">
-            {med.rx.kind === "otc" ? (
-              canStock ? (
-                <ButtonLink href={`/configuracoes/estoque?med=${med.id}`} variant="secondary" icon="shopping_bag">
-                  Registrar compra
-                </ButtonLink>
-              ) : null
-            ) : rxId ? (
+            {canStock ? (
+              <ButtonLink href={`/configuracoes/estoque?med=${med.id}`} variant="secondary" icon="shopping_bag">
+                Registrar compra
+              </ButtonLink>
+            ) : null}
+            {med.rx.kind === "otc" ? null : rxId ? (
               canViewRx ? (
                 <Button variant="secondary" icon="description" onClick={() => open({ type: "viewer", rxId, page: 0 })}>
                   Ver receita

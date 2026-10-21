@@ -7,6 +7,7 @@ import { Icon } from "@/components/ui/Icon";
 
 /** Versão compacta: 4 segmentos de 6px + "etapa X de 4" + responsável. */
 export function ReplProgressCompact({ repl }: { repl: ReplenishmentVM }) {
+  if (repl.steps.length === 0) return <p className="text-cap text-ink2">Reposição · ainda não aberta</p>;
   return (
     <div className="flex flex-col gap-1.5">
       <div role="img" aria-label={`Reposição: ${repl.stepText}`} className="flex gap-1">

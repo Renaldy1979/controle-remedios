@@ -102,7 +102,7 @@ function MedicationBlock({ med, doses, real }: { med: MedicationVM; doses: DoseV
   const lvl = STOCK_LEVEL[med.stock.level];
 
   const rxAction = (() => {
-    if (real || med.rx.kind === "otc") return null;
+    if (med.rx.kind === "otc") return null;
     if (med.rx.rxId && canViewRx) return () => open({ type: "viewer", rxId: med.rx.rxId!, page: 0 });
     if (!med.rx.rxId && canUpload) return () => open({ type: "attach", preset: { patientId: med.patientId, medicationIds: [med.id] } });
     return null;

@@ -8,6 +8,9 @@ import { useDoseActions } from "@/components/domain/useDoseActions";
 import { Icon } from "@/components/ui/Icon";
 import { IconBlock, SectionHeader } from "@/components/ui/Layout";
 import { plural } from "@/lib/format";
+import { TONE_BG } from "@/lib/status";
+import { useOverlay } from "@/components/app/overlay-context";
+import { Button } from "@/components/ui/Button";
 import { Lote1Home } from "./lote1/Lote1Home";
 
 export function HomeScreen() {
@@ -101,7 +104,7 @@ function Home() {
               <ul className="flex flex-col gap-3">
                 {lowStock.map((m) => (
                   <li key={m.id}>
-                    <StockCard med={m} patientName={name(m.patientId)} withActions={!real} simple={real} />
+                    <StockCard med={m} patientName={name(m.patientId)} withActions />
                   </li>
                 ))}
               </ul>
@@ -125,10 +128,7 @@ function Home() {
           </section>
 
           {real ? (
-            <section aria-label="Receitas e reposição" className="flex items-start gap-3 rounded-lg border border-bd bg-pn-bg p-4 text-pn">
-              <Icon name="info" size={22} className="mt-0.5 flex-none" />
-              <p>Receitas e reposição chegam no Lote 3. O aviso no WhatsApp chega no Lote 4.</p>
-            </section>
+            <RxAttention />
           ) : (
           <section aria-label="Últimas interações">
             <SectionHeader title="Últimas interações" />
@@ -155,5 +155,50 @@ function Home() {
         </p>
       )}
     </div>
+  );
+}
+
+/** Receitas que pedem atenção (vence em breve, vencida, aguardando nova ou sem receita), com o caminho direto para ver ou anexar. */
+function RxAttention() {
+  const snap = useSnapshot();
+  const { open } = useOverlay();
+  const canView = useCan("prescriptions.view");
+  const canUpload = useCan("prescriptions.upload");
+  if (!canView && !canUpload) return null;
+  const items = snap.medications.filter((m) => !m.otc && m.rx.kind !== "ok" && m.rx.kind !== "otc");
+  const patient = (id: string) => snap.patients.find((p) => p.id === id)?.name ?? "";
+  return (
+    <section aria-label="Receitas que pedem atenção">
+      <SectionHeader title="Receitas" action={canView ? <Link href="/receitas" className="inline-flex min-h-touch items-center font-bold text-br underline">Ver receitas</Link> : undefined} />
+      {items.length === 0 ? (
+        <p className="rounded-lg border border-bd bg-sf p-4 text-ink2">{snap.medications.some((m) => !m.otc) ? "Todas as receitas estão em dia." : "Nenhum remédio precisa de receita."}</p>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {items.map((m) => (
+            <li key={m.id} className="flex flex-col gap-2 rounded-lg border border-bd bg-sf p-4">
+              <p className="font-bold">
+                {m.name} <span className="font-normal text-ink2">· {patient(m.patientId)}</span>
+              </p>
+              <p className={`inline-flex w-fit items-center gap-1.5 rounded-pill px-3 py-1 text-cap font-bold ${TONE_BG[m.rx.tone]}`}>
+                <Icon name={m.rx.icon} size={18} />
+                {m.rx.text}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {m.rx.rxId && canView ? (
+                  <Button variant="secondary" icon="description" onClick={() => open({ type: "viewer", rxId: m.rx.rxId!, page: 0 })}>
+                    Ver receita
+                  </Button>
+                ) : null}
+                {canUpload ? (
+                  <Button variant="secondary" icon="add_a_photo" onClick={() => open({ type: "attach", preset: { patientId: m.patientId, medicationIds: [m.id] } })}>
+                    Anexar receita
+                  </Button>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

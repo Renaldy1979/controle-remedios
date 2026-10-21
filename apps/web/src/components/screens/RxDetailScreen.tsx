@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { cx } from "@/lib/format";
 import { TONE_TEXT } from "@/lib/status";
-import { useActions, useCan, useSnapshot, type RxVM } from "@/data";
+import { useActions, useCan, useDataKind, useSnapshot, type RxVM } from "@/data";
 import { Guard } from "@/components/app/Guard";
 import { useOverlay } from "@/components/app/overlay-context";
 import { AccessIndicator, RxThumb, rxPageAlt } from "@/components/domain/Rx";
@@ -33,6 +33,7 @@ function Detail({ id }: { id: string }) {
   const canShare = useCan("prescriptions.share");
   const canUpload = useCan("prescriptions.upload");
   const canDelete = useCan("prescriptions.delete");
+  const real = useDataKind() === "postgres";
   const [confirm, setConfirm] = useState<null | "delete" | "superseded">(null);
 
   const rx = snap.prescriptions.find((r) => r.id === id);
@@ -59,7 +60,7 @@ function Detail({ id }: { id: string }) {
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-3">
           <StatusChip label={rx.status.label} icon={rx.status.icon} tone={rx.status.tone} />
-          <AccessIndicator people={snap.people} />
+          <AccessIndicator people={snap.rxAudience ?? snap.people} />
         </div>
         <h2 className="font-display text-t1 font-extrabold">{title}</h2>
         <p className="text-body-lg text-ink2">
@@ -74,7 +75,7 @@ function Detail({ id }: { id: string }) {
       <div className="grid gap-6 desk:grid-cols-2 desk:items-start">
         <div className="flex flex-col gap-4">
           <button type="button" onClick={() => open({ type: "viewer", rxId: rx.id, page: 0 })} aria-label={`Abrir ${rxPageAlt(rx, 1)} em tela cheia`} className="mx-auto block w-full max-w-[420px] rounded-lg">
-            <RxThumb alt={rxPageAlt(rx, 1)} src={rx.pageUrls?.[0]?.full} pages={rx.pages} width={420} />
+            <RxThumb alt={rxPageAlt(rx, 1)} src={rx.pageUrls?.[0]?.thumb} pages={rx.pages} width={420} />
           </button>
           {rx.pages > 1 ? (
             <ul className="flex gap-2" aria-label="Páginas da receita">
@@ -91,9 +92,11 @@ function Detail({ id }: { id: string }) {
                 Compartilhar
               </Button>
             ) : null}
-            <Button variant="secondary" icon="download" onClick={() => toast({ icon: "download", message: "Baixar fica disponível quando o armazenamento for ligado" })}>
-              Baixar
-            </Button>
+            {real ? null : (
+              <Button variant="secondary" icon="download" onClick={() => toast({ icon: "download", message: "Baixar fica disponível quando o armazenamento for ligado" })}>
+                Baixar
+              </Button>
+            )}
             {canUpload ? (
               <Button variant="secondary" icon="edit" onClick={() => open({ type: "attach", preset: { editId: rx.id } })}>
                 Editar
@@ -148,7 +151,7 @@ function Detail({ id }: { id: string }) {
           </Section>
 
           <Section title="Quem já viu">
-            <ViewList rx={rx} people={snap.people} />
+            <ViewList rx={rx} people={snap.rxAudience ?? snap.people} />
           </Section>
         </div>
       </div>

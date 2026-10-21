@@ -119,7 +119,7 @@ describe("Lote 1 — portal logado (origem Postgres)", () => {
   it("Início sem remédios mostra os primeiros passos e diz o que vem nos próximos lotes", async () => {
     const { container } = renderApp(shell("/", <Lote1Home />), { source: fakePg(lote1Snapshot()) });
     expect(screen.getByRole("heading", { name: "Primeiros passos" })).toBeInTheDocument();
-    expect(screen.getByText(/Receitas e reposição chegam no Lote 3/)).toBeInTheDocument();
+    expect(screen.getByText(/O WhatsApp chega no Lote 4/)).toBeInTheDocument();
     expect(screen.getByText(/1\. Família criada/)).toBeInTheDocument();
     expect(screen.getByText(/4\. Cadastrar os remédios/)).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
@@ -309,7 +309,7 @@ describe("Lote 1 — Pacientes, Remédios e Esquemas (cadastros)", () => {
     expect(within(dlg).getByLabelText("Gotas por ml")).toHaveValue("20");
     expect(within(dlg).getByText(/estoque de colírio é sempre uma estimativa/)).toBeInTheDocument();
     await userEvent.click(within(dlg).getByRole("button", { name: "Cadastrar" }));
-    await waitFor(() => expect(createMedication).toHaveBeenCalledWith({ patientId: "p1", name: "Zypred", alternatives: ["Facoba", "Vigadexa"], routeLabel: "Pingar", unitLabel: "Gotas", dropsPerMl: 20 }));
+    await waitFor(() => expect(createMedication).toHaveBeenCalledWith({ patientId: "p1", name: "Zypred", alternatives: ["Facoba", "Vigadexa"], routeLabel: "Pingar", unitLabel: "Gotas", dropsPerMl: 20, requiresPrescription: true }));
   });
 
   it("esquema: duas fases (3 em 3 h por 15 dias, depois 6 em 6 h) viram fases sem lacuna", async () => {

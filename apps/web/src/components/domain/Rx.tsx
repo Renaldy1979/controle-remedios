@@ -74,6 +74,7 @@ export function RxCard({ rx, featured }: { rx: RxVM; featured?: boolean }) {
           <span className="font-bold">{rx.patientName}</span>
           <StatusChip compact label={rx.status.label} icon={rx.status.icon} tone={rx.status.tone} />
           {featured ? <Tag icon="star" tone="br">Vigente mais recente</Tag> : null}
+          {rx.sharedWithMe ? <Tag icon="share" tone="pn">Compartilhada por {rx.sharedWithMe.by}</Tag> : null}
         </div>
         <p className="mt-1 font-bold">{rx.doctor || "Médico não informado"}</p>
         <p className="text-cap text-ink2">

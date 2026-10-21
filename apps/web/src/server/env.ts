@@ -32,12 +32,18 @@ export const appwriteAuthEnv = () => ({
 /** URL pública do portal (sem barra no fim), usada nos links dos e-mails. Ex.: https://staging.exemplo.com.br */
 export const appUrl = (): string => need("APP_URL").replace(/\/+$/, "");
 
-/** Segredo para assinar as URLs curtas dos arquivos de receita (derivado do segredo do servidor; a sessão é do Appwrite). */
+/** Segredo para assinar as URLs curtas dos arquivos de receita: `FILE_URL_SECRET` (preferida) ou, no legado, `LOGIN_CODE_SECRET`. */
 export const fileUrlSecret = (): string => {
-  const s = process.env["LOGIN_CODE_SECRET"];
-  if (!s || s.length < 16) throw new Error("Defina LOGIN_CODE_SECRET com pelo menos 16 caracteres");
+  const s = process.env["FILE_URL_SECRET"] || process.env["LOGIN_CODE_SECRET"];
+  if (!s || s.length < 16) throw new Error("Defina FILE_URL_SECRET com pelo menos 16 caracteres");
   return `file-url:${s}`;
 };
+
+/** Id do bucket PRIVADO das receitas no Appwrite (docs/09, seção "Lote 3"). Vazio = armazenamento ainda não configurado. */
+export const prescriptionsBucketId = (): string | undefined => process.env["APPWRITE_PRESCRIPTIONS_BUCKET_ID"] || undefined;
+
+/** Só no e2e: guarda as páginas das receitas na memória do servidor em vez do Appwrite (recusado com APP_ENV=production). */
+export const memoryStorageForTests = (): boolean => e2eTestMode() && process.env["RX_STORAGE"] === "memory";
 
 /** Modo de teste (e2e): canal falso em memória e rota que devolve o último código de login. Recusado se APP_ENV=production. */
 export const e2eTestMode = (): boolean => process.env["E2E_TEST_MODE"] === "1" && process.env["APP_ENV"] !== "production";

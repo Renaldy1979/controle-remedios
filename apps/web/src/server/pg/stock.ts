@@ -63,6 +63,12 @@ export async function registerPurchase(actor: Actor, medicationId: string, quant
   if (q <= 0 || q > MAX_QTY) throw new UserError("Informe uma quantidade maior que zero.");
   await withFamilia(actor.familyId, async (tx) => {
     const item = await getOrCreateStockItem(tx, actor.familyId, medicationId);
+    // há reposição esperando a compra: esta compra é a etapa "Comprado" (soma ao estoque uma vez só e encerra a reposição)
+    const { completePurchaseIfOpen } = await import("./replenishment");
+    if (await completePurchaseIfOpen(tx, actor, item.patientId, medicationId, q, note?.trim() || undefined, now)) {
+      await audit(tx, actor, "stock.purchase", "stock_item", item.id, { quantity: q });
+      return;
+    }
     await tx.insert(s.stockMovements).values({
       familyId: actor.familyId, stockItemId: item.id, type: "purchase", quantity: q, createdByMemberId: actor.memberId,
       note: note?.trim() ? `Compra: ${note.trim().slice(0, 120)}` : null,
@@ -169,6 +175,10 @@ export async function evaluateLowStock(tx: Tx, familyId: string, stockItemId: st
     treatment: toDomainTreatment(t), phases, thresholdDays, now, tz: def.tz,
   });
   if (calc.status !== "critical") return 0;
+
+  // cruzou o limite: abre a reposição (uma só por paciente e remédio; o índice do banco garante)
+  const { openReplenishmentTx } = await import("./replenishment");
+  await openReplenishmentTx(tx, familyId, { patientId: item.patientId, medicationId: med.id, requiresPrescription: med.requiresPrescription, trigger: "low_stock", now });
 
   const cycle = await cycleOf(tx, stockItemId);
   const recipients = await stockAlertRecipients(tx);

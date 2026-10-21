@@ -217,7 +217,23 @@ export interface DoseHistoryFilters {
   to?: string;
   status?: DoseStatus;
 }
+/** Evento de receita ou reposição no histórico (origem real). */
+export interface HistoryEventVM {
+  id: string;
+  kind: "prescription" | "replenishment";
+  /** dd/mm/aaaa */
+  dateLabel: string;
+  time: string;
+  icon: string;
+  tone: Tone;
+  title: string;
+  detail: string;
+  who: string;
+  patientId: string;
+}
 export interface DoseHistoryResult {
+  /** eventos de receita e reposição no mesmo período (só para quem pode vê-los) */
+  events?: HistoryEventVM[];
   rows: DoseHistoryRowVM[];
   /** pessoas que já confirmaram doses (para o filtro) */
   people: Array<{ id: string; name: string }>;
@@ -272,6 +288,8 @@ export interface RxVM {
   cannotView: string[];
   shares: RxShareVM[];
   latestValid: boolean;
+  /** origem real: alguém compartilhou esta receita comigo e eu ainda não abri */
+  sharedWithMe?: { by: string; at: string };
   /** URLs assinadas de curta duração (só na origem real); sem elas a miniatura é o papel desenhado */
   pageUrls?: Array<{ thumb: string; full: string; mime: string }>;
 }
@@ -356,6 +374,10 @@ export interface Snapshot {
   unreadNotices?: number;
   /** origem real (Lote 2): últimas doses tomadas, de qualquer dia */
   recentTaken?: DoseVM[];
+  /** origem real (Lote 3): o armazenamento das receitas (bucket do Appwrite) está configurado? */
+  rxStorageReady?: boolean;
+  /** origem real (Lote 3): quem usa o portal e pode (ou não) ver receitas, para "acesso restrito" e "compartilhar"; só para quem vê receitas */
+  rxAudience?: PersonVM[];
   /** origem real: dados da própria conta (e-mail e WhatsApp pendente) */
   account?: AccountVM;
 }
@@ -429,6 +451,8 @@ export interface MedicationInput {
   dropsPerMl?: number;
   /** estoque inicial (opcional); vira uma compra de abertura */
   initialStock?: number;
+  /** o remédio exige receita (Lote 3); falso = vendido sem receita (a reposição pula as etapas de receita) */
+  requiresPrescription?: boolean;
 }
 
 export interface SchemeInput {
@@ -446,6 +470,7 @@ export interface MedicationPatch {
   perDose?: number;
   unitLabel?: string;
   dropsPerMl?: number;
+  requiresPrescription?: boolean;
 }
 
 type Maybe<T> = T | Promise<T>;
@@ -459,7 +484,10 @@ export interface Actions {
   /** Lote 2: registra o pedido; o envio do lembrete chega no Lote 4 */
   snoozeDose(id: string, minutes: number): Done;
   registerLate(id: string): Done;
-  assumeReplenishment(medId: string): Done;
+  /** "Eu cuido disso" (abre a reposição se ainda não houver) ou, com `takeOver`, "Assumir no lugar" de quem já assumiu */
+  assumeReplenishment(medId: string, opts?: { takeOver?: boolean }): Done;
+  /** origem real: encerra a reposição aberta sem concluir */
+  cancelReplenishment(medId: string): Done;
   advanceReplenishment(medId: string, opts?: { quantity?: number }): Done;
   /** devolve o id da receita, ou null se falhou */
   saveRx(draft: AttachDraft): Maybe<string | null>;

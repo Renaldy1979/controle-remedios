@@ -3,7 +3,9 @@ import { fileUrlSecret } from "./env";
 import { hmacHex } from "./hmac";
 
 export type FileVariant = "thumb" | "full";
+/** Validade máxima da URL: 10 minutos. O limite é arredondado para janelas de 5 minutos, então a mesma URL vale de 5 a 10 minutos (e não muda a cada atualização da tela). */
 export const FILE_URL_TTL_SEC = 600;
+const WINDOW_SEC = 300;
 
 const payload = (fileId: string, v: FileVariant, exp: number, memberId: string, familyId: string) => `${fileId}|${v}|${exp}|${memberId}|${familyId}`;
 
@@ -12,7 +14,7 @@ const payload = (fileId: string, v: FileVariant, exp: number, memberId: string, 
  * validade, pessoa e família; a rota ainda exige a sessão da mesma pessoa e a permissão de ver receitas.
  */
 export async function signFileUrl(fileId: string, v: FileVariant, memberId: string, familyId: string, nowSec = Math.floor(Date.now() / 1000)): Promise<string> {
-  const exp = nowSec + FILE_URL_TTL_SEC;
+  const exp = Math.floor(nowSec / WINDOW_SEC) * WINDOW_SEC + FILE_URL_TTL_SEC;
   const sig = await hmacHex(payload(fileId, v, exp, memberId, familyId), fileUrlSecret());
   return `/api/rx-file/${encodeURIComponent(fileId)}?v=${v}&exp=${exp}&m=${encodeURIComponent(memberId)}&sig=${sig}`;
 }

@@ -16,7 +16,7 @@ export function useReplenishmentActions(med: MedicationVM): { assume: () => Prom
   const r = med.replenishment;
 
   const assume = async () => {
-    if ((await actions.assumeReplenishment(med.id)) === false) return;
+    if ((await actions.assumeReplenishment(med.id, { takeOver: !!r.owner && !r.mine })) === false) return;
     toast({ icon: "front_hand", message: `Combinado: ${med.name}. A família foi avisada.` });
   };
 

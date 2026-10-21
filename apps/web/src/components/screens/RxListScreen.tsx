@@ -71,7 +71,7 @@ function RxList() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 desk:flex-row desk:items-center desk:justify-between">
-        <AccessIndicator people={snap.people} />
+        <AccessIndicator people={snap.rxAudience ?? snap.people} />
         {canUpload ? (
           <Button size="lg" icon="add_a_photo" onClick={attach} className="w-full desk:w-auto">
             Anexar receita
