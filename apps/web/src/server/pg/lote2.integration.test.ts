@@ -489,6 +489,7 @@ describe.skipIf(!up)("Lote 2 — doses e estoque no Postgres", () => {
       const adelino = await membro(f.familyId, "Cuidadora", "Adelino"); // tem doses.confirm
       const pid = await patients.savePatient(f.admin, { name: "Adelino Souza", birthDate: "", notes: "", usesPhone: true, selfMemberId: adelino.memberId });
       const m2 = await meds.createMedication(f.admin, { patientId: pid, name: "Losartana", alternatives: [], route: "tablet", controlUnit: "unit" });
+      await meds.saveScheme(f.admin, m2, { startDate: DAY, firstTime: "06:00", phases: [{ everyHours: 24, fromDay: 1, toDay: null, perDose: 1 }] }); // o esquema padrão começa hoje: fixa o dia do teste
       await ensureDosesForDay(f.familyId, DAY);
       const [propria] = await admin`select id from dose_events where family_id = ${f.familyId} and medication_id = ${m2}`;
       await expect(confirmDose(adelino, propria!["id"] as string, NOON)).resolves.toBeTruthy(); // própria
