@@ -50,7 +50,7 @@ Chaves `uuid` (`gen_random_uuid()`), datas `timestamptz` (UTC), `date` para data
 | `stock_movements` | **livro-razão**; **único `dose_event_id`** (parcial); check: `type='dose'` exige `dose_event_id`; `quantity <> 0`. Compensações de "desfazer" são `adjustment` sem `dose_event_id` (`note: undo:<doseId>:<n>`), como o domínio já faz |
 | `prescriptions`, `prescription_files`, `prescription_items`, `prescription_shares`, `prescription_views` | receita e anexos (`storage_file_id` = arquivo no bucket do Appwrite, só URL assinada), itens `(prescription_id, medication_id)` único, compartilhamentos e visualizações auditáveis |
 | `replenishments` | no máximo **uma aberta** por `(paciente, remédio)` (índice parcial: status fora de `done/cancelled`) |
-| `replenishment_steps` | único `(replenishment_id, step)` |
+| `replenishment_steps` | único `(replenishment_id, step)`; `claimed_at` (quando assumiu) e `not_applicable` (migração 0005, Lote 3) |
 | `notifications` | avisos do portal por membro; `read_at`; `whatsapp_sent_at` (marca de envio idempotente); **único `(family_id, dedupe_key)`** |
 | `message_log` | WhatsApp entrada/saída; **único `provider_message_id`**; só texto redigido (sem dado pessoal) |
 | `audit_log` | `actor_member_id`, `action`, `entity`, `entity_id`, `meta` |
@@ -131,6 +131,29 @@ Regras de uso:
 `0004_dose_lembrar_de_novo.sql`: acrescenta `dose_events.remind_again_at timestamptz` (nulo). Nenhuma tabela nova: `notifications` (avisos do sino, `dedupe_key` único por família), `stock_items` e `stock_movements` já existiam e seguem com RLS por família (o teste de isolamento do Lote 2 cobre `dose_events`, `stock_items`, `stock_movements` e `notifications`). O limite de estoque baixo por remédio é `treatments.low_stock_days` (nulo = padrão da família em `families.settings.default_low_stock_days`). Aplicar no staging: `node /app/migrate/migrate.mjs` com `DATABASE_URL_ADMIN` temporária (ver `docs/09`).
 
 Convenções do livro-razão usadas pelo portal: compra = `purchase`; saldo inicial = `purchase` com `note = 'Saldo inicial'`; ajuste manual = `adjustment` com `note = 'Ajuste: <motivo>'`; baixa de dose = `dose` (único por `dose_event_id`); desfazer/refazer = `adjustment` com `note = 'undo:<dose>:<n>'` / `'redo:<dose>:<n>'`. O aviso de estoque baixo usa `dedupe_key = low_stock:<stock_item>:<ciclo>:<membro>`, onde o ciclo é a última entrada (compra ou ajuste positivo que não seja undo/redo): um aviso por ciclo e por pessoa.
+
+## 6.2 Migração 0005 (Lote 3)
+
+`0005_lote3_receitas_reposicao.sql`. **Nenhuma tabela nova**: `prescriptions`, `prescription_files`, `prescription_items`, `prescription_shares`, `prescription_views`, `replenishments` e `replenishment_steps` já existiam com RLS por família (`family_isolation`); o teste de isolamento do Lote 3 cobre as sete. O que a migração acrescenta:
+
+| Mudança | Para quê |
+|---|---|
+| `replenishment_steps.claimed_at timestamptz` | quando a pessoa atual **assumiu** a etapa ("desde dd/mm às HH:mm" na tela) |
+| `replenishment_steps.not_applicable boolean not null default false` | remédio sem receita (`medications.requires_prescription = false`) já nasce com as etapas 1 e 2 "não se aplica" |
+| índice único parcial `stock_movements_replenishment_purchase_uq` em `stock_movements(replenishment_id)` onde `replenishment_id is not null and type = 'purchase'` | a compra de uma reposição **soma ao estoque uma só vez**, mesmo com duplo clique ou duas pessoas ao mesmo tempo (o banco recusa a segunda) |
+
+Aplicar no staging: `node /app/migrate/migrate.mjs` com `DATABASE_URL_ADMIN` temporária (ver `docs/09`, seção 11.4).
+
+### Como o portal usa as tabelas (convenções do Lote 3)
+
+- **Receita** (`prescriptions`): `status` gravado só como `valid` ou `superseded` (+ `superseded_by_id`); **vencida** e **aguardando nova** são **calculadas** a cada leitura pelo domínio (`prescriptionStatus`), porque dependem de "hoje" e das reposições abertas. `valid_until` (data) = emissão + 30/60/180 dias, ou nulo (sem validade). Exclusão **lógica** (`deleted_at`) com desfazer. `uploaded_by_member_id` = quem anexou.
+- **Páginas** (`prescription_files`): `storage_file_id` = id no bucket **privado** do Appwrite (nome do arquivo no bucket é neutro, `rx-p1.jpg`); `page` começa em 1; `mime` vem dos **primeiros bytes** do arquivo, não do navegador. A entrega é só por `/api/rx-file/<id da página>` (sessão + `prescriptions.view` + link assinado de 10 min preso a arquivo, variante, pessoa e família + a receita não excluída).
+- **Itens** (`prescription_items`): os remédios da receita (único por receita e remédio). Ao salvar uma receita nova, as **vencidas ou "aguardando nova"** do mesmo paciente com remédio em comum viram `superseded`; vigentes não são mexidas (só por "substitui esta").
+- **Compartilhar** (`prescription_shares`): `channel = 'internal'` e `target_member_id` (só pessoas ativas com `prescriptions.view`; o envio pelo WhatsApp é do Lote 4). **Quem viu** (`prescription_views`): uma linha por abertura (no máximo uma a cada 5 minutos por pessoa).
+- **Reposição** (`replenishments` + `replenishment_steps`): no máximo **uma aberta** por paciente e remédio (índice parcial já existente; abrir de novo é `ON CONFLICT DO NOTHING`). Abre sozinha quando o estoque cruza o limite (`triggered_by = 'low_stock'`) ou à mão (`manual`). Etapas 1 a 4; "Eu cuido disso" grava `owner_member_id` + `claimed_at`; **duas pessoas nunca na mesma etapa** (a linha da reposição é travada `FOR UPDATE` e quem chega depois é recusado, salvo "Assumir no lugar"). Concluir a etapa 3 ("Comprado", com a quantidade) grava o movimento `purchase` ligado à reposição (`stock_movements.replenishment_id`), conclui a etapa 4 e encerra (`status = 'done'`, `closed_at`). Anexar a receita recebida conclui as etapas 1 e 2 (`prescription_id` na etapa 2).
+- **Avisos** (`notifications`, `dedupe_key` único por família): `prescription_expiring` com `rx_expiry:<receita>:<15|7|3|0>:<pessoa>` (uma vez por limite e por pessoa; só para quem tem `prescriptions.view` e `prescriptions.upload` ou `replenishment.manage`; só da receita que hoje cobre o remédio) e `replenishment_update` com `repl:<reposição>:<evento>:<pessoa>` (assumiu, etapa concluída, concluída, cancelada; para quem tem `replenishment.manage`, menos quem fez).
+- **Auditoria** (`audit_log`): `rx.attached`, `rx.edited`, `rx.shared`, `rx.superseded`, `rx.deleted`, `rx.restored`, `rx.file_opened`, `replenishment.opened|claimed|step_done|done|cancelled`. Só ids, contagens e quantidades; **nunca** texto clínico (médico, observações, nome do remédio por extenso).
+- Remédio: `medications.requires_prescription` ganhou o campo "Este remédio exige receita" no cadastro (padrão **marcado** na tela; remédios criados antes do Lote 3 ficam **sem exigência** até alguém marcar).
 
 ## 7. Divergências e pendências
 

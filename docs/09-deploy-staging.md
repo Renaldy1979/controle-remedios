@@ -60,7 +60,7 @@ Sugestão: *Session length* de 30 dias; *Password dictionary* ligado.
    - `sessions.write` (abrir e fechar sessões de login).
 3. Copie a chave **uma vez** e cole direto no campo `APPWRITE_API_KEY` do EasyPanel (passo 4). Não cole em nenhum outro lugar.
 
-> Nos próximos lotes entram os escopos de arquivos (`files.read`, `files.write`, `buckets.read`) para as receitas. Eles não são necessários agora.
+> No Lote 3 entram os escopos de arquivos (`files.read`, `files.write`, `buckets.read`) para as receitas: veja a **seção 11**. Eles não são necessários nos Lotes 1 e 2.
 
 Anote também o **Endpoint** (`https://…/v1`) e o **Project ID** (em *Settings*): são os valores de `APPWRITE_ENDPOINT` e `APPWRITE_PROJECT_ID`.
 
@@ -191,12 +191,14 @@ Para ver o que o servidor está fazendo: serviço `medcuidar-web` → **Logs**. 
 | `DATABASE_URL` | sim | papel **app** do Postgres (sem poder de dono) |
 | `APPWRITE_ENDPOINT` | sim | endereço do Appwrite (`…/v1`) |
 | `APPWRITE_PROJECT_ID` | sim | projeto do Appwrite |
-| `APPWRITE_API_KEY` | sim | chave com `users.read`, `users.write`, `sessions.write` |
+| `APPWRITE_API_KEY` | sim | chave com `users.read`, `users.write`, `sessions.write` e, no Lote 3, `files.read`, `files.write`, `buckets.read` |
+| `APPWRITE_PRESCRIPTIONS_BUCKET_ID` | Lote 3 | ID do bucket privado das receitas (seção 11) |
+| `FILE_URL_SECRET` | Lote 3 | segredo (32+ caracteres) que assina os links de 10 minutos das páginas das receitas |
 | `PORT`, `HOSTNAME` | não | a imagem já define `3000` e `0.0.0.0` |
 | `DATABASE_URL_ADMIN` | **nunca no serviço** | só no comando de migração do passo 5 |
 | `E2E_TEST_MODE` | **nunca** | só testes automáticos locais |
 
-Variáveis dos próximos lotes (WhatsApp, N8N, Evolution Go, bucket de receitas) entram quando o lote chegar.
+Variáveis dos próximos lotes (WhatsApp, N8N, Evolution Go) entram quando o lote chegar. As do bucket de receitas são do Lote 3 (seção 11).
 
 ## 9. Problemas comuns
 
@@ -213,7 +215,90 @@ Variáveis dos próximos lotes (WhatsApp, N8N, Evolution Go, bucket de receitas)
 
 ## 10. Limitações conhecidas do Lote 1
 
-- Doses, estoque, receitas, histórico e avisos **não existem ainda** (telas mostram "chega no próximo lote").
+- (Lote 1) Doses, estoque, receitas, histórico e avisos não existiam ainda; hoje chegaram até o Lote 3 (veja `docs/08-lotes.md`).
 - WhatsApp: o número fica **pendente**; a validação e o uso do código de convite chegam no **Lote 4**.
 - Não há dados de exemplo no staging: o teste começa criando a conta.
 - A confirmação do e-mail depende do SMTP configurado no Appwrite (passo 1.2).
+
+---
+
+## 11. Lote 3 — receitas e reposição (bucket de receitas, chave e variáveis)
+
+As fotos e PDFs das receitas ficam num **bucket privado do Appwrite**. O portal é o único que lê e grava nele (com a chave de API do servidor); a pessoa só vê a página por uma rota do próprio portal que exige login, permissão de ver receitas e um link de curta duração (10 minutos). **Não existe endereço público do arquivo.**
+
+> O portal **não cria** o bucket sozinho (por segurança a chave do portal não tem poder de criar bucket). Você cria uma vez, no Console do Appwrite, como abaixo. Se faltar o bucket, a chave ou a variável, o portal continua funcionando: só a tela de receitas avisa "O armazenamento das receitas ainda não foi configurado" (e o `/api/health` **não** depende disso).
+
+### 11.1 Criar o bucket `prescriptions` (Console do Appwrite)
+
+1. **Storage → Create bucket**.
+2. **Bucket ID:** `prescriptions` (use exatamente este, em minúsculas; é o que a variável do passo 11.3 aponta). **Name:** `Receitas`.
+   - *Já existe um bucket `prescriptions` do modelo antigo?* Abra-o: se estiver **vazio** (Files = 0), é só conferir os ajustes abaixo e seguir. Se tiver arquivos, **não use**: crie outro com ID `rx-staging` e coloque esse ID na variável do passo 11.3.
+3. Em **Settings** do bucket:
+
+   | Ajuste | Valor |
+   |---|---|
+   | **Permissions** (permissões do bucket) | **vazio** — não adicione nenhum papel (`Any`, `Users`, etc. deixam o arquivo aberto) |
+   | **File security** | **Ligado** |
+   | **Maximum file size** | **15 MB** |
+   | **Allowed file extensions** | `jpg`, `jpeg`, `png`, `webp`, `heic`, `pdf` |
+   | **Encryption** | **Ligado** |
+   | **Compression** | `None` (o próprio portal reduz a foto no celular antes de enviar) |
+   | **Antivirus** | **Ligado**, se a opção estiver disponível no seu Appwrite (precisa do ClamAV). Se estiver desabilitada ou der erro, deixe desligado |
+   | **Enabled** | Ligado |
+
+4. Salve. Não envie arquivo por aqui: o portal faz isso.
+
+### 11.2 Ampliar a chave de API do staging
+
+1. Console → **Overview → Integrations → API keys** → a chave `medcuidar-staging` → **Scopes**.
+2. **Acrescente** (sem tirar os de antes): `files.read`, `files.write` e `buckets.read`. **Nada além disso** — em especial **não** marque `buckets.write` (o portal não precisa criar nem apagar buckets).
+3. Salve. A chave continua a mesma: não precisa trocar nada nas variáveis dela.
+
+### 11.3 Variáveis do portal no EasyPanel
+
+No serviço `medcuidar-web` → **Environment**, acrescente:
+
+| Variável | Valor | Observação |
+|---|---|---|
+| `APPWRITE_PRESCRIPTIONS_BUCKET_ID` | `prescriptions` (ou `rx-staging`, se for o caso) | o ID do bucket do passo 11.1 |
+| `FILE_URL_SECRET` | 32 ou mais letras e números aleatórios | **segredo**: assina os links de 10 minutos das páginas. Gere num gerenciador de senhas. Se mudar, os links abertos param de valer (a tela gera novos sozinha) |
+
+Salve e faça **Deploy** de novo (variável nova só vale depois de reiniciar).
+
+### 11.4 Rodar a migração do Lote 3
+
+O Lote 3 traz a **migração `0005`** (duas colunas na etapa da reposição e um índice que impede a mesma compra de somar duas vezes). Rode como no passo 5:
+
+```bash
+DATABASE_URL_ADMIN='postgres://medcuidar_owner:SENHA_DONO@HOST:5432/NOME_DO_BANCO' node /app/migrate/migrate.mjs
+```
+
+Deve responder `Migrações aplicadas.` Pode rodar de novo sem problema.
+
+### 11.5 Conferir
+
+1. `/api/health` continua `{"status":"ok","database":"ok"}`.
+2. Entre como administrador → **Receitas → Anexar receita**. **Não** deve aparecer o aviso amarelo "O armazenamento das receitas ainda não foi configurado". Anexe uma foto de teste e abra-a.
+3. No Console do Appwrite, **Storage → Receitas → Files**: o arquivo aparece com o nome `rx-p1.jpg` (nome neutro, sem nada da pessoa ou do remédio), e **sem** permissões de leitura na lista.
+
+| Mensagem na tela | O que fazer |
+|---|---|
+| "O armazenamento das receitas ainda não foi configurado…" | Falta a variável `APPWRITE_PRESCRIPTIONS_BUCKET_ID`, o bucket não existe com esse ID ou a chave não tem `files.read`/`files.write`/`buckets.read` (passos 11.1 a 11.3). Depois de corrigir, faça o Deploy de novo |
+| "Não foi possível falar com o armazenamento das receitas agora" | O Appwrite está fora do ar ou lento. Tente de novo em instantes |
+| "Cada página pode ter até 15 MB" / "Use fotos (JPG, PNG, WEBP, HEIC) ou PDF" | A regra do bucket e do portal. Fotos tiradas no celular são reduzidas sozinhas; PDF grande precisa ser comprimido |
+| Envio de muitas páginas falha sem mensagem | O limite de envio de uma vez é de ~30 MB no total (`serverActions.bodySizeLimit`). Envie em duas receitas ou comprima os PDFs |
+
+### 11.6 Testes automáticos que falam com o Appwrite
+
+- Os testes comuns (`pnpm test`) e o e2e **não escrevem no seu bucket**: o e2e guarda as páginas na memória do servidor de teste (`RX_STORAGE=memory`, só com `E2E_TEST_MODE=1`).
+- Para provar a ida real ao Appwrite existe um teste à parte, que **cria um bucket de teste dedicado** (`zz-test-rx-…`, com os mesmos ajustes do passo 11.1), grava, lê, apaga e **apaga o bucket**. Precisa de uma chave com `buckets.write` (a chave de desenvolvimento do `.env`, não a do staging):
+  ```bash
+  RX_APPWRITE_TEST=1 pnpm --filter @medcuidar/web exec vitest run rx-storage.appwrite
+  ```
+
+### 11.7 Privacidade (LGPD) do que o Lote 3 grava
+
+- O bucket é privado, com *file security*, criptografia e nome de arquivo neutro. A miniatura é reduzida (360 px).
+- Toda página inteira aberta fica em `audit_log` (`rx.file_opened`, só com o id do arquivo) e cada pessoa que abriu a receita fica em `prescription_views` ("quem viu").
+- A auditoria de receitas e reposição guarda **só ids e contagens**: nunca o nome do médico, as observações, o remédio por extenso ou o conteúdo da foto. Os logs do servidor também não mostram dados pessoais.
+- Excluir uma receita é **lógico** (com "Desfazer"): ela some do portal e a rota de arquivo passa a recusar, mas a foto continua no bucket até a limpeza definitiva (Lote 5).
