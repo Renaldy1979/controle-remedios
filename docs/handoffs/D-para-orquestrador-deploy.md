@@ -1,4 +1,4 @@
-# Integrações (D) → Orquestrador: onde hospedar agendador, worker e webhook
+﻿# Integrações (D) → Orquestrador: onde hospedar agendador, worker e webhook
 
 Nada foi publicado. Recomendação e o que muda no código.
 
@@ -35,7 +35,7 @@ Pesa a favor do serviço Node: o worker precisa ser instância única e o webhoo
 Funciona sem mudar o código das entradas (`src/entries/*`): criar 3 Functions (`scheduler` com cron, `whatsapp-inbound`, `login-code`), runtime Node 20+, mesmas variáveis, e **garantir instância única** do `scheduler` (o webhook já é idempotente). Exige confirmar que os runtimes estão habilitados e empacotar o monorepo (`pnpm deploy`).
 
 ## Pendências para ir ao ar (independentes da hospedagem)
-- O **bucket de receitas** não é criado por `scripts/appwrite`; as URLs assinadas esperam `APPWRITE_PRESCRIPTIONS_BUCKET_ID` (padrão `prescriptions`) com *file security* ligada.
+- O **bucket de receitas** não é criado por `scripts/appwrite`; as URLs assinadas esperam `APPWRITE_PRESCRIPTIONS_BUCKET_ID` (obrigatória, sem valor padrão no código) com *file security* ligada.
 - **Índices** sugeridos para o Appwrite filtrar sem erro: `dose_events (status, scheduled_at)`, `notifications_outbox (target_member_id)` e `(target_group_id)`, `treatments (patient_id, medication_id)`.
 - Usuários criados no login por código **não entram nos Teams** automaticamente: o painel acessa tudo pelo servidor (modelo atual); se o front passar a ler o banco com a sessão do usuário, será preciso adicioná-lo ao Team da família.
 - Validar com número de teste: botões do Evolution Go e o formato real dos eventos (ver `D-para-orquestrador-evolution-go.md`).

@@ -1,4 +1,4 @@
-# Integrações (D) → Frontend (C): contrato de `createServices`
+﻿# Integrações (D) → Frontend (C): contrato de `createServices`
 
 Código: `apps/functions/src/services.ts` e `runtime.ts`. Uso **apenas no servidor** (Server Actions, route handlers); o pacote usa a chave de API do Appwrite.
 
@@ -6,7 +6,7 @@ Código: `apps/functions/src/services.ts` e `runtime.ts`. Uso **apenas no servid
 import { createServices } from "@medcuidar/functions";
 const svc = createServices(process.env);            // singleton por processo (cache de FamilyScopedDb por família)
 ```
-Variáveis: `APPWRITE_ENDPOINT/PROJECT_ID/DATABASE_ID/API_KEY`, `LOGIN_CODE_SECRET`, canal (`CHANNEL_PROVIDER` = `evolution-go` | `meta-cloud` | `fake`, ver item 3) e, para URLs de receita, `APPWRITE_PRESCRIPTIONS_BUCKET_ID` (padrão `prescriptions`). `createServices` **não** exige `GEMINI_API_KEY` nem `WHATSAPP_WEBHOOK_SECRET`.
+Variáveis: `APPWRITE_ENDPOINT/PROJECT_ID/DATABASE_ID/API_KEY`, `LOGIN_CODE_SECRET`, canal (`CHANNEL_PROVIDER` = `evolution-go` | `meta-cloud` | `fake`, ver item 3) e, para URLs de receita, `APPWRITE_PRESCRIPTIONS_BUCKET_ID` (obrigatória: sem a variável o armazenamento de receitas fica 'não configurado'; não há valor padrão no código). `createServices` **não** exige `GEMINI_API_KEY` nem `WHATSAPP_WEBHOOK_SECRET`.
 Segundo parâmetro (testes): `createServices(env, { channel?, now?, domain?, auth?, signer?, wrapData? })`.
 
 ## 1) Métodos (todos assíncronos; `familyId` sempre explícito)

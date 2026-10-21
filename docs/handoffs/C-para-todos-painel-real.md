@@ -1,4 +1,4 @@
-# Painel (C) → todos: painel ligado aos dados reais (Fase 3B)
+﻿# Painel (C) → todos: painel ligado aos dados reais (Fase 3B)
 
 Estado: entregue para revisão. Só `apps/web` foi alterado (mais esta nota e `C-para-D-pedidos.md`).
 
@@ -21,7 +21,7 @@ Lidas do `.env` da raiz (`next.config.ts` carrega, sem sobrescrever o que já ex
 | `DATA_SOURCE` | `appwrite` ou `mock` (padrão `mock`) |
 | `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_DATABASE_ID`, `APPWRITE_API_KEY` | acesso ao Appwrite (chave de API só no servidor) |
 | `LOGIN_CODE_SECRET` | segredo do código de login (D) e das URLs curtas de arquivo de receita. Mínimo 16 caracteres |
-| `APPWRITE_PRESCRIPTIONS_BUCKET_ID` | bucket das receitas (padrão `prescriptions`; o painel cria se não existir) |
+| `APPWRITE_PRESCRIPTIONS_BUCKET_ID` | bucket das receitas (variável OBRIGATÓRIA, sem valor padrão no código; o portal novo não cria o bucket) |
 | `E2E_TEST_MODE=1` | só teste: canal falso em memória + rotas `/api/test/*`. **Recusado com `APP_ENV=production`** |
 
 **Pendência para o orquestrador/A:** `.env.example` ainda não lista `DATA_SOURCE`, `E2E_TEST_MODE` e `APP_ENV` (arquivo fora da pasta do painel).

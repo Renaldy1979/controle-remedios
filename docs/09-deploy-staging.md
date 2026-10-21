@@ -1,4 +1,4 @@
-# 09 — Deploy do staging no EasyPanel (Lote 1)
+﻿# 09 — Deploy do staging no EasyPanel (Lote 1)
 
 Passo a passo para quem **não é técnico** criar o ambiente de teste do MedCuidar: um **Postgres 16** e o **portal** (a partir do GitHub, com o `Dockerfile` da raiz), com HTTPS. O login usa o **Appwrite** que você já tem (só e-mail/senha).
 
@@ -192,7 +192,7 @@ Para ver o que o servidor está fazendo: serviço `medcuidar-web` → **Logs**. 
 | `APPWRITE_ENDPOINT` | sim | endereço do Appwrite (`…/v1`) |
 | `APPWRITE_PROJECT_ID` | sim | projeto do Appwrite |
 | `APPWRITE_API_KEY` | sim | chave com `users.read`, `users.write`, `sessions.write` e, no Lote 3, `files.read`, `files.write`, `buckets.read` |
-| `APPWRITE_PRESCRIPTIONS_BUCKET_ID` | Lote 3 | ID do bucket privado das receitas (seção 11) |
+| `APPWRITE_PRESCRIPTIONS_BUCKET_ID` | Lote 3 | **Obrigatória** (não há valor padrão): ID do bucket privado das receitas (seção 11). Sem ela o portal mostra "O armazenamento das receitas ainda não foi configurado" |
 | `FILE_URL_SECRET` | Lote 3 | segredo (32+ caracteres) que assina os links de 10 minutos das páginas das receitas |
 | `PORT`, `HOSTNAME` | não | a imagem já define `3000` e `0.0.0.0` |
 | `DATABASE_URL_ADMIN` | **nunca no serviço** | só no comando de migração do passo 5 |
