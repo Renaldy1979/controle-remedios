@@ -275,11 +275,14 @@ DATABASE_URL_ADMIN='postgres://medcuidar_owner:SENHA_DONO@HOST:5432/NOME_DO_BANC
 
 Deve responder `Migrações aplicadas.` Pode rodar de novo sem problema.
 
+> **Permissões dos arquivos:** o portal grava cada página **sem nenhuma permissão** (`permissions: []`, nem de Team: quem entra por e-mail não está em Team). Só a chave de API do servidor lê; as pessoas veem pela rota do portal (sessão + permissão + link curto assinado).
+
 ### 11.5 Conferir
 
 1. `/api/health` continua `{"status":"ok","database":"ok"}`.
 2. Entre como administrador → **Receitas → Anexar receita**. **Não** deve aparecer o aviso amarelo "O armazenamento das receitas ainda não foi configurado". Anexe uma foto de teste e abra-a.
-3. No Console do Appwrite, **Storage → Receitas → Files**: o arquivo aparece com o nome `rx-p1.jpg` (nome neutro, sem nada da pessoa ou do remédio), e **sem** permissões de leitura na lista.
+3. **Segurança:** abra o endereço direto do arquivo do Appwrite e a rota do portal **com o link vencido ou sem login**, numa janela anônima: **nenhum** deve abrir.
+4. No Console do Appwrite, **Storage → Receitas → Files**: o arquivo aparece com o nome `rx-p1.jpg` (nome neutro, sem nada da pessoa ou do remédio), e **sem** permissões de leitura na lista.
 
 | Mensagem na tela | O que fazer |
 |---|---|

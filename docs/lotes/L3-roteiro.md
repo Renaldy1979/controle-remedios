@@ -20,8 +20,10 @@
 
 O Lote 3 precisa de **três coisas novas**: o **bucket de receitas** no Appwrite, a **chave do Appwrite com mais permissões** e **uma migração do banco**. Todos os passos detalhados estão em `docs/09-deploy-staging.md`, **seção 11**; aqui vai o resumo na ordem.
 
-1. **Criar o bucket** (seção 11.1): Console do Appwrite → **Storage → Create bucket**, ID `prescriptions`, **sem permissões**, **File security ligada**, tamanho máximo **15 MB**, extensões `jpg, jpeg, png, webp, heic, pdf`, **Encryption ligada** (antivírus se aparecer). Se já existir um `prescriptions` vazio, só confira esses ajustes.
-2. **Ampliar a chave** (seção 11.2): **API keys → `medcuidar-staging`** → acrescente os escopos `files.read`, `files.write` e `buckets.read` (**só esses**).
+> **Já feito pelo dono:** os passos 1 e 2 (criar o bucket e ampliar a chave) **já foram feitos**. Abaixo fica só **como conferir** que estão certos. Conferência de leitura feita pelo desenvolvimento em 21/10/2026 com a chave do `.env`: bucket `prescriptions` existe, **sem nenhuma permissão**, file security ligada, criptografia ligada, máximo 15 MB, extensões jpg/jpeg/png/webp/pdf/heic, antivírus desligado (opcional), 0 arquivos. Confira no Console que o do **staging** está igual.
+
+1. **Conferir o bucket** (seção 11.1; criado pelo dono): Console do Appwrite → **Storage → Create bucket**, ID `prescriptions`, **sem permissões**, **File security ligada**, tamanho máximo **15 MB**, extensões `jpg, jpeg, png, webp, heic, pdf`, **Encryption ligada** (antivírus se aparecer). Se já existir um `prescriptions` vazio, só confira esses ajustes.
+2. **Conferir a chave** (seção 11.2; já ampliada pelo dono): **API keys → `medcuidar-staging`** → acrescente os escopos `files.read`, `files.write` e `buckets.read` (**só esses**).
 3. **Variáveis** (seção 11.3): no serviço `medcuidar-web` do EasyPanel acrescente `APPWRITE_PRESCRIPTIONS_BUCKET_ID` = `prescriptions` e `FILE_URL_SECRET` = 32 ou mais letras e números aleatórios (é um segredo).
 4. **Deploy** do código novo (pelo Git, como no Lote 1). Só depois do deploy, no mesmo serviço, abra **Console** e **rode a migração** (o Lote 3 **traz** migração `0005`; troque `SENHA_DONO`, `HOST` e `NOME_DO_BANCO`, mantenha as aspas simples):
    ```bash
@@ -111,6 +113,7 @@ O Lote 3 precisa de **três coisas novas**: o **bucket de receitas** no Appwrite
 | F2 | Cole o mesmo endereço na janela do **Confirmador** (logado). | **Não abre** (sem permissão). |
 | F3 | Na janela da **Filha**, cole também o endereço copiado pelo administrador. | **Não abre** (o link é da pessoa que o gerou). |
 | F4 | No administrador, espere **mais de 10 minutos** com o endereço copiado e abra-o de novo. | **Não abre** mais (o link vale só uns minutos); a tela gera links novos sozinha ao atualizar. |
+| F5a | Copie o endereço direto do arquivo no Appwrite (Console → Storage → Receitas → arquivo → **View**/endereço) e abra numa **janela anônima**. | **Não abre** (erro de acesso): o bucket não tem permissão pública e o arquivo foi gravado sem permissão nenhuma. |
 | F5 | No **Console do Appwrite → Storage → Receitas → Files**. | Os arquivos têm nome **`rx-p1.jpg`**, **`rx-p2.jpg`** (neutro) e **nenhuma permissão de leitura**. O bucket não tem "Any" nas permissões. |
 | F6 | Comece a anexar uma receita e **desligue a internet** do aparelho antes de **Salvar receita**. | O envio avisa que **não foi salvo** e que as fotos continuam no aparelho; **Tentar de novo** funciona quando a internet volta. |
 
