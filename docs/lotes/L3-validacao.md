@@ -24,7 +24,7 @@ Nada ficou reprovado. Uma falha de configuração apareceu e foi resolvida duran
 
 ## Ajustes pedidos
 
-Nenhum.
+Nenhum na hora da validação. **Pedido depois (21/10/2026):** o botão principal das telas **Remédios** ("Novo remédio"), **Pessoas** ("Convidar pessoa") e **Pacientes** ("Cadastrar paciente") deve ficar **na mesma linha do título da página** (ganha espaço vertical no desktop; no celular o botão desce quando não cabe ao lado do título). Feito no commit `PageAction` (local); **deploy junto com o Lote 4**, por decisão do dono.
 
 ## Pendências
 
