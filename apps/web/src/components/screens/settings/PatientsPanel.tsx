@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useActions, useSnapshot, type PatientInput, type PatientVM } from "@/data";
 import { Avatar } from "@/components/ui/Avatar";
+import { PageAction } from "@/components/app/PageAction";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Controls";
 import { ConfirmDialog, Dialog } from "@/components/ui/Dialog";
@@ -25,12 +26,12 @@ export function PatientsPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-ink2">Quem toma os remédios. Pode haver mais de um paciente na família.</p>
+      <PageAction>
         <Button icon="person_add" onClick={() => setEditing("new")}>
           Cadastrar paciente
         </Button>
-      </div>
+      </PageAction>
+      <p className="text-ink2">Quem toma os remédios. Pode haver mais de um paciente na família.</p>
 
       {snap.patients.length === 0 ? (
         <EmptyState icon="elderly" title="Nenhum paciente ainda" text="Cadastre o primeiro paciente para depois incluir os remédios dele(a)." />

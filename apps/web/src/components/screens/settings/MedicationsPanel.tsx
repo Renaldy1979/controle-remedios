@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useActions, useCan, useDataKind, useSnapshot, type MedicationInput, type MedicationVM } from "@/data";
+import { PageAction } from "@/components/app/PageAction";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Controls";
 import { ConfirmDialog, Dialog } from "@/components/ui/Dialog";
@@ -41,11 +42,11 @@ export function MedicationsPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+      <PageAction>
         <Button icon="add" onClick={() => setAdding(true)}>
           Novo remédio
         </Button>
-      </div>
+      </PageAction>
       <div className="grid gap-5 wide:grid-cols-[300px_1fr] wide:items-start">
         <div className="flex flex-col gap-4">
           {snap.patients.map((p) => (

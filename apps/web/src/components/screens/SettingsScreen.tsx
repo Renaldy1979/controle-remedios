@@ -3,6 +3,7 @@ import Link from "next/link";
 import { can } from "@medcuidar/shared";
 import { useDataKind, useSnapshot } from "@/data";
 import { Guard } from "@/components/app/Guard";
+import { PageWithAction } from "@/components/app/PageAction";
 import { Icon } from "@/components/ui/Icon";
 import { EmptyState } from "@/components/ui/Layout";
 import { SECTIONS, isSectionId, type SectionId } from "@/lib/settings-sections";
@@ -81,8 +82,9 @@ function SectionPage({ section }: { section: string }) {
           </li>
         </ol>
       </nav>
-      <h1 className="mb-4 font-display text-t1 font-extrabold">{meta.label}</h1>
-      <Panel id={meta.id} />
+      <PageWithAction title={meta.label}>
+        <Panel id={meta.id} />
+      </PageWithAction>
     </div>
   );
 }

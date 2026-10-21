@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useActions, useDataKind, useSnapshot, type InviteResult, type MemberInput, type PersonVM } from "@/data";
 import { Avatar } from "@/components/ui/Avatar";
+import { PageAction } from "@/components/app/PageAction";
 import { Button } from "@/components/ui/Button";
 import { StatusChip } from "@/components/ui/Chip";
 import { RadioGroup } from "@/components/ui/Controls";
@@ -60,12 +61,12 @@ export function UsersPanel() {
   return (
     <div className="flex flex-col gap-6">
       <section aria-label="Pessoas">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="font-display text-t2 font-bold">Pessoas da família</h2>
-          <Button variant="secondary" icon="person_add" onClick={() => setEditing("new")}>
+        <PageAction>
+          <Button icon="person_add" onClick={() => setEditing("new")}>
             Convidar pessoa
           </Button>
-        </div>
+        </PageAction>
+        <h2 className="mb-3 font-display text-t2 font-bold">Pessoas da família</h2>
         <ul className="divide-y divide-bd rounded-lg border border-bd bg-sf">
           {snap.people.map((p) => (
             <li key={p.id} className="flex flex-wrap items-center gap-3 p-3">
