@@ -60,7 +60,7 @@ function SettingsTree({ pathname, item }: { pathname: string; item: NavItem }) {
           <Icon name={open ? "expand_less" : "expand_more"} size={24} />
         </button>
       </div>
-      <ul id="menu-configuracoes" hidden={!open} aria-label="Opções de Configurações" className="ml-6 mt-1 flex flex-col gap-1 border-l border-bd pl-2">
+      <ul id="menu-configuracoes" hidden={!open} aria-label="Opções de Configurações" className={cx(open ? "flex" : "hidden", "ml-6 mt-1 flex-col gap-1 border-l border-bd pl-2")}>
         {children.map((s) => {
           const href = `${SETTINGS}/${s.id}`;
           const active = pathname === href || pathname.startsWith(`${href}/`);

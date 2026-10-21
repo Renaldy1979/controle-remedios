@@ -123,7 +123,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await open(page, "/pacientes");
     await page.getByRole("tab", { name: "Maria" }).click();
     await expect(page.getByText(/Maria Souza/).first()).toBeVisible();
-    await expect(page.getByText("Zypred", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Zypred/ })).toBeVisible(); // o título também diz "Atenção: sem receita anexada" (Lote 3)
     await expect(page.getByText(/Fase 1 de 2 · dia 1/)).toBeVisible();
     await expect(page.getByText("de 3 em 3 h")).toBeVisible();
   });
