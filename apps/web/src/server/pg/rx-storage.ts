@@ -27,7 +27,13 @@ const NOT_CONFIGURED =
 export function storageError(e: unknown): UserError {
   const code = (e as { code?: number } | null)?.code;
   if (e instanceof UserError) return e;
-  if (code === 401 || code === 403 || code === 404) return new UserError(NOT_CONFIGURED);
+  if (code === 401 || code === 403 || code === 404) {
+    // Só o código HTTP e o "tipo" do Appwrite (ex.: general_unauthorized_scope = chave sem files.write,
+    // storage_bucket_not_found = ID do bucket errado, user_unauthorized = permissão). Sem mensagem, endereço ou chave.
+    const type = String((e as { type?: unknown } | null)?.type ?? "desconhecido").replace(/[^a-z0-9_]/gi, "").slice(0, 60);
+    console.error(`[rx-storage] armazenamento não configurado (codigo=${code} tipo=${type})`);
+    return new UserError(NOT_CONFIGURED);
+  }
   console.error("[rx-storage] falhou", (e as Error)?.name, code ?? "");
   return new UserError("Não foi possível falar com o armazenamento das receitas agora. Tente de novo em instantes.");
 }
