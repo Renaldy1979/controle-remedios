@@ -18,7 +18,7 @@ export function CommitField({ label, value, onCommit, disabled, inputMode }: { l
 export function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-3 rounded-lg border border-bd bg-sf p-4">
-      <h3 className="font-display text-t2 font-bold">{title}</h3>
+      <h2 className="font-display text-t2 font-bold">{title}</h2>
       {children}
     </section>
   );

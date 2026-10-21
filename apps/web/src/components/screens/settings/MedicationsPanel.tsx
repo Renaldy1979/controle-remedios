@@ -49,7 +49,7 @@ export function MedicationsPanel() {
         <div className="flex flex-col gap-4">
           {snap.patients.map((p) => (
             <section key={p.id} aria-label={`Remédios de ${p.name}`}>
-              <h3 className="mb-1 font-bold text-ink2">{p.name}</h3>
+              <h2 className="mb-1 font-bold text-ink2">{p.name}</h2>
               <ul className="flex flex-col gap-1">
                 {snap.medications.filter((m) => m.patientId === p.id).map((m) => (
                   <li key={m.id}>

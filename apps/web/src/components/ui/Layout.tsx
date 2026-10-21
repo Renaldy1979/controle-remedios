@@ -59,7 +59,7 @@ export function EmptyState({ icon, title, text, action }: { icon: string; title:
   return (
     <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-bd2 bg-sf px-6 py-10 text-center">
       <IconBlock name={icon} size={52} />
-      <h3 className="font-display text-t2 font-bold">{title}</h3>
+      <h2 className="font-display text-t2 font-bold">{title}</h2>
       {text ? <p className="max-w-[420px] text-ink2">{text}</p> : null}
       {action}
     </div>

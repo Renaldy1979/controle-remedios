@@ -147,7 +147,7 @@ describe("Lote 1 — portal logado (origem Postgres)", () => {
     expect(screen.getByText("Nenhum remédio cadastrado")).toBeInTheDocument();
     unmount();
     renderApp(shell("/configuracoes/avisos", <SettingsScreen section="avisos" />), { source: fakePg(lote1Snapshot()) });
-    expect(screen.getByText("Estoque baixo", { selector: "h3" })).toBeInTheDocument();
+    expect(screen.getByText("Estoque baixo", { selector: "h2" })).toBeInTheDocument();
     expect(screen.getByText(/chegam no Lote 4/)).toBeInTheDocument();
   });
 
@@ -188,13 +188,13 @@ describe("Lote 1 — perfis na interface", () => {
 
   it("Administrador vê Pacientes, Pessoas e Perfis em Configurações", () => {
     renderApp(shell("/configuracoes", <SettingsScreen />), { source: fakePg(lote1Snapshot()) });
-    const nav = screen.getAllByRole("navigation", { name: "Configurações" })[0]!;
+    const nav = screen.getByRole("navigation", { name: "Opções de Configurações" });
     for (const nome of ["Pacientes", "Pessoas", "Perfis", "Remédios", "Esquemas"]) expect(within(nav).getByText(nome)).toBeInTheDocument();
   });
 });
 
 describe("Lote 1 — Pessoas (convites e estados)", () => {
-  const open = (actions: Partial<DataSource["actions"]> = {}) => renderApp(shell("/configuracoes/usuarios", <SettingsScreen section="usuarios" />), { source: fakePg(lote1Snapshot(), actions) });
+  const open = (actions: Partial<DataSource["actions"]> = {}) => renderApp(shell("/configuracoes/pessoas", <SettingsScreen section="pessoas" />), { source: fakePg(lote1Snapshot(), actions) });
 
   it("mostra os estados com texto e ícone (não só cor): ativo, convite pendente/vencido, desativado e WhatsApp pendente", async () => {
     const { container } = open();

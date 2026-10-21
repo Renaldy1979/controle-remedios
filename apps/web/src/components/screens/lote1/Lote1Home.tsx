@@ -30,9 +30,9 @@ function Home() {
   const { member } = snap;
   const others = snap.people.filter((p) => !p.isSelf && p.active !== false);
   const steps: Step[] = [
-    { id: "familia", title: "Família criada", done: true, href: "/configuracoes/usuarios", allowed: false, doneText: `${snap.family.name}`, todoText: "" },
+    { id: "familia", title: "Família criada", done: true, href: "/configuracoes/pessoas", allowed: false, doneText: `${snap.family.name}`, todoText: "" },
     {
-      id: "pessoas", title: "Convidar a família", done: others.length > 0, href: "/configuracoes/usuarios", allowed: can(member, "members.manage"),
+      id: "pessoas", title: "Convidar a família", done: others.length > 0, href: "/configuracoes/pessoas", allowed: can(member, "members.manage"),
       doneText: `${others.length} ${others.length === 1 ? "pessoa convidada" : "pessoas convidadas"}`, todoText: "Convide filhos, cuidadoras e quem mais for ajudar, por e-mail ou por WhatsApp.",
     },
     {

@@ -102,7 +102,7 @@ test("Lote 2: doses do dia, check, baixa de estoque, desfazer e aviso no sino", 
   const filha = await browser.newContext({ baseURL: `http://localhost:${process.env["E2E_PORT"] ?? 3100}`, locale: "pt-BR", viewport: { width: 1280, height: 900 } });
   const fp = await filha.newPage();
   await test.step("convidar a filha (Familiar) e ela entra", async () => {
-    await open(page, "/configuracoes/usuarios");
+    await open(page, "/configuracoes/pessoas");
     await page.getByRole("button", { name: "Convidar pessoa" }).click();
     await page.getByRole("dialog").getByLabel("Nome", { exact: true }).fill("Filha Teste");
     await page.getByRole("dialog").getByRole("textbox", { name: "E-mail" }).fill(emailB);

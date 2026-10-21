@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
-import { can, type PermissionKey } from "@medcuidar/shared";
-import { cx } from "@/lib/format";
+import { can } from "@medcuidar/shared";
 import { useDataKind, useSnapshot } from "@/data";
 import { Guard } from "@/components/app/Guard";
 import { Icon } from "@/components/ui/Icon";
+import { EmptyState } from "@/components/ui/Layout";
+import { SECTIONS, isSectionId, type SectionId } from "@/lib/settings-sections";
 import { MedicationsPanel } from "./settings/MedicationsPanel";
 import { SchemesPanel } from "./settings/SchemesPanel";
 import { StockPanel } from "./settings/StockPanel";
@@ -14,66 +15,74 @@ import { NoticesPanelLive } from "./lote2/NoticesPanelLive";
 import { ProfilesPanel } from "./settings/ProfilesPanel";
 import { NoticesPanel } from "./settings/NoticesPanel";
 
-export const SECTIONS = [
-  { id: "remedios", label: "Remédios", icon: "medication", help: "Nome, marcas, tipo de uso e dose", permission: "medications.manage" },
-  { id: "esquemas", label: "Esquemas", icon: "timeline", help: "Fases, horários e duração", permission: "treatments.manage" },
-  { id: "estoque", label: "Estoque", icon: "inventory_2", help: "Compras, ajustes e movimentações", permission: "stock.view" },
-  { id: "pacientes", label: "Pacientes", icon: "elderly", help: "Quem toma os remédios", permission: "patients.manage" },
-  { id: "usuarios", label: "Pessoas", icon: "group", help: "Convidar, perfis de acesso e desativar", permission: "members.manage" },
-  { id: "perfis", label: "Perfis", icon: "admin_panel_settings", help: "O que cada perfil pode fazer", permission: "profiles.manage" },
-  { id: "avisos", label: "Avisos", icon: "notifications", help: "Quando e para quem avisar", permission: "settings.manage" },
-] as const satisfies ReadonlyArray<{ id: string; label: string; icon: string; help: string; permission: PermissionKey }>;
+export { SECTIONS, type SectionId };
 
-export type SectionId = (typeof SECTIONS)[number]["id"];
-
+/**
+ * Configurações em árvore: `/configuracoes` é o índice (lista de opções) e cada opção é uma página com rota própria,
+ * título e trilha ("Configurações › Remédios"). No desktop as opções também são a árvore do menu lateral.
+ */
 export function SettingsScreen({ section }: { section?: string }) {
   return (
-    <Guard permission="dashboard.view">
-      <Settings section={section} />
-    </Guard>
+    <Guard permission="dashboard.view">{section ? <SectionPage section={section} /> : <SettingsIndex />}</Guard>
   );
 }
 
-function Settings({ section }: { section?: string }) {
+function SettingsIndex() {
   const { member } = useSnapshot();
   const allowed = SECTIONS.filter((s) => can(member, s.permission));
-  const active = allowed.find((s) => s.id === section);
-  // No desktop a lista fica ao lado e o primeiro painel abre por padrão; no mobile /configuracoes mostra só a lista.
-  const shown = active ?? allowed[0];
-
+  if (allowed.length === 0) return <p className="text-ink2">Seu perfil não tem ajustes liberados.</p>;
   return (
-    <div className="grid gap-6 desk:grid-cols-[280px_1fr] desk:items-start">
-      <nav aria-label="Configurações" className={cx(active ? "hidden desk:block" : "block")}>
-        <ul className="flex flex-col gap-2">
-          {allowed.map((s) => {
-            const current = s.id === shown?.id;
-            return (
-              <li key={s.id}>
-                <Link href={`/configuracoes/${s.id}`} aria-current={current ? "page" : undefined} className={cx("flex min-h-14 items-center gap-3 rounded-lg border px-4 py-2", current ? "border-bd bg-sf hover:bg-sf2 desk:border-br desk:bg-brt" : "border-bd bg-sf hover:bg-sf2")}>
-                  <Icon name={s.icon} size={26} className={current ? "text-br" : "text-ink2"} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-bold">{s.label}</span>
-                    <span className="block text-cap text-ink2">{s.help}</span>
-                  </span>
-                  <Icon name="chevron_right" size={22} className="text-ink3 desk:hidden" />
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-        {allowed.length === 0 ? <p className="text-ink2">Seu perfil não tem ajustes liberados.</p> : null}
-      </nav>
+    <nav aria-label="Opções de Configurações">
+      <ul className="grid gap-3 desk:grid-cols-2">
+        {allowed.map((s) => (
+          <li key={s.id}>
+            <Link href={`/configuracoes/${s.id}`} className="flex min-h-16 items-center gap-3 rounded-lg border border-bd bg-sf px-4 py-3 hover:bg-sf2">
+              <span aria-hidden="true" className="flex h-12 w-12 flex-none items-center justify-center rounded-[14px] bg-brt text-pn">
+                <Icon name={s.icon} size={26} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-body-lg font-bold">{s.label}</span>
+                <span className="block text-cap text-ink2">{s.help}</span>
+              </span>
+              <Icon name="chevron_right" size={22} className="text-ink3" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
 
-      {shown ? (
-        <div className={cx("min-w-0", active ? "block" : "hidden desk:block")}>
-          <Link href="/configuracoes" className="mb-3 inline-flex min-h-touch items-center gap-1 font-bold text-br desk:hidden">
-            <Icon name="arrow_back" size={22} />
-            Configurações
-          </Link>
-          <h2 className="mb-4 font-display text-t1 font-extrabold">{shown.label}</h2>
-          <Panel id={shown.id} />
-        </div>
-      ) : null}
+function SectionPage({ section }: { section: string }) {
+  const { member } = useSnapshot();
+  const meta = SECTIONS.find((s) => s.id === section);
+  if (!meta || !isSectionId(meta.id)) return <EmptyState icon="search_off" title="Esta opção não existe" action={<Link href="/configuracoes" className="inline-flex min-h-touch items-center font-bold text-br underline">Voltar para Configurações</Link>} />;
+  if (!can(member, meta.permission)) {
+    return <EmptyState icon="lock" title="Esta área não está liberada para o seu perfil" text="Peça a quem administra a família para ajustar as permissões em Configurações › Perfis." action={<Link href="/configuracoes" className="inline-flex min-h-touch items-center font-bold text-br underline">Voltar para Configurações</Link>} />;
+  }
+  return (
+    <div className="min-w-0">
+      <Link href="/configuracoes" className="mb-1 inline-flex min-h-touch items-center gap-1 font-bold text-br desk:hidden">
+        <Icon name="arrow_back" size={22} />
+        Configurações
+      </Link>
+      <nav aria-label="Trilha de navegação" className="mb-1 hidden text-cap text-ink2 desk:block">
+        <ol className="flex items-center gap-1">
+          <li>
+            <Link href="/configuracoes" className="inline-flex min-h-touch items-center font-bold text-br underline">
+              Configurações
+            </Link>
+          </li>
+          <li aria-hidden="true">
+            <Icon name="chevron_right" size={18} />
+          </li>
+          <li aria-current="page" className="font-bold text-ink">
+            {meta.label}
+          </li>
+        </ol>
+      </nav>
+      <h1 className="mb-4 font-display text-t1 font-extrabold">{meta.label}</h1>
+      <Panel id={meta.id} />
     </div>
   );
 }
@@ -89,7 +98,7 @@ function Panel({ id }: { id: SectionId }) {
       return <SchemesPanel />;
     case "estoque":
       return <StockPanel />;
-    case "usuarios":
+    case "pessoas":
       return <UsersPanel />;
     case "perfis":
       return <ProfilesPanel />;

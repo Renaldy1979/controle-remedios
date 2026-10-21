@@ -137,7 +137,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
 
   // ---- 5) convites ----
   await test.step("convidar uma filha por e-mail", async () => {
-    await open(page, "/configuracoes/usuarios");
+    await open(page, "/configuracoes/pessoas");
     await page.getByRole("button", { name: "Convidar pessoa" }).click();
     await page.getByRole("dialog").getByLabel("Nome", { exact: true }).fill("Filha Teste");
     await page.getByRole("dialog").getByRole("textbox", { name: "E-mail" }).fill(emailB);
@@ -170,7 +170,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
   });
 
   await test.step("trocar o perfil dela para Confirmador: ela deixa de ver Configurações", async () => {
-    await open(page, "/configuracoes/usuarios");
+    await open(page, "/configuracoes/pessoas");
     await expect(page.getByText("Filha Teste")).toBeVisible();
     await page.getByRole("button", { name: "Editar Filha Teste" }).click();
     await page.getByRole("dialog").getByLabel("Perfil").selectOption("Confirmador");
@@ -182,12 +182,12 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await expect(dp.getByRole("link", { name: "Configurações" })).toHaveCount(0);
     await dp.goto("/configuracoes");
     await expect(dp.getByText("Seu perfil não tem ajustes liberados.")).toBeVisible();
-    await dp.goto("/configuracoes/usuarios");
+    await dp.goto("/configuracoes/pessoas");
     await expect(dp.getByRole("button", { name: "Convidar pessoa" })).toHaveCount(0);
   });
 
   await test.step("convite por WhatsApp: o código aparece UMA vez e fica guardado só como hash", async () => {
-    await open(page, "/configuracoes/usuarios");
+    await open(page, "/configuracoes/pessoas");
     await page.getByRole("button", { name: "Convidar pessoa" }).click();
     await page.getByText("Por código de WhatsApp").click();
     await page.getByRole("dialog").getByLabel("Nome", { exact: true }).fill("Dona Zélia");
@@ -202,14 +202,14 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await page.getByRole("button", { name: "Entendi" }).click();
     await expect(page.getByText("Dona Zélia")).toBeVisible();
     await expect(page.getByText("Convite por WhatsApp · vale até")).toBeVisible();
-    for (const p of ["/configuracoes/usuarios", "/"]) {
+    for (const p of ["/configuracoes/pessoas", "/"]) {
       await open(page, p);
       expect(await page.content()).not.toContain(code);
     }
   });
 
   await test.step("desativar a filha derruba a sessão dela na hora", async () => {
-    await open(page, "/configuracoes/usuarios");
+    await open(page, "/configuracoes/pessoas");
     await page.getByRole("button", { name: "Desativar Filha Teste" }).click();
     await page.getByRole("button", { name: "Desativar pessoa" }).click();
     await toast(page, "Filha Teste foi desativada(o)");
@@ -236,14 +236,14 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await op.getByRole("button", { name: "Criar a família" }).click();
     await expect(op).toHaveURL(/\/$/);
 
-    for (const path of ["/", "/pacientes", "/configuracoes/pacientes", "/configuracoes/remedios", "/configuracoes/esquemas", "/configuracoes/usuarios"]) {
+    for (const path of ["/", "/pacientes", "/configuracoes/pacientes", "/configuracoes/remedios", "/configuracoes/esquemas", "/configuracoes/pessoas"]) {
       await open(op, path);
       const text = await op.locator("body").innerText();
       for (const secret of ["Adelino", "Maria", "Zypred", "Filha Teste", "Dona Zélia", "Ana Souza", "Família Souza"]) expect(text, `${path} vazou "${secret}"`).not.toContain(secret);
     }
     await open(op, "/pacientes");
     await expect(op.getByText("Nenhum paciente cadastrado")).toBeVisible();
-    await open(op, "/configuracoes/usuarios");
+    await open(op, "/configuracoes/pessoas");
     await expect(op.getByText("Carla Lima", { exact: true })).toBeVisible();
     await other.close();
   });

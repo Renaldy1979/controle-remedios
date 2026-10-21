@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { can, type PermissionKey } from "@medcuidar/shared";
 import { cx } from "@/lib/format";
+import { SECTIONS } from "@/lib/settings-sections";
 import { useActions, useConnection, useDataKind, useSnapshot } from "@/data";
 import { Button } from "@/components/ui/Button";
 import { logoutAction } from "@/server/auth-actions";
@@ -27,6 +28,55 @@ const NAV: NavItem[] = [
   { href: "/historico", label: "Histórico", icon: "history", title: "Histórico de doses", anyOf: ["doses.history.view"] },
   { href: "/configuracoes", label: "Ajustes", icon: "settings", title: "Configurações", anyOf: ["settings.manage", "medications.manage", "treatments.manage", "stock.adjust", "members.manage", "profiles.manage"] },
 ];
+
+const SETTINGS = "/configuracoes";
+const inSettings = (pathname: string) => pathname === SETTINGS || pathname.startsWith(`${SETTINGS}/`);
+
+/** Configurações como árvore no menu lateral: expande sozinha dentro de qualquer página filha e pode ser recolhida/aberta no botão. */
+function SettingsTree({ pathname, item }: { pathname: string; item: NavItem }) {
+  const { member } = useSnapshot();
+  const here = inSettings(pathname);
+  const [open, setOpen] = useState(here);
+  useEffect(() => {
+    if (here) setOpen(true);
+  }, [here]);
+  const children = SECTIONS.filter((s) => can(member, s.permission));
+  const onIndex = pathname === SETTINGS;
+  return (
+    <li>
+      <div className="flex items-stretch gap-1">
+        <Link href={SETTINGS} aria-current={onIndex ? "page" : undefined} className={cx("flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-md px-3 text-body-lg", onIndex ? "bg-brt font-bold text-pn" : here ? "font-bold text-ink hover:bg-sf2" : "text-ink2 hover:bg-sf2")}>
+          <Icon name={item.icon} size={24} />
+          Configurações
+        </Link>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls="menu-configuracoes"
+          aria-label={open ? "Recolher as opções de Configurações" : "Mostrar as opções de Configurações"}
+          onClick={() => setOpen((o) => !o)}
+          className="flex h-12 w-12 flex-none items-center justify-center rounded-md text-ink2 hover:bg-sf2"
+        >
+          <Icon name={open ? "expand_less" : "expand_more"} size={24} />
+        </button>
+      </div>
+      <ul id="menu-configuracoes" hidden={!open} aria-label="Opções de Configurações" className="ml-6 mt-1 flex flex-col gap-1 border-l border-bd pl-2">
+        {children.map((s) => {
+          const href = `${SETTINGS}/${s.id}`;
+          const active = pathname === href || pathname.startsWith(`${href}/`);
+          return (
+            <li key={s.id}>
+              <Link href={href} aria-current={active ? "page" : undefined} className={cx("flex min-h-touch items-center gap-3 rounded-md px-3", active ? "bg-brt font-bold text-pn" : "text-ink2 hover:bg-sf2")}>
+                <Icon name={s.icon} size={20} />
+                {s.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </li>
+  );
+}
 
 const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
 
@@ -79,12 +129,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav aria-label="Principal">
           <ul className="flex flex-col gap-1">
             {items.map((n) => {
+              if (n.href === SETTINGS) return <SettingsTree key={n.href} pathname={pathname} item={n} />;
               const active = isActive(pathname, n.href);
               return (
                 <li key={n.href}>
                   <Link href={n.href} aria-current={active ? "page" : undefined} className={cx("flex min-h-12 items-center gap-3 rounded-md px-3 text-body-lg", active ? "bg-brt font-bold text-pn" : "text-ink2 hover:bg-sf2")}>
                     <Icon name={n.icon} size={24} />
-                    {n.label === "Ajustes" ? "Configurações" : n.label}
+                    {n.label}
                     {n.href === "/" && snap.alertCount > 0 ? (
                       <span className="ml-auto rounded-pill bg-ms-bg px-2 text-cap font-bold text-ms">
                         {snap.alertCount}
@@ -191,7 +242,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <main id="conteudo" tabIndex={-1} className="mx-auto w-full max-w-[1240px] flex-1 p-4 pb-28 desk:p-8 desk:pb-8">
           {/* No mobile o título da tela fica no conteúdo; no desktop está no header */}
-          {current ? <h1 className="mb-4 font-display text-t1 font-extrabold desk:sr-only">{current.title}</h1> : null}
+          {current && !pathname.startsWith(`${SETTINGS}/`) ? <h1 className="mb-4 font-display text-t1 font-extrabold desk:sr-only">{current.title}</h1> : null}
           {conn.offline ? (
             <div role="status" className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-lt-bd bg-lt-bg p-4 text-lt">
               <Icon name="cloud_off" size={24} />

@@ -44,7 +44,7 @@ export function StockPanel() {
       ) : null}
 
       <section aria-label="Estoque por urgência">
-        <h3 className="mb-3 font-display text-t2 font-bold">Por urgência</h3>
+        <h2 className="mb-3 font-display text-t2 font-bold">Por urgência</h2>
         <ul className="grid gap-3 sm:grid-cols-2 wide:grid-cols-3">
           {sorted.map((m) => (
             <li key={m.id}>
@@ -55,7 +55,7 @@ export function StockPanel() {
       </section>
 
       <section aria-label="Movimentações">
-        <h3 className="mb-3 font-display text-t2 font-bold">Movimentações</h3>
+        <h2 className="mb-3 font-display text-t2 font-bold">Movimentações</h2>
         <ul className="divide-y divide-bd rounded-lg border border-bd bg-sf">
           {snap.stockMovements.length === 0 ? <li className="p-4 text-ink2">Nenhuma movimentação ainda. Registre uma compra para começar.</li> : null}
           {snap.stockMovements.map((m) => (
@@ -106,7 +106,7 @@ function PurchaseForm({ initialMed }: { initialMed?: string }) {
         setQty("");
       }}
     >
-      <h3 className="font-display text-t2 font-bold">Registrar compra</h3>
+      <h2 className="font-display text-t2 font-bold">Registrar compra</h2>
       <SelectField label="Remédio" value={medId} onChange={(e) => setMedId(e.target.value)}>
         {snap.medications.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
       </SelectField>
@@ -142,7 +142,7 @@ function AdjustForm() {
         setReason("");
       }}
     >
-      <h3 className="font-display text-t2 font-bold">Ajuste manual</h3>
+      <h2 className="font-display text-t2 font-bold">Ajuste manual</h2>
       <SelectField label="Remédio" value={medId} onChange={(e) => setMedId(e.target.value)}>
         {snap.medications.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
       </SelectField>

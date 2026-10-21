@@ -61,7 +61,7 @@ export function UsersPanel() {
     <div className="flex flex-col gap-6">
       <section aria-label="Pessoas">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="font-display text-t2 font-bold">Pessoas da família</h3>
+          <h2 className="font-display text-t2 font-bold">Pessoas da família</h2>
           <Button variant="secondary" icon="person_add" onClick={() => setEditing("new")}>
             Convidar pessoa
           </Button>
