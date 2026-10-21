@@ -1,4 +1,4 @@
-# 08 — Entrega por lotes
+﻿# 08 — Entrega por lotes
 
 **Regra:** cada lote termina com algo que o dono **abre e testa** num ambiente de staging, com um **roteiro de teste** passo a passo. O lote só é dado como pronto quando (1) os testes automáticos passam, (2) o orquestrador conferiu e (3) **o dono validou o roteiro**. O lote seguinte só começa depois do "validado".
 
@@ -48,17 +48,24 @@ Fluxo de cada lote: construir → testes automáticos → orquestrador confere �
 
 **Roteiro:** 1) anexar uma receita com duas páginas pelo celular; 2) ver o aviso "vence em X dias"; 3) abrir a reposição de um remédio no limite; 4) outra pessoa assume a compra; 5) registrar a compra e ver o estoque e a previsão atualizarem; 6) conferir que um perfil sem permissão não vê a receita.
 
-## Lote 4 — WhatsApp
-**Você testa:** validar o número, receber o lembrete, responder "tomei" e ver o estoque baixar, receber o aviso de estoque e perguntar o próximo remédio.
-- **API `/api/v1`** com chaves, identificação por telefone e proteção contra repetição; OpenAPI.
-- Validação do número (dono envia o código ao sistema) e **convite por WhatsApp**.
-- Fluxos do N8N, um por gatilho (conversa, lembrete de dose, estoque baixo, resumo diário, teste de conexão), importáveis no seu N8N.
-- Conversa híbrida: confirmar dose sem IA; perguntas livres com IA.
-- Primeiro com o **simulador** (sem número) e depois com o **número de teste**.
+## Lote 4A — API, validação do número e simulador de WhatsApp
+Primeira metade do WhatsApp, **testável sem número real**: o dono usa um **simulador de WhatsApp dentro do portal** (só para o administrador, com aviso "nenhuma mensagem real é enviada"), que fala com a mesma API que o N8N vai usar.
+- **API `/api/v1`** no portal: chaves por família (`cdf_`) e de plataforma (`cpl_`, escopo conversa) guardadas só como hash e revogáveis; identificação pelo telefone do remetente (`X-Telefone`), só número verificado é atendido; `Idempotency-Key`; erros padronizados; OpenAPI em `/api/v1/openapi.json`.
+- **Validação do número depois do login** (o portal mostra um código de 6 dígitos, vale 15 min; o dono do número o envia ao WhatsApp do sistema). Só número verificado recebe mensagens.
+- **Conversa em código, sem IA:** código de verificação, confirmar dose ("tomei", 1/2, ok, ✅), lembrar de novo, "eu cuido disso", consultas simples (estoque, próximas doses). Texto livre fora disso devolve "livre" (o agente de IA chega no 4B).
+- **Mensagens prontas** (lembrete de dose, esquecida, estoque baixo, receita vencendo, reposição, resumo diário) geradas pela API; fila de mensagens a enviar com marcação idempotente de enviadas.
+- **Convite por WhatsApp completo:** o convidado envia o código **do número esperado** → fica `whatsapp_verified` com permissões básicas → recebe o **link de primeiro acesso** → define e-mail e senha → vira `active`.
+- Configurações → WhatsApp: estado do número, chaves de API (mostradas uma vez).
 
-**Roteiro:** 1) validar o seu número; 2) receber o lembrete de uma dose; 3) responder "tomei" e conferir no portal; 4) baixar o estoque ao limite e receber o aviso; 5) perguntar "como está o estoque?"; 6) usuário sem número verificado não recebe nada; 7) convidar uma pessoa pelo código de WhatsApp.
-**Precisa do dono:** número de WhatsApp do sistema, URL e credenciais do Evolution Go e do N8N (fora do chat).
+**Roteiro (no staging, com o simulador):** 1) cadastrar o seu número e ver "pendente"; 2) enviar o código no simulador e ver "verificado"; 3) usuário sem número verificado: o simulador não é atendido; 4) "tomei" confirma a dose e baixa o estoque; 5) "estoque" e "próximas doses"; 6) ver a fila de lembretes que o sistema gera para a dose e para o estoque baixo; 7) convidar uma pessoa por código de WhatsApp e concluir o primeiro acesso; 8) criar e revogar uma chave de API.
 
+## Lote 4B — N8N e WhatsApp real (Evolution Go)
+- Fluxos do N8N, **um por gatilho** (conversa, lembrete de dose, estoque baixo, resumo diário, teste de conexão), importáveis no seu N8N, com credenciais por nome.
+- Conversa híbrida: confirmar dose sem IA; perguntas livres com **agente de IA** que só usa ferramentas da API (sem parâmetro de telefone).
+- Número de teste, depois o número do sistema; botão "Testar conexão" no portal.
+
+**Roteiro:** validar o seu número pelo WhatsApp real, receber o lembrete, responder "tomei" e ver o estoque baixar, receber o aviso de estoque, perguntar "como está o estoque?", entrar por convite de WhatsApp.
+**Precisa do dono (só no 4B):** número de WhatsApp do sistema, URL e credenciais do Evolution Go e do N8N (fora do chat).
 ## Lote 5 — Qualidade, segurança e piloto
 **Você testa:** o uso real com a família por duas semanas.
 - Revisão de segurança e LGPD (RLS, chaves, logs sem dados pessoais, URLs assinadas), acessibilidade, e2e, backup e restauração testados.
