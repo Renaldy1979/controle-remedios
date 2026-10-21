@@ -111,3 +111,25 @@ export async function consumirLinkPrimeiroAcesso(
   const l = r[0];
   return l ? { linkId: l.link_id, membroId: l.member_id, familiaId: l.family_id } : null;
 }
+
+export type FamiliaAtiva = { familiaId: string; fuso: string };
+
+/** Famílias ativas (só id e fuso). Para a rotina de lembretes da plataforma, que não conhece nenhuma família de antemão. */
+export async function listarFamiliasAtivas(db: Db = getDb()): Promise<FamiliaAtiva[]> {
+  const r = await db.execute<{ family_id: string; timezone: string }>(sql`select * from list_active_families()`);
+  return r.map((f) => ({ familiaId: f.family_id, fuso: f.timezone }));
+}
+
+/**
+ * Primeiro acesso por WhatsApp: com o e-mail JÁ CONFIRMADO no Appwrite, o membro `whatsapp_verified` que definiu esse
+ * e-mail vira `active`. Sem candidato único, ou usuário já ligado a um membro, devolve null e nada muda.
+ */
+export async function ativarMembroPorEmail(
+  email: string, appwriteUserId: string, db: Db = getDb(),
+): Promise<{ membroId: string; familiaId: string } | null> {
+  const r = await db.execute<{ member_id: string; family_id: string }>(
+    sql`select * from activate_member_by_email(${email}, ${appwriteUserId})`,
+  );
+  const m = r[0];
+  return m ? { membroId: m.member_id, familiaId: m.family_id } : null;
+}

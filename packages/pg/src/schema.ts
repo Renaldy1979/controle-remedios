@@ -535,10 +535,55 @@ export const idempotency = pgTable("idempotency", {
   index("idempotency_created_idx").on(t.createdAt),
 ]);
 
+/* ------------------------------------------------------------------ WhatsApp: fila de saída e conversa (Lote 4A) */
+
+/**
+ * Fila de mensagens a enviar (docs/10). A API decide quem, quando e o texto; o N8N só envia e marca como enviada.
+ * `dedupe_key` único por família = a mesma mensagem nunca entra duas vezes. A reivindicação é um "lease" atômico
+ * (`claimed_until`) feito com FOR UPDATE SKIP LOCKED. O corpo é dado de saúde: nunca vai para log.
+ */
+export const outboundMessages = pgTable("outbound_messages", {
+  id: id(),
+  familyId: familyId(),
+  memberId: uuid("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  /** dose_reminder | dose_missed | low_stock | rx_expiring | replenishment | daily_summary */
+  kind: text("kind").notNull(),
+  dedupeKey: text("dedupe_key").notNull(),
+  body: text("body").notNull(),
+  /** Rótulos das opções numeradas (1, 2, ...). */
+  options: jsonb("options").$type<string[]>().notNull().default([]),
+  /** Para onde a resposta numérica aponta (ids de dose, remédio...). */
+  context: jsonb("context").$type<Record<string, unknown>>().notNull().default({}),
+  notBefore: timestamp("not_before", { withTimezone: true }).notNull().defaultNow(),
+  claimedUntil: ts("claimed_until"),
+  claimCount: smallint("claim_count").notNull().default(0),
+  sentAt: ts("sent_at"),
+  discardedAt: ts("discarded_at"),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("outbound_messages_dedupe_uq").on(t.familyId, t.dedupeKey),
+  index("outbound_messages_pending_idx").on(t.familyId, t.notBefore).where(sql`${t.sentAt} is null and ${t.discardedAt} is null`),
+]);
+
+/** A última pergunta numerada feita a cada pessoa ("1 — Tomei"): o que "1" e "2" significam agora. Uma linha por pessoa. */
+export const conversationState = pgTable("conversation_state", {
+  id: id(),
+  familyId: familyId(),
+  memberId: uuid("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  /** reminders | choose_dose | choose_snooze | choose_replenishment | low_stock */
+  kind: text("kind").notNull(),
+  data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("conversation_state_member_uq").on(t.familyId, t.memberId),
+]);
+
 /** Tabelas com `family_id` (RLS por família). Usado pelos testes de isolamento. */
 export const FAMILY_TABLES = [
   "profiles", "members", "patients", "care_assignments", "medications", "treatments", "treatment_phases",
   "dose_events", "stock_items", "stock_movements", "prescriptions", "prescription_files", "prescription_items",
   "prescription_shares", "prescription_views", "replenishments", "replenishment_steps", "notifications",
   "message_log", "audit_log", "api_keys", "idempotency", "invites", "first_access_links",
+  "outbound_messages", "conversation_state",
 ] as const;

@@ -757,4 +757,66 @@ describe.skipIf(!disponivel)("Postgres + RLS (papel da aplicação)", () => {
       expect(r[0]?.n).toBe(0);
     });
   });
+
+  /* ------------------------------------------------------------ Lote 4A: fila de saída, conversa e primeiro acesso */
+  describe("Lote 4A", () => {
+    it("outbound_messages e conversation_state: B não lê nem altera os de A, e o dedupe é por família", async () => {
+      const mA = A.memberId;
+      await withFamilia(A.id, async (tx) => {
+        await tx.insert(s.outboundMessages).values({ familyId: A.id, memberId: mA, kind: "dose_reminder", dedupeKey: "k1", body: "oi" });
+        await tx.insert(s.conversationState).values({ familyId: A.id, memberId: mA, kind: "reminders", expiresAt: new Date(Date.now() + 60_000) });
+      });
+      await withFamilia(B.id, async (tx) => {
+        expect(await tx.select().from(s.outboundMessages)).toHaveLength(0);
+        expect(await tx.select().from(s.conversationState)).toHaveLength(0);
+        expect(await tx.update(s.outboundMessages).set({ sentAt: new Date() }).returning()).toHaveLength(0);
+        // mesma chave em outra família é permitida
+        await tx.insert(s.outboundMessages).values({ familyId: B.id, memberId: B.memberId, kind: "dose_reminder", dedupeKey: "k1", body: "oi" });
+      });
+      // linha com family_id de A gravada por B é recusada pelo RLS
+      expect(await sqlstate(() => withFamilia(B.id, (tx) =>
+        tx.insert(s.outboundMessages).values({ familyId: A.id, memberId: mA, kind: "x", dedupeKey: "k2", body: "x" })))).toBe("42501");
+      // dedupe repetido na mesma família: 23505
+      expect(await sqlstate(() => withFamilia(A.id, (tx) =>
+        tx.insert(s.outboundMessages).values({ familyId: A.id, memberId: mA, kind: "dose_reminder", dedupeKey: "k1", body: "oi" })))).toBe("23505");
+    });
+
+    it("list_active_families devolve só id e fuso das famílias ativas", async () => {
+      const { listarFamiliasAtivas } = await import("./sistema");
+      const l = await listarFamiliasAtivas();
+      expect(l.map((f) => f.familiaId)).toEqual(expect.arrayContaining([A.id, B.id]));
+      expect(Object.keys(l[0]!).sort()).toEqual(["familiaId", "fuso"]);
+    });
+
+    it("activate_member_by_email: só com candidato único whatsapp_verified; vira active", async () => {
+      const { ativarMembroPorEmail } = await import("./sistema");
+      const tel = telefoneAleatorio();
+      const email = `zz-test-${randomUUID().slice(0, 8)}@exemplo.test`;
+      const id = randomUUID();
+      await withFamilia(A.id, async (tx) => {
+        await tx.insert(s.members).values({ id, familyId: A.id, profileId: A.profileId, name: "Convidado", email, accessState: "whatsapp_verified", phoneVerified: tel });
+      });
+      // e-mail desconhecido: nada
+      expect(await ativarMembroPorEmail("outro@exemplo.test", "u-x")).toBeNull();
+      const uid = `zz-test-${randomUUID()}`;
+      const r = await ativarMembroPorEmail(email.toUpperCase(), uid);
+      expect(r?.membroId).toBe(id);
+      const [m] = await admin`select access_state, appwrite_user_id from members where id = ${id}`;
+      expect(m?.access_state).toBe("active");
+      expect(m?.appwrite_user_id).toBe(uid);
+      // de novo (já ativo) e usuário já ligado: nada
+      expect(await ativarMembroPorEmail(email, uid)).toBeNull();
+    });
+
+    it("activate_member_by_email recusa quando há dois candidatos com o mesmo e-mail", async () => {
+      const { ativarMembroPorEmail } = await import("./sistema");
+      const email = `zz-test-${randomUUID().slice(0, 8)}@exemplo.test`;
+      for (const F of [A, B]) {
+        await withFamilia(F.id, async (tx) => {
+          await tx.insert(s.members).values({ familyId: F.id, profileId: F.profileId, name: "Dup", email, accessState: "whatsapp_verified", phoneVerified: telefoneAleatorio() });
+        });
+      }
+      expect(await ativarMembroPorEmail(email, `zz-test-${randomUUID()}`)).toBeNull();
+    });
+  });
 });

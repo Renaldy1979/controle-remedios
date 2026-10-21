@@ -43,6 +43,13 @@
       "when": 1792607956428,
       "tag": "0005_lote3_receitas_reposicao",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792625487256,
+      "tag": "0006_lote4a_whatsapp",
+      "breakpoints": true
     }
   ]
 }
