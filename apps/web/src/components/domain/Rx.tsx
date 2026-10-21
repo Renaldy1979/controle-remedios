@@ -114,7 +114,7 @@ export function AccessIndicator({ people }: { people: PersonVM[] }) {
         className="inline-flex min-h-touch items-center gap-2 rounded-pill border border-bd2 bg-sf px-4 font-bold text-ink2 hover:bg-sf2"
       >
         <Icon name="lock" size={20} />
-        Acesso restrito · {can.length} pessoas
+        Acesso restrito · {can.length} {can.length === 1 ? "pessoa" : "pessoas"}
         <Icon name={open ? "expand_less" : "expand_more"} size={20} />
       </button>
       {open ? (

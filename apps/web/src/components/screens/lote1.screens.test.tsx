@@ -354,3 +354,55 @@ describe("Lote 1 — Pacientes, Remédios e Esquemas (cadastros)", () => {
     expect(saveScheme).not.toHaveBeenCalled();
   });
 });
+
+describe("Lote 3 — Configurações em árvore", () => {
+  const principal = () => screen.getAllByRole("navigation", { name: "Principal" })[0]!;
+
+  it("dentro de uma opção a árvore já vem aberta, o item atual é destacado e a trilha e o título dizem onde está", async () => {
+    const { container } = renderApp(shell("/configuracoes/remedios", <SettingsScreen section="remedios" />), { source: fakePg(lote1Snapshot()) });
+    const menu = within(principal());
+    expect(menu.getByRole("button", { name: "Recolher as opções de Configurações" })).toHaveAttribute("aria-expanded", "true");
+    expect(menu.getByRole("link", { name: "Remédios" })).toHaveAttribute("aria-current", "page");
+    expect(menu.getByRole("link", { name: "Esquemas" })).not.toHaveAttribute("aria-current");
+    expect(menu.getByRole("link", { name: "Configurações" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("heading", { level: 1, name: "Remédios" })).toBeInTheDocument();
+    const trilha = screen.getByRole("navigation", { name: "Trilha de navegação" });
+    expect(within(trilha).getByRole("link", { name: "Configurações" })).toHaveAttribute("href", "/configuracoes");
+    expect(within(trilha).getByText("Remédios")).toHaveAttribute("aria-current", "page");
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it("o botão recolhe e abre a árvore (aria-expanded), e fora de Configurações ela começa recolhida", async () => {
+    renderApp(shell("/pacientes", <PatientsScreen />), { source: fakePg(lote1Snapshot()) });
+    const menu = within(principal());
+    const abrir = menu.getByRole("button", { name: "Mostrar as opções de Configurações" });
+    expect(abrir).toHaveAttribute("aria-expanded", "false");
+    expect(abrir).toHaveAttribute("aria-controls", "menu-configuracoes");
+    expect(document.getElementById("menu-configuracoes")).toHaveClass("hidden");
+    await userEvent.click(abrir);
+    expect(menu.getByRole("button", { name: "Recolher as opções de Configurações" })).toHaveAttribute("aria-expanded", "true");
+    expect(document.getElementById("menu-configuracoes")).not.toHaveClass("hidden");
+  });
+
+  it("o índice (celular) lista só o que o perfil pode, com descrição; opção sem permissão não aparece nem na árvore", () => {
+    const snap = lote1Snapshot({
+      member: { id: "f", name: "Filha", profileName: "Familiar", permissions: { "dashboard.view": true, "patients.view": true, "stock.view": true, "stock.adjust": true } },
+    });
+    renderApp(shell("/configuracoes", <SettingsScreen />), { source: fakePg(snap) });
+    const lista = screen.getByRole("navigation", { name: "Opções de Configurações" });
+    expect(within(lista).getAllByRole("link").map((l) => l.textContent)).toEqual([expect.stringContaining("Estoque")]);
+    expect(within(lista).getByText("Compras, ajustes e movimentações")).toBeInTheDocument();
+    expect(within(principal()).queryByRole("link", { name: "Perfis" })).not.toBeInTheDocument();
+  });
+
+  it("opção sem permissão (endereço digitado) mostra aviso e o caminho de volta; opção que não existe também", () => {
+    const snap = lote1Snapshot({ member: { id: "f", name: "Filha", profileName: "Familiar", permissions: { "dashboard.view": true, "stock.view": true } } });
+    const { unmount } = renderApp(shell("/configuracoes/perfis", <SettingsScreen section="perfis" />), { source: fakePg(snap) });
+    expect(screen.getByText("Esta área não está liberada para o seu perfil")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Voltar para Configurações" })).toHaveAttribute("href", "/configuracoes");
+    expect(screen.queryByRole("heading", { level: 1, name: "Perfis" })).not.toBeInTheDocument();
+    unmount();
+    renderApp(shell("/configuracoes/nada", <SettingsScreen section="nada" />), { source: fakePg(lote1Snapshot()) });
+    expect(screen.getByText("Esta opção não existe")).toBeInTheDocument();
+  });
+});

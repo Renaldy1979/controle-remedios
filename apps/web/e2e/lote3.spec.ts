@@ -24,7 +24,6 @@ test.afterAll(async () => {
 });
 
 const toast = (page: Page, text: string | RegExp) => expect(page.getByText(text).first()).toBeVisible();
-const quantity = (page: Page) => page.getByTestId("stock-quantity").first();
 const baseURL = () => `http://localhost:${process.env["E2E_PORT"] ?? 3100}`;
 
 // JPEG de 1x1 pixel e um PDF mínimo
