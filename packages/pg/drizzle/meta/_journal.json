@@ -50,6 +50,13 @@
       "when": 1792625487256,
       "tag": "0006_lote4a_whatsapp",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792675303829,
+      "tag": "0007_lote4b_integracoes",
+      "breakpoints": true
     }
   ]
 }

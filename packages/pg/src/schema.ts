@@ -587,3 +587,20 @@ export const FAMILY_TABLES = [
   "message_log", "audit_log", "api_keys", "idempotency", "invites", "first_access_links",
   "outbound_messages", "conversation_state",
 ] as const;
+
+/**
+ * Integração com o N8N (Lote 4B), uma linha por família: URL do webhook de teste (fluxo 05) e o segredo do teste de conexão,
+ * guardado CIFRADO (AES-256-GCM, chave derivada de FILE_URL_SECRET): o portal precisa do valor para assinar o ping, então não dá para guardar só o hash.
+ * `n8n_check_*` é o resultado do último "Testar conexão": sem teste OK, o portal mostra "WhatsApp do sistema: aguardando conexão".
+ */
+export const familyIntegrations = pgTable("family_integrations", {
+  id: id(),
+  familyId: familyId(),
+  n8nWebhookUrl: text("n8n_webhook_url"),
+  n8nSecretEnc: text("n8n_secret_enc"),
+  n8nCheckedAt: ts("n8n_checked_at"),
+  n8nCheckOk: boolean("n8n_check_ok"),
+  n8nVersion: text("n8n_version"),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("family_integrations_family_uq").on(t.familyId)]);

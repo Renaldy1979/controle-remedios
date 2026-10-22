@@ -13,6 +13,7 @@ import { platformKeysFromPortal, simulatorEnabled } from "../env";
 import { simulatorSecret } from "../api/core";
 import { stampLabel } from "../pg/stamp";
 import { resolveSender } from "./actor";
+import { gerarSegredoDoTeste, lerEstadoN8n, salvarUrlN8n, testarN8n, type EstadoN8n } from "./n8n";
 import { issueFirstAccessLink } from "./first-access";
 import { criarChaveFamilia, listarChavesFamilia, revogarChaveFamilia } from "./keys";
 import { meuWhatsapp, startPhoneVerification } from "./phone-verify";
@@ -61,6 +62,14 @@ export interface ChaveWa {
   ultimoUso: string;
   revogada: boolean;
 }
+/** Estado da ligação com o N8N, para a tela (só Administrador). */
+export interface N8nVm {
+  url: string | null;
+  temSegredo: boolean;
+  /** aguardando = nenhum teste OK ainda; conectado = o último teste passou */
+  estado: "aguardando" | "conectado";
+  teste: { em: string; ok: boolean; versao: string | null } | null;
+}
 export interface EstadoWa {
   eu: { verificado: string; pendente: string; codigoAtivo: boolean; codigoExpiraEm: string | null };
   pessoas: PessoaWa[];
@@ -68,9 +77,14 @@ export interface EstadoWa {
   chaves: ChaveWa[];
   chavesPlataforma: ChaveWa[] | null;
   simulador: boolean;
+  n8n: N8nVm | null;
 }
 
 const dia = (d: Date | null, tz: string) => (d ? stampLabel(d, tz) : "nunca");
+const n8nVm = (e: EstadoN8n, tz: string): N8nVm => ({
+  url: e.url, temSegredo: e.temSegredo, estado: e.estado,
+  teste: e.teste ? { em: stampLabel(e.teste.em, tz), ok: e.teste.ok, versao: e.teste.versao } : null,
+});
 
 export async function estadoWhatsappAction(): Promise<R<EstadoWa>> {
   return run(async () => {
@@ -99,6 +113,7 @@ export async function estadoWhatsappAction(): Promise<R<EstadoWa>> {
       chaves: adm ? (await listarChavesFamilia(ctx)).map(mapa) : [],
       chavesPlataforma: adm && platformKeysFromPortal() ? (await listarChavesPlataforma()).map((k) => mapa({ ...k, prefixo: "cpl_" })) : null,
       simulador: simulatorEnabled() && adm,
+      n8n: adm ? n8nVm(await lerEstadoN8n(ctx.familyId), ctx.timezone) : null,
     };
   });
 }
@@ -282,5 +297,48 @@ export async function simMarcarEnviadaAction(id: string): Promise<R<FilaSim | nu
       ...(typeof medicationId === "string" && msg.o.options.length ? { medicationId } : {}),
     }, new Date());
     return { id, para: "", telefone: msg.phone ?? "", tipo: msg.o.kind, texto: msg.o.body, quando: msg.o.notBefore.toISOString() };
+  });
+}
+
+/* ------------------------------------------------------------------ N8N (Lote 4B): URL do webhook, segredo e teste de conexão */
+
+async function sessaoAdmin() {
+  const ctx = await sessao();
+  if (!isAdmin(ctx)) throw new ForbiddenError("n8n");
+  return ctx;
+}
+const auditar = (ctx: Awaited<ReturnType<typeof sessao>>, action: string) =>
+  withFamilia(ctx.familyId, (tx) => tx.insert(s.auditLog).values({ familyId: ctx.familyId, actorMemberId: ctx.memberId, action, entity: "family_integration", entityId: ctx.familyId, meta: {} }));
+
+/** Guarda a URL do webhook do fluxo 05 (https, sem rede interna, DNS resolvido). */
+export async function salvarWebhookN8nAction(url: string): Promise<R<N8nVm>> {
+  return run(async () => {
+    const ctx = await sessaoAdmin();
+    await salvarUrlN8n(ctx.familyId, z.string().trim().min(8, "Cole a URL do webhook do N8N.").max(500).parse(url));
+    await auditar(ctx, "n8n.webhook_url.set");
+    return n8nVm(await lerEstadoN8n(ctx.familyId), ctx.timezone);
+  });
+}
+
+/** Gera (ou troca) o segredo do teste. Aparece uma só vez; no banco fica cifrado. */
+export async function gerarSegredoN8nAction(): Promise<R<{ segredo: string; n8n: N8nVm }>> {
+  return run(async () => {
+    const ctx = await sessaoAdmin();
+    const segredo = await gerarSegredoDoTeste(ctx.familyId);
+    await auditar(ctx, "n8n.secret.generate");
+    return { segredo, n8n: n8nVm(await lerEstadoN8n(ctx.familyId), ctx.timezone) };
+  });
+}
+
+/** Botão "Testar conexão": POST assinado ao fluxo 05, 5 s, sem seguir redirect. */
+export async function testarN8nAction(): Promise<R<{ ok: boolean; mensagem: string; n8n: N8nVm }>> {
+  return run(async () => {
+    const ctx = await sessaoAdmin();
+    const { resultado, estado } = await testarN8n(ctx.familyId);
+    await auditar(ctx, resultado.ok ? "n8n.test.ok" : "n8n.test.fail");
+    const mensagem = resultado.ok
+      ? `Conectado ao N8N${resultado.versao ? ` (fluxos versão ${resultado.versao})` : ""} em ${resultado.ms} ms.`
+      : resultado.erro;
+    return { ok: resultado.ok, mensagem, n8n: n8nVm(estado, ctx.timezone) };
   });
 }

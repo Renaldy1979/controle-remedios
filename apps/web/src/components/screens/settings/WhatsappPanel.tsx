@@ -7,7 +7,8 @@ import { TextField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
 import {
-  criarChaveAction, estadoWhatsappAction, reenviarLinkAcessoAction, revogarChaveAction, type ChaveWa, type EstadoWa, type PessoaWa,
+  criarChaveAction, estadoWhatsappAction, gerarSegredoN8nAction, reenviarLinkAcessoAction, revogarChaveAction, salvarWebhookN8nAction, testarN8nAction,
+  type ChaveWa, type EstadoWa, type N8nVm, type PessoaWa,
 } from "@/server/wa/actions";
 import { WhatsappNumberCard } from "./WhatsappNumberCard";
 
@@ -40,6 +41,7 @@ export function WhatsappPanel() {
           ) : null}
         </>
       ) : null}
+      {estado.n8n ? <N8nCard n8n={estado.n8n} onChange={carregar} /> : null}
       {estado.simulador ? (
         <ButtonLink href="/configuracoes/simulador" variant="secondary" icon="forum">
           Abrir o simulador de WhatsApp
@@ -150,6 +152,11 @@ function ChavesCard({ titulo, ajuda, tipo, chaves, onChange }: { titulo: string;
             <Icon name="key" size={22} /> Copie agora: esta chave não será mostrada de novo
           </p>
           <code className="break-all rounded-md bg-sf p-2 text-body">{nova}</code>
+          {tipo === "plataforma" ? (
+            <p className="text-cap">
+              No N8N, abra <strong>Credenciais › Criar credencial › Header Auth</strong>, dê o nome <strong>MedCuidar API</strong>, em “Name” escreva <code>Authorization</code> e em “Value” escreva <code>Bearer </code> seguido desta chave (com um espaço depois de “Bearer”). Se perder a chave, revogue e crie outra.
+            </p>
+          ) : null}
           <div className="flex gap-3">
             <Button size="sm" icon="content_copy" onClick={() => void copiar()}>
               Copiar
@@ -200,6 +207,119 @@ function ChavesCard({ titulo, ajuda, tipo, chaves, onChange }: { titulo: string;
       <p className="text-cap text-ink2">
         Documentação das rotas: <Link href="/api/v1/openapi.json" className="font-bold text-br underline" target="_blank">/api/v1/openapi.json</Link>
       </p>
+    </section>
+  );
+}
+
+/** Ligação com o N8N: URL do webhook do fluxo 05, segredo do teste e o botão Testar conexão (só Administrador). */
+function N8nCard({ n8n, onChange }: { n8n: N8nVm; onChange: () => Promise<void> }) {
+  const toast = useToast();
+  const [url, setUrl] = useState(n8n.url ?? "");
+  const [erroUrl, setErroUrl] = useState("");
+  const [busy, setBusy] = useState("");
+  const [segredo, setSegredo] = useState<string | null>(null);
+  const [resultado, setResultado] = useState<{ ok: boolean; mensagem: string } | null>(null);
+
+  const salvar = async () => {
+    setBusy("url");
+    setErroUrl("");
+    const r = await salvarWebhookN8nAction(url);
+    setBusy("");
+    if (!r.ok) return setErroUrl(r.message);
+    setResultado(null);
+    toast({ icon: "check_circle", message: "Endereço salvo" });
+    await onChange();
+  };
+  const gerar = async () => {
+    setBusy("segredo");
+    const r = await gerarSegredoN8nAction();
+    setBusy("");
+    if (!r.ok) return toast({ icon: "error", message: r.message, error: true });
+    setSegredo(r.data.segredo);
+    setResultado(null);
+    await onChange();
+  };
+  const testar = async () => {
+    setBusy("teste");
+    setResultado(null);
+    const r = await testarN8nAction();
+    setBusy("");
+    if (!r.ok) return setResultado({ ok: false, mensagem: r.message });
+    setResultado({ ok: r.data.ok, mensagem: r.data.mensagem });
+    await onChange();
+  };
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(segredo ?? "");
+      toast({ icon: "content_copy", message: "Segredo copiado" });
+    } catch {
+      toast({ icon: "error", message: "Não deu para copiar. Selecione o texto e copie.", error: true });
+    }
+  };
+
+  return (
+    <section aria-label="Ligação com o N8N" className="flex flex-col gap-3 rounded-lg border border-bd bg-sf p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="font-display text-t2 font-bold">WhatsApp do sistema (N8N)</h2>
+        {n8n.estado === "conectado" ? (
+          <StatusChip compact tone="ok" icon="check_circle" label="N8N conectado" />
+        ) : (
+          <StatusChip compact tone="lt" icon="schedule" label="Aguardando conexão" />
+        )}
+      </div>
+      <p className="text-ink2">
+        {n8n.estado === "conectado"
+          ? `Último teste OK em ${n8n.teste?.em ?? ""}${n8n.teste?.versao ? ` · fluxos versão ${n8n.teste.versao}` : ""}. O número do WhatsApp é conectado na Evolution Go (passo a passo em docs/11).`
+          : "WhatsApp do sistema: aguardando conexão. Importe os fluxos no N8N, ative o fluxo 05 e preencha abaixo; depois toque em Testar conexão."}
+      </p>
+
+      <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => { e.preventDefault(); void salvar(); }}>
+        <div className="min-w-[260px] flex-1">
+          <TextField
+            label="Endereço do webhook do fluxo 05 (Teste de conexão)"
+            placeholder="https://seu-n8n.exemplo.com.br/webhook/medcuidar-teste-conexao"
+            value={url}
+            error={erroUrl}
+            onChange={(e) => { setUrl(e.target.value); setErroUrl(""); }}
+          />
+        </div>
+        <Button type="submit" variant="secondary" icon="save" loading={busy === "url"} loadingText="Salvando…">
+          Salvar endereço
+        </Button>
+      </form>
+      <p className="text-cap text-ink2">Use o endereço de <strong>produção</strong> do webhook (sem “webhook-test”), só https e público.</p>
+
+      {segredo ? (
+        <div role="alert" className="flex flex-col gap-2 rounded-lg border-2 border-br bg-brt p-3">
+          <p className="flex items-center gap-2 font-bold">
+            <Icon name="key" size={22} /> Copie agora: este segredo não será mostrado de novo
+          </p>
+          <code className="break-all rounded-md bg-sf p-2 text-body">{segredo}</code>
+          <p className="text-cap">
+            No N8N: <strong>Credenciais › Criar credencial › Header Auth</strong>, nome <strong>MedCuidar Teste de conexão</strong>, “Name” = <code>X-MedCuidar-Token</code> e “Value” = este segredo.
+          </p>
+          <div className="flex gap-3">
+            <Button size="sm" icon="content_copy" onClick={() => void copiar()}>Copiar</Button>
+            <Button size="sm" variant="ghost" onClick={() => setSegredo(null)}>Já copiei</Button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap gap-3">
+        <Button variant="secondary" icon="key" onClick={() => void gerar()} loading={busy === "segredo"} loadingText="Gerando…">
+          {n8n.temSegredo ? "Gerar novo segredo" : "Gerar segredo"}
+        </Button>
+        <Button icon="network_check" onClick={() => void testar()} loading={busy === "teste"} loadingText="Testando…" disabled={!n8n.url || !n8n.temSegredo}>
+          Testar conexão
+        </Button>
+      </div>
+      {!n8n.url || !n8n.temSegredo ? <p className="text-cap text-ink2">Para testar: salve o endereço e gere o segredo.</p> : null}
+      {resultado ? (
+        <p role="status" className={`flex items-start gap-2 rounded-lg border-2 p-3 font-bold ${resultado.ok ? "border-ok bg-ok-bg" : "border-ms-bd bg-ms-bg"}`}>
+          <Icon name={resultado.ok ? "check_circle" : "error"} size={22} />
+          <span>{resultado.mensagem}</span>
+        </p>
+      ) : null}
     </section>
   );
 }

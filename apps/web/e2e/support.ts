@@ -33,7 +33,7 @@ export async function verifyEmail(email: string): Promise<void> {
 }
 
 const ORDER = [
-  "outbound_messages", "conversation_state", "api_keys", "message_log", "notifications", "replenishment_steps", "stock_movements", "replenishments", "prescription_views",
+  "family_integrations", "outbound_messages", "conversation_state", "api_keys", "message_log", "notifications", "replenishment_steps", "stock_movements", "replenishments", "prescription_views",
   "prescription_shares", "prescription_items", "prescription_files", "prescriptions", "dose_events", "stock_items",
   "treatment_phases", "treatments", "care_assignments", "audit_log", "patients", "medications", "first_access_links",
   "invites", "members", "profiles", "idempotency", "families",
