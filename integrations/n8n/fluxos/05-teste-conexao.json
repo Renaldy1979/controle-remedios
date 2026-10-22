@@ -1,0 +1,161 @@
+{
+  "name": "MedCuidar · 05 Teste de conexão",
+  "nodes": [
+    {
+      "id": "0888b598-88a8-42d4-ad44-39379c50286c",
+      "name": "Como funciona",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## 05 · Teste de conexão\nResponde ao botão **Testar conexão** do portal (Configurações › WhatsApp).\nO segredo é conferido pela credencial **MedCuidar Teste de conexão** (Header Auth: nome `X-MedCuidar-Token`, valor = o segredo mostrado pelo portal). O pedido também precisa ser recente (5 min).",
+        "width": 520,
+        "height": 200
+      }
+    },
+    {
+      "id": "a1a00024-c73e-4368-a49e-90f01a1470a1",
+      "name": "Ping do portal",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "a2d07753-7952-47c3-a4a7-6b9f96af66f4",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "medcuidar-teste-conexao",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "medcuidar-teste-conexao",
+          "name": "MedCuidar Teste de conexão"
+        }
+      }
+    },
+    {
+      "id": "a05eba87-79e1-4279-a1ec-2a132eff16a0",
+      "name": "Pedido recente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "86530c96-620a-4382-a319-755f35c88b78",
+              "leftValue": "={{ Math.abs($now.toSeconds() - Number($json.headers['x-medcuidar-timestamp'] || 0)) <= 300 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e805937d-02a7-482f-aa61-aac4e282a3d5",
+      "name": "Responde ok",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        220
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, versao: '1.0.0' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "934444a2-3b79-49da-a88e-e76eb3fa5996",
+      "name": "Recusa",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Ping do portal": {
+      "main": [
+        [
+          {
+            "node": "Pedido recente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedido recente?": {
+      "main": [
+        [
+          {
+            "node": "Responde ok",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recusa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "geradoPor": "integrations/n8n/build.mjs",
+    "versao": "1.0.0"
+  },
+  "tags": [
+    {
+      "name": "medcuidar"
+    }
+  ]
+}

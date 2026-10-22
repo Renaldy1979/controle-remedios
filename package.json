@@ -11,15 +11,15 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
     "lint": "eslint .",
-    "schema:apply": "pnpm --filter @medcuidar/appwrite-scripts apply",
-    "seed": "pnpm --filter @medcuidar/appwrite-scripts seed",
     "db:up": "docker compose -f docker-compose.dev.yml up -d --wait",
     "db:down": "docker compose -f docker-compose.dev.yml down",
     "db:generate": "pnpm --filter @medcuidar/pg generate",
     "db:migrate": "pnpm --filter @medcuidar/pg migrate",
     "db:seed": "pnpm --filter @medcuidar/pg seed",
     "db:reset": "docker compose -f docker-compose.dev.yml down -v && pnpm db:up && pnpm db:migrate && pnpm db:seed",
-    "db:test": "pnpm --filter @medcuidar/pg test"
+    "db:test": "pnpm --filter @medcuidar/pg test",
+    "n8n:build": "pnpm --filter @medcuidar/n8n build",
+    "n8n:validar": "pnpm --filter @medcuidar/n8n validar"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

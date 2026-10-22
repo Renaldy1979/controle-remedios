@@ -1,0 +1,120 @@
+{
+  "_nota": "Formatos CONHECIDOS pela documentação (docs/handoffs/D-para-orquestrador-evolution-go.md). Números e ids fictícios. Quando o fluxo 00-captura trouxer mensagens reais, acrescente aqui as variações que aparecerem.",
+  "texto": {
+    "event": "Message",
+    "instanceId": "00000000-0000-0000-0000-000000000001",
+    "data": {
+      "Info": {
+        "Chat": "5511912345678@s.whatsapp.net", "Sender": "5511912345678@s.whatsapp.net", "SenderAlt": "",
+        "IsFromMe": false, "IsGroup": false, "ID": "3EB0AAA111", "Timestamp": "2026-10-22T12:00:00-03:00", "MediaType": ""
+      },
+      "Message": { "conversation": "tomei" }
+    }
+  },
+  "texto_extendido": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "5511912345678@s.whatsapp.net", "Sender": "5511912345678@s.whatsapp.net", "IsFromMe": false, "IsGroup": false, "ID": "3EB0AAA112", "Timestamp": "2026-10-22T12:00:00-03:00" },
+      "Message": { "extendedTextMessage": { "text": "como está o estoque?" } }
+    }
+  },
+  "texto_com_aparelho": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "5511912345678:12@s.whatsapp.net", "Sender": "5511912345678:12@s.whatsapp.net", "IsFromMe": false, "IsGroup": false, "ID": "3EB0AAA113", "Timestamp": "2026-10-22T12:00:00-03:00" },
+      "Message": { "conversation": "1" }
+    }
+  },
+  "remetente_lid": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "123456789012345@lid", "Sender": "123456789012345@lid", "SenderAlt": "5511912345678@s.whatsapp.net", "IsFromMe": false, "IsGroup": false, "ID": "3EB0AAA114", "Timestamp": "2026-10-22T12:00:00-03:00" },
+      "Message": { "conversation": "ok" }
+    }
+  },
+  "somente_lid": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "123456789012345@lid", "Sender": "123456789012345@lid", "IsFromMe": false, "IsGroup": false, "ID": "3EB0AAA115", "Timestamp": "2026-10-22T12:00:00-03:00" },
+      "Message": { "conversation": "ok" }
+    }
+  },
+  "audio": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "5511912345678@s.whatsapp.net", "Sender": "5511912345678@s.whatsapp.net", "IsFromMe": false, "IsGroup": false, "ID": "3EB0AAA121", "Timestamp": "2026-10-22T12:00:00-03:00", "MediaType": "ptt" },
+      "Message": { "audioMessage": { "mimetype": "audio/ogg; codecs=opus", "seconds": 4, "ptt": true, "mediaKey": "AAAA", "directPath": "/v/t62/x" } }
+    }
+  },
+  "audio_com_base64": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "5511912345678@s.whatsapp.net", "Sender": "5511912345678@s.whatsapp.net", "IsFromMe": false, "IsGroup": false, "ID": "3EB0AAA122", "Timestamp": "2026-10-22T12:00:00-03:00", "MediaType": "ptt" },
+      "Message": { "audioMessage": { "mimetype": "audio/ogg; codecs=opus", "seconds": 4 }, "base64": "T2dnUwACAAAAAAAAAAA=" }
+    }
+  },
+  "botao": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "5511912345678@s.whatsapp.net", "Sender": "5511912345678@s.whatsapp.net", "IsFromMe": false, "IsGroup": false, "ID": "3EB0AAA131", "Timestamp": "2026-10-22T12:00:00-03:00" },
+      "Message": { "buttonsResponseMessage": { "selectedButtonID": "tomei", "selectedDisplayText": "Tomei" } }
+    }
+  },
+  "botao_id_minusculo": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "5511912345678@s.whatsapp.net", "Sender": "5511912345678@s.whatsapp.net", "IsFromMe": false, "IsGroup": false, "ID": "3EB0AAA132", "Timestamp": "2026-10-22T12:00:00-03:00" },
+      "Message": { "buttonsResponseMessage": { "selectedButtonId": "outra-coisa", "selectedDisplayText": "Qualquer" } }
+    }
+  },
+  "lista": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "5511912345678@s.whatsapp.net", "Sender": "5511912345678@s.whatsapp.net", "IsFromMe": false, "IsGroup": false, "ID": "3EB0AAA133", "Timestamp": "2026-10-22T12:00:00-03:00" },
+      "Message": { "listResponseMessage": { "title": "Losartana 50 mg", "singleSelectReply": { "selectedRowID": "2" } } }
+    }
+  },
+  "imagem": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "5511912345678@s.whatsapp.net", "Sender": "5511912345678@s.whatsapp.net", "IsFromMe": false, "IsGroup": false, "ID": "3EB0AAA141", "Timestamp": "2026-10-22T12:00:00-03:00", "MediaType": "image" },
+      "Message": { "imageMessage": { "mimetype": "image/jpeg", "caption": "receita nova" } }
+    }
+  },
+  "grupo": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "120363000000000000@g.us", "Sender": "5511912345678@s.whatsapp.net", "IsFromMe": false, "IsGroup": true, "ID": "3EB0AAA151", "Timestamp": "2026-10-22T12:00:00-03:00" },
+      "Message": { "conversation": "tomei" }
+    }
+  },
+  "from_me": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "5511912345678@s.whatsapp.net", "Sender": "5511900000000@s.whatsapp.net", "IsFromMe": true, "IsGroup": false, "ID": "3EB0AAA161", "Timestamp": "2026-10-22T12:00:00-03:00" },
+      "Message": { "conversation": "Olá! Lembrete da dose" }
+    }
+  },
+  "status": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "status@broadcast", "Sender": "5511912345678@s.whatsapp.net", "IsFromMe": false, "IsGroup": false, "ID": "3EB0AAA171", "Timestamp": "2026-10-22T12:00:00-03:00" },
+      "Message": { "imageMessage": { "mimetype": "image/jpeg" } }
+    }
+  },
+  "recibo": {
+    "event": "Receipt",
+    "data": { "Chat": "5511912345678@s.whatsapp.net", "Sender": "5511912345678@s.whatsapp.net", "MessageIDs": ["3EB0AAA161"], "Type": "read" }
+  },
+  "presenca": { "event": "Presence", "data": { "From": "5511912345678@s.whatsapp.net", "Unavailable": false } },
+  "conectado": { "event": "Connected", "data": {} },
+  "tipo_nao_suportado": {
+    "event": "Message",
+    "data": {
+      "Info": { "Chat": "5511912345678@s.whatsapp.net", "Sender": "5511912345678@s.whatsapp.net", "IsFromMe": false, "IsGroup": false, "ID": "3EB0AAA181", "Timestamp": "2026-10-22T12:00:00-03:00" },
+      "Message": { "stickerMessage": { "mimetype": "image/webp" } }
+    }
+  },
+  "resposta_envio_doc": { "messageId": "3EB0BBB001", "status": "success" },
+  "resposta_envio_exemplo": { "data": { "Info": { "ID": "3EB0BBB002" } }, "message": "success" }
+}
