@@ -1,4 +1,4 @@
-# MedCuidar — guia para qualquer agente Claude
+﻿# MedCuidar — guia para qualquer agente Claude
 
 Sistema multifamília para controlar remédios de idosos: lembretes e confirmação de doses pelo WhatsApp, estoque com previsão de término, receitas com histórico e fluxo de reposição. Primeiro uso real: os sogros do dono (Adelino e Maria; Maria tem Alzheimer e não usa celular).
 
@@ -13,8 +13,8 @@ Sistema multifamília para controlar remédios de idosos: lembretes e confirmaç
 Se um documento e o código divergirem, **pare e avise** em vez de decidir sozinho. Mudanças de contrato (dados, tipos, API) são feitas no documento primeiro.
 
 ## Stack
-Next.js (App Router) + TypeScript + Tailwind · **Postgres + Drizzle** (dados, RLS por família) · **Appwrite só para Auth (e-mail/senha) e bucket de receitas/anexos** · API pública `/api/v1` no Next.js · N8N (um fluxo por gatilho; regras ficam na API) · Evolution Go (WhatsApp; trocar pela API oficial da Meta = trocar o nó de envio no N8N) · EasyPanel numa VPS. Testes: Vitest; e2e: Playwright.
-Padrão de referência: projeto `controle-financeiro` do dono (`withFamilia`, `rota()`, chaves cdf_/cpl_, Idempotency-Key, OpenAPI).
+Next.js (App Router) + TypeScript + Tailwind · **Postgres + Drizzle** (dados, RLS por família) · **Appwrite só para Auth (e-mail/senha) e bucket de receitas/anexos** · API pública `/api/v1` no Next.js · **WhatsApp direto no portal, sem N8N** (webhook + fila no Postgres + worker; núcleo da conversa em código; Claude via Messages API só para perguntas livres, com ferramentas de leitura; Gemini para áudio/imagem) · Evolution Go (provedor atrás de interface; trocável pela API oficial da Meta) · EasyPanel numa VPS. Testes: Vitest; e2e: Playwright.
+Padrão de referência: projeto `controle-financeiro` do dono (`withFamilia`, `rota()`, chaves cdf_, Idempotency-Key, OpenAPI; lote AG1 = conversa do agente dentro do app, sem N8N).
 
 ## Regras inegociáveis
 - **Multifamília desde o início.** Todo registro tem `family_id`; todo acesso a dados passa por `withFamilia` e o **RLS do Postgres** isola as famílias. Nunca vazar dado entre famílias.
@@ -23,7 +23,7 @@ Padrão de referência: projeto `controle-financeiro` do dono (`withFamilia`, `r
 - **Estoque é livro-razão.** Saldo = soma de `stock_movements`. Nunca só decrementar um contador. Ajuste manual vira movimento do tipo `adjustment`.
 - **Fuso:** `America/Sao_Paulo`. Guardar UTC, exibir local. Horário 24h, datas dd/mm/aaaa.
 - **Idempotência:** confirmação de dose e webhooks do WhatsApp podem chegar repetidos; a mesma mensagem nunca desconta duas vezes.
-- **A API devolve a mensagem pronta; o N8N só roteia e envia.** Nenhuma regra de negócio mora nos fluxos do N8N nem conhece a Evolution diretamente.
+- **Provedor de WhatsApp atrás de interface.** Nada de Evolution/Meta fora do módulo do provedor. O agente de IA só lê (ferramentas em processo dentro de `withFamilia`, com as permissões do membro); confirmar dose, desfazer e qualquer escrita nunca passam pelo modelo.
 - **Acessibilidade:** alvos de toque ≥ 44px, contraste AA+, estado nunca só por cor, texto base ≥ 16px.
 - **Interface em pt-BR.** Código e nomes técnicos em inglês.
 - Estoque de colírio é **estimativa** (gotas por ml configurável); a UI sempre sinaliza isso.
@@ -32,7 +32,7 @@ Padrão de referência: projeto `controle-financeiro` do dono (`withFamilia`, `r
 - Cada lote termina com algo **testável pelo dono** em staging, com roteiro em `docs/lotes/L<n>-roteiro.md`. O lote só está pronto com testes verdes, conferência do orquestrador **e validação do dono** registrada em `docs/lotes/L<n>-validacao.md`. Não comece o lote seguinte sem o "validado".
 
 ## Convenções
-- Monorepo: `apps/web` (portal + API `/api/v1`), `packages/domain`, `packages/shared`, `packages/pg` (`@medcuidar/pg`: Postgres + Drizzle + RLS), `integrations/n8n` (fluxos gerados por `pnpm n8n:build`, lib testada, `pnpm n8n:validar`), `docs`, `design`. O legado do escopo v1 (`apps/functions`, `packages/channels`, `packages/db`, `scripts/appwrite`) foi removido no Lote 4B (`docs/handoffs/L4B-limpeza.md`).
+- Monorepo: `apps/web` (portal + API `/api/v1`), `packages/domain`, `packages/shared`, `packages/pg` (`@medcuidar/pg`: Postgres + Drizzle + RLS), `docs`, `design`. O legado do escopo v1 (`apps/functions`, `packages/channels`, `packages/db`, `scripts/appwrite`) foi removido no Lote 4B (`docs/handoffs/L4B-limpeza.md`).
 - Cada agente só edita as pastas que o plano lhe atribui. Mudou fora da sua pasta? Abra uma nota em `docs/handoffs/` em vez de editar.
 - Commits pequenos e em português, formato `tipo(escopo): descrição`.
 - Nenhuma tarefa termina sem testes do que mudou e sem atualizar o doc afetado.

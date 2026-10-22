@@ -59,13 +59,11 @@ Primeira metade do WhatsApp, **testável sem número real**: o dono usa um **sim
 
 **Roteiro (no staging, com o simulador):** 1) cadastrar o seu número e ver "pendente"; 2) enviar o código no simulador e ver "verificado"; 3) usuário sem número verificado: o simulador não é atendido; 4) "tomei" confirma a dose e baixa o estoque; 5) "estoque" e "próximas doses"; 6) ver a fila de lembretes que o sistema gera para a dose e para o estoque baixo; 7) convidar uma pessoa por código de WhatsApp e concluir o primeiro acesso; 8) criar e revogar uma chave de API.
 
-## Lote 4B — N8N e WhatsApp real (Evolution Go)
-- Fluxos do N8N, **um por gatilho** (conversa, lembrete de dose, estoque baixo, resumo diário, teste de conexão), importáveis no seu N8N, com credenciais por nome.
-- Conversa híbrida: confirmar dose sem IA; perguntas livres com **agente de IA** que só usa ferramentas da API (sem parâmetro de telefone).
-- Número de teste, depois o número do sistema; botão "Testar conexão" no portal.
-
-**Roteiro:** validar o seu número pelo WhatsApp real, receber o lembrete, responder "tomei" e ver o estoque baixar, receber o aviso de estoque, perguntar "como está o estoque?", entrar por convite de WhatsApp.
-**Precisa do dono (só no 4B):** número de WhatsApp do sistema, URL e credenciais do Evolution Go e do N8N (fora do chat).
+## Lote 4B — WhatsApp direto no portal, sem N8N (revisado em 22/10/2026)
+O dono trocou o N8N por código no portal (`docs/06` seção 5). Entrega: webhook da Evolution Go na rota do portal, **fila no Postgres e worker**, núcleo da conversa (o do 4A, agora alimentado pelo WhatsApp real), **agente Claude só de leitura** para perguntas livres, áudio e imagem via Gemini, **lembretes agendados** (dose, esquecida, estoque, receita, reposição, resumo) pelo mesmo worker, anti-bloqueio (presença "digitando…", pausas, teto de ritmo, PARAR/REATIVAR), observabilidade e alerta de desconexão, e a limpeza do que era do N8N (fluxos, validador, teste de conexão, chave `cpl_` no portal).
+- **Parte A, sem número:** tudo funciona no **simulador** (mesma conversa, agora passando pela fila e pelo worker), com o Claude de verdade nas perguntas livres e o modelo simulado nos testes automáticos.
+- **Parte B, com número real:** o dono conecta o chip dedicado por QR Code, valida o próprio número pelo WhatsApp, recebe o lembrete, responde "tomei", pergunta "como está o estoque?" (texto e áudio), vê um número não verificado ser ignorado, convida por código de WhatsApp e confere o alerta de desconexão.
+**Precisa do dono (fora do chat):** variáveis no EasyPanel (`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, base/chave/instância da Evolution Go, segredo do caminho do webhook) e o número de WhatsApp do sistema.
 ## Lote 5 — Qualidade, segurança e piloto
 **Você testa:** o uso real com a família por duas semanas.
 - Revisão de segurança e LGPD (RLS, chaves, logs sem dados pessoais, URLs assinadas), acessibilidade, e2e, backup e restauração testados.

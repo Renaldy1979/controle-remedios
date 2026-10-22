@@ -1,4 +1,4 @@
-# 06 — Escopo v2 (fonte da verdade)
+﻿# 06 — Escopo v2 (fonte da verdade)
 
 Reescopo definido pelo dono em 19/10/2026. **Onde este documento conflitar com `docs/01` a `docs/05`, vale este.** Os demais continuam válidos no que não for contrariado aqui (requisitos de doses, estoque, receitas, reposição, permissões e design).
 
@@ -32,11 +32,13 @@ Referência de padrão: o projeto `controle-financeiro` do dono (Next.js + Postg
 - A identidade no WhatsApp vem **sempre do remetente real** (nunca de parâmetro escolhido por IA). Ignorar mensagens `fromMe`, status e grupos (exceto avisos configurados para um grupo da família, se for ativado).
 
 ## 4. Arquitetura
+> **Decisão do dono (22/10/2026): SEM N8N.** O WhatsApp roda direto no portal, com o Claude chamado por código (API da Anthropic, *tool use*). Motivos: importação manual de fluxos, ids de credencial que quebram, fluxos grandes sem testes e uma peça a mais para operar. Padrão: lote AG1 do projeto `controle-financeiro` (somente leitura).
+
 ```
-Portal Next.js ──► API /api/v1 (regras: @medcuidar/domain) ──► Postgres (Drizzle, RLS por família)
-      │                    ▲                                        
-      └─► Appwrite (Auth + bucket)                                  
-WhatsApp ◄► Evolution Go ◄► N8N (um fluxo por gatilho) ──► chama a API (ferramentas)
+Portal Next.js ──► serviços (regras: @medcuidar/domain) ──► Postgres (Drizzle, RLS por família)
+   │  ▲  rota do webhook ─► fila (Postgres) ─► worker ─► núcleo da conversa ─► provedor (Evolution Go | Meta)
+   │  └─ API /api/v1 (mesmos serviços; chaves cdf_; integrações futuras)
+   └─► Appwrite (Auth + bucket)        Claude (Messages API, só leitura) · Gemini (áudio/imagem → texto)
 ```
 - **Banco: Postgres + Drizzle**, com migrações versionadas. Todo acesso a dados de negócio passa por `withFamilia(familiaId, tx => ...)`, que define `app.familia_id` na transação; o **RLS** do Postgres impede ler outra família mesmo em caso de bug. Transações reais substituem as soluções de idempotência por índice único do Appwrite (índices únicos continuam, como defesa).
 - **API `/api/v1`** (Next.js route handlers), com:
@@ -44,20 +46,18 @@ WhatsApp ◄► Evolution Go ◄► N8N (um fluxo por gatilho) ──► chama a
   - identificação por `X-Telefone` (só dígitos, DDI+DDD+número); telefone não verificado/desconhecido → resposta genérica;
   - `Idempotency-Key` (24 h) com resposta guardada e lock consultivo, derivada do id da mensagem do WhatsApp;
   - erros no formato `{ "erro": { "codigo", "mensagem", "detalhes?" } }`, OpenAPI em `/api/v1/openapi.json`, auditoria das chamadas da plataforma.
-- **A API devolve mensagens prontas** (texto e opções numeradas). O N8N só roteia e envia; **trocar Evolution Go pela API oficial da Meta é trocar o nó de envio** no N8N. Não há adaptador de canal no código.
+- **Provedor de WhatsApp atrás de uma interface** no portal (`parseWebhook`, `enviarTexto`, `presença`, `status da instância`, extração de mídia): hoje Evolution Go, amanhã a API oficial da Meta. Nada de Evolution fora da implementação do provedor. As mensagens (texto e opções numeradas) são geradas pelo núcleo da conversa.
+- A chave de plataforma `cpl_` e a URL do webhook do N8N **deixam de ser necessárias** (a `cdf_` e a API `/api/v1` ficam para integrações futuras).
 - **Dados de saúde:** sem dados pessoais em logs; arquivos de receita só com URL assinada de curta duração; auditoria de visualização, compartilhamento e exclusão.
 
-## 5. Fluxos do N8N (um por gatilho; sem regra de negócio nos fluxos)
-| Fluxo | Gatilho | O que faz |
-|---|---|---|
-| `01-conversa` | Webhook da Evolution Go (mensagem recebida) | Filtra (fromMe/grupo/status), normaliza telefone; **caminho rápido sem IA** para código de verificação, "tomei"/1/2/✅/áudio transcrito → API; **perguntas livres** → agente de IA com ferramentas HTTP da API; envia a resposta |
-| `02-lembrete-dose` | Agenda de 1 min | `GET /lembretes/pendentes` (a API decide quem, quando e o texto, e marca como enviado de forma idempotente) → envia |
-| `03-estoque-baixo` | Agenda (ex.: a cada 30 min) | `GET /avisos/estoque` → envia a quem tem permissão e WhatsApp verificado; os demais veem o aviso no portal |
-| `04-resumo-diario` | Agenda (20:00 por padrão) | `GET /avisos/resumo` → envia |
-| `05-teste-conexao` | Webhook | Responde `{ ok, versao }` ao ping do portal (URL validada, HMAC) |
-- **Conversa híbrida:** confirmar dose nunca passa pela IA. A IA só responde consultas (estoque, próximas doses) e nunca recebe parâmetro de telefone. Ações destrutivas exigem confirmação na conversa.
-- Credenciais só no N8N. Mídia: áudio transcrito (Gemini) antes de interpretar.
-
+## 5. WhatsApp direto no portal (sem N8N)
+**Entrada:** rota `POST /api/whatsapp/evolution/[segredo]` (segredo no caminho, comparado em tempo constante; pública só para ela): valida o payload, ignora `fromMe`, grupos e eventos que não são mensagem, **deduplica pelo id da mensagem**, grava na **fila do Postgres** e responde 200 na hora.
+**Worker** (iniciado no servidor Next, seguro com reinício): pega itens com `FOR UPDATE SKIP LOCKED`, **uma conversa por telefone por vez e em ordem**, com trava que expira, retentativa com recuo e limite de tentativas; nunca responde duas vezes à mesma mensagem.
+**Núcleo da conversa (em código, testado):** identifica o membro pelo telefone **verificado** (senão, resposta genérica); código de verificação; **confirmar dose, desfazer, lembrar de novo, "eu cuido disso", estoque e próximas doses sem IA**; PARAR/REATIVAR (sem modelo); áudio e imagem → texto pelo Gemini (o Claude só recebe texto); ambiguidade → opções numeradas, nunca adivinha.
+**Agente de IA (Claude, Messages API com *tool use* e prompt caching):** só para perguntas livres, com ferramentas **somente de leitura** chamadas **em processo**, dentro de `withFamilia`, com as permissões do membro identificado; o telefone **nunca** é parâmetro de ferramenta; **nenhuma ferramenta escreve**; confirmar dose nunca passa pelo modelo; erro do modelo vira mensagem amigável sem detalhe; custo de IA registrado por família com limite configurável.
+**Saída e lembretes (o mesmo worker, no lugar das agendas do N8N):** lembrete de dose, dose esquecida, estoque baixo, receita vencendo, reposição e resumo diário. O agendador decide quem/quando/texto, grava na fila de saída com `dedupe_key` e envia pelo provedor com **presença "digitando…" e pausa aleatória** antes de cada resposta, teto de ritmo e escalonamento anti-bloqueio. Falha de envio vai para retentativa sem duplicar. Só número **verificado** recebe.
+**Observabilidade:** logs sem conteúdo de mensagem nem dado de saúde (id, etapa, duração, tokens, erro); fila pendente/com erro e estado da instância visíveis em Configurações › WhatsApp; alerta ao administrador quando a instância desconecta ou os envios falham em sequência.
+**Segredos só em variáveis de ambiente:** `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, base/chave/instância da Evolution Go e o segredo do caminho do webhook. Nunca no chat, no código ou em logs.
 ## 6. API v1 — escopo inicial
 `/doses` (listar próximas/do dia, confirmar, desfazer, registrar depois), `/estoque` (visão, compra, ajuste), `/reposicoes` (listar, assumir, avançar), `/receitas` (listar, anexar, compartilhar, URL assinada), `/pacientes`, `/remedios`, `/esquemas`, `/membros`, `/perfis`, `/lembretes/pendentes`, `/avisos/estoque`, `/avisos/resumo`, `/telefone/verificar` (rota "pré-membro": código enviado pelo remetente), `/openapi.json`, `/sistema/*` (rotas de plataforma). Todas aplicam as permissões do ator.
 
@@ -72,18 +72,18 @@ WhatsApp ◄► Evolution Go ◄► N8N (um fluxo por gatilho) ──► chama a
 | `packages/db` (FamilyScopedDb/Appwrite), `scripts/appwrite` | **Substituídos** por Postgres + Drizzle + RLS. O Appwrite fica só com Auth e bucket |
 | `apps/functions` (agendador, fila, webhook, login por código) | **Substituído** por rotas da API e fluxos do N8N; reaproveitar testes e regras |
 | `packages/channels` | **Sai**; o texto das mensagens passa a ser gerado pela API; o envio é do N8N |
-| `integrations/n8n` | Reescrito conforme a seção 5 |
+| `integrations/n8n` | **Removido** (decisão de 22/10: sem N8N). A normalização do payload da Evolution Go e as regras de mensagem viram o módulo do provedor e o núcleo da conversa no portal (seção 5) |
 
 ## 8. Fases
 - **R1 — Fundação v2:** Postgres (Docker local) + Drizzle + migrações + RLS + `withFamilia`; schema completo; seed demo; testes de isolamento (um banco, duas famílias, tentativas de cruzar dados).
 - **R2 — API v1:** chaves, identificação por telefone, idempotência, OpenAPI, erros; rotas de doses/estoque/reposição/receitas sobre o domínio; testes.
 - **R3 — Portal:** login Appwrite (e-mail/senha, convite, redefinição), validação do WhatsApp, camada de dados trocada para a API/Postgres, notificações no portal, bucket de receitas.
-- **R4 — N8N + WhatsApp:** fluxos 01–05 importáveis, simulador local, roteiro com número de teste.
+- **R4 — WhatsApp direto no portal (sem N8N):** webhook, fila, worker, núcleo da conversa, agente Claude só de leitura, lembretes agendados, simulador, roteiro com número de teste.
 - **R5 — Qualidade e segurança:** RLS, LGPD, e2e, acessibilidade.
-- **R6 — Piloto:** deploy no EasyPanel (portal, Postgres, N8N já existente), família real, 2 semanas com conferência.
+- **R6 — Piloto:** deploy no EasyPanel (portal, Postgres, Evolution Go já existente), família real, 2 semanas com conferência.
 
 ## 9. Decisões do dono registradas
-Login e-mail/senha (Appwrite); validação do número depois do login, com o dono enviando o código ao sistema; sem WhatsApp verificado = sem mensagens; conversa **híbrida**; Postgres + Drizzle no EasyPanel; um fluxo N8N por gatilho com ferramentas na API; reaproveitar o que serve.
+Login e-mail/senha (Appwrite); validação do número depois do login, com o dono enviando o código ao sistema; sem WhatsApp verificado = sem mensagens; conversa **híbrida**; Postgres + Drizzle no EasyPanel; reaproveitar o que serve. **Revisão de 22/10/2026: sem N8N** — WhatsApp direto no portal (webhook + fila + worker), conversa em código e agente Claude (só leitura) por *tool use*, como no lote AG1 do projeto financeiro; escolhido por simplicidade operacional e testabilidade.
 
 ## 10. Pendências
 - Criar o Postgres de produção no EasyPanel (quando chegar o piloto).
