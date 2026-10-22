@@ -183,7 +183,16 @@ describe.skipIf(!up)("Lote 4B — WhatsApp direto no portal", () => {
     await admin`delete from whatsapp_inbound`;
     await admin`delete from whatsapp_runtime`;
     await admin.unsafe("delete from audit_log where family_id = any($1::uuid[])", [criadas]);
-    await limparFamilias(admin, criadas);
+    // outra suíte (4A) percorre TODAS as famílias em paralelo e pode abrir uma reposição no meio da limpeza: tenta de novo
+    for (let i = 0; i < 4; i++) {
+      try {
+        await limparFamilias(admin, criadas);
+        break;
+      } catch (e) {
+        if (i === 3) throw e;
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    }
     await admin`delete from phone_lockouts where phone like '5599%'`;
     await encerrar(admin);
   });

@@ -33,7 +33,8 @@ export async function conversarNoSimulador(telefone: string, entrada: { texto?: 
   };
   await enfileirar(m);
   const fake = criarFake();
-  const deps = { provedor: fake, ritmo: criarRitmo({ relogio: relogioRapido(), maxPorMinuto: 1000, maxPorHora: 10000 }), nucleo: nucleoDoAmbiente() };
+  // +5 s: o carimbo `next_attempt_at` vem do relógio do banco, que pode estar milissegundos à frente deste processo
+  const deps = { agora: () => new Date(Date.now() + 5000), provedor: fake, ritmo: criarRitmo({ relogio: relogioRapido(), maxPorMinuto: 1000, maxPorHora: 10000 }), nucleo: nucleoDoAmbiente() };
   // o item pode precisar de mais de uma rodada se falhar e tentar de novo; aqui basta uma, e uma segunda cobre o caso de a primeira já ter concluído
   await rodarUmaVez(deps, { somenteMsgId: msgId });
   const estado = await withPlataforma(async (tx) => (await tx.select({ st: s.whatsappInbound.status, erro: s.whatsappInbound.errorSummary }).from(s.whatsappInbound).where(eq(s.whatsappInbound.msgId, msgId)))[0]);
