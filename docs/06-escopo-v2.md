@@ -47,7 +47,7 @@ Portal Next.js ──► serviços (regras: @medcuidar/domain) ──► Postgre
   - `Idempotency-Key` (24 h) com resposta guardada e lock consultivo, derivada do id da mensagem do WhatsApp;
   - erros no formato `{ "erro": { "codigo", "mensagem", "detalhes?" } }`, OpenAPI em `/api/v1/openapi.json`, auditoria das chamadas da plataforma.
 - **Provedor de WhatsApp atrás de uma interface** no portal (`parseWebhook`, `enviarTexto`, `presença`, `status da instância`, extração de mídia): hoje Evolution Go, amanhã a API oficial da Meta. Nada de Evolution fora da implementação do provedor. As mensagens (texto e opções numeradas) são geradas pelo núcleo da conversa.
-- A chave de plataforma `cpl_` e a URL do webhook do N8N **deixam de ser necessárias** (a `cdf_` e a API `/api/v1` ficam para integrações futuras).
+- A chave de plataforma `cpl_` e a URL do webhook do N8N **deixaram de existir no portal** (Lote 4B); a `cdf_` e a API `/api/v1` ficam para integrações futuras. Detalhes de operação: `docs/11-whatsapp-direto.md`.
 - **Dados de saúde:** sem dados pessoais em logs; arquivos de receita só com URL assinada de curta duração; auditoria de visualização, compartilhamento e exclusão.
 
 ## 5. WhatsApp direto no portal (sem N8N)
@@ -87,5 +87,5 @@ Login e-mail/senha (Appwrite); validação do número depois do login, com o don
 
 ## 10. Pendências
 - Criar o Postgres de produção no EasyPanel (quando chegar o piloto).
-- Número de WhatsApp para o sistema (ainda não existe).
+- Número de WhatsApp para o sistema (ainda não existe): a Parte B do `docs/lotes/L4B-roteiro.md` só roda depois dele.
 - Trocar a chave de API do Appwrite colada no chat e apagar a família demo do Appwrite antes do piloto.

@@ -2,18 +2,18 @@
 
 Implementa as seções 3, 4, 5 e 6 do `docs/06-escopo-v2.md`. Código: `apps/web/src/server/api` (núcleo, handlers, registro das rotas), `apps/web/src/server/wa` (conversa, fila de saída, verificação do número) e `apps/web/src/app/api/v1/**` (arquivos de rota, finos). O contrato legível por máquina é `GET /api/v1/openapi.json` (gerado de `registry.ts`; um teste confere que bate com as rotas reais).
 
-**Princípio:** a API devolve a **mensagem pronta** e decide **quem, quando e o quê**; o N8N (Lote 4B) só roteia e envia. Nenhuma regra mora no N8N e nada conhece a Evolution Go. As rotas aplicam as **permissões do ator** chamando os **mesmos serviços do portal** (`server/pg/*`); a regra nunca é duplicada.
+**Princípio:** a API devolve a **mensagem pronta** e decide **quem, quando e o quê**. Desde o Lote 4B **não existe N8N**: o worker do portal (`docs/11-whatsapp-direto.md`) chama o núcleo da conversa e a fila de saída **em processo**, sem HTTP para si mesmo; as rotas `/api/v1` continuam para integrações futuras (chaves `cdf_`) e para o simulador. Nada fora do módulo do provedor conhece a Evolution Go. As rotas aplicam as **permissões do ator** chamando os **mesmos serviços do portal** (`server/pg/*`); a regra nunca é duplicada.
 
 ## 1. Autenticação e identidade
 
 | Cabeçalho | Quando | O que é |
 |---|---|---|
 | `Authorization: Bearer cdf_…` | rotas de usuário e da fila | chave **da família** (criada pelo Administrador em Configurações › WhatsApp). Só enxerga a própria família |
-| `Authorization: Bearer cpl_…` | tudo, e é o **único** que vale em `/conversa/mensagem` e `/telefone/verificar` | chave **da plataforma** (N8N), escopo `conversa`. Vale para todas as famílias |
+| `Authorization: Bearer cpl_…` | tudo, e é o **único** que vale em `/conversa/mensagem` e `/telefone/verificar` | chave **da plataforma**, escopo `conversa` (**o portal não cria mais essa chave**; o worker não usa HTTP). Vale para todas as famílias |
 | `X-Telefone: 5511912345678` | rotas de usuário e de conversa | **remetente real**, só dígitos, DDI+DDD+número. Nunca parâmetro escolhido por IA |
 | `Idempotency-Key` | `POST` | repetir a mesma chave devolve a resposta guardada (24 h, cabeçalho `Idempotent-Replay: true`). Mesma chave com outro corpo = `422 idempotencia_conflito` |
 
-- As chaves são guardadas **só como sha256** (`api_keys.key_hash`, `platform_api_keys.key_hash`, índice único); a busca é por hash e a chave em claro **nunca** é comparada, gravada ou logada. Aparece **uma vez**, ao criar; revogar tem efeito imediato (`401`). A chave `cdf_` é criada em Configurações › WhatsApp. A `cpl_` só é criada pelo portal se `PLATFORM_KEYS_FROM_PORTAL=1` (padrão desligado; veja `docs/09`, seção 12).
+- As chaves são guardadas **só como sha256** (`api_keys.key_hash`, `platform_api_keys.key_hash`, índice único); a busca é por hash e a chave em claro **nunca** é comparada, gravada ou logada. Aparece **uma vez**, ao criar; revogar tem efeito imediato (`401`). A chave `cdf_` é criada em Configurações › WhatsApp. A `cpl_` **não é mais criada pelo portal** (era do N8N, removido no Lote 4B).
 - **Só número VERIFICADO e membro ativo é atendido.** Telefone desconhecido, só "pendente", de pessoa desativada, sem acesso (`invited`) ou, com chave de família, **de outra família** → sempre o mesmo `404 nao_encontrado` ("Telefone não encontrado, não verificado ou sem acesso."), sem revelar nada.
 - **Estados de acesso** (docs/06 seção 2): `active` = tudo o que o perfil permite; `whatsapp_verified` = só dar o check (`doses.confirm`), ver próxima dose (`dashboard.view`), consultar estoque (`stock.view`) e `whatsapp.query` — **mesmo que o perfil seja Administrador** (o nome do perfil é rebatizado para não liberar tudo em `can()`); receitas, compartilhamento, reposição e administração exigem `active` (`403 sem_permissao`).
 - **Limite de requisições:** 60 por minuto por telefone (`429 limite_excedido`, `Retry-After`); 600 por minuto por chave nas rotas da fila. Contagem por processo (uma instância do portal).
@@ -72,7 +72,7 @@ Corpo: `{ "messageId": "<id da mensagem do WhatsApp>", "texto": "tomei" }` (ou `
 - **Idempotente por `messageId`** em duas camadas: a resposta fica guardada em `idempotency` (`msg:<messageId>`; reenvio devolve a mesma resposta) e o registro em `message_log` + `dose_events.source_message_id` impedem uma segunda baixa. A mesma mensagem nunca desconta duas vezes.
 - **Sem IA.** Interpretação determinística (`wa/interpret.ts`, regras do escopo anterior): código de verificação/convite (`123456`, `CÓDIGO 123456`), confirmar dose (`tomei`, `ok`, `✅`, `👍`, `1`), `2`/"lembrar de novo", "eu cuido disso", "estoque", "próximas doses", "link de acesso", "ajuda".
 - **Ambiguidade nunca é adivinhada.** Várias doses abertas → lista numerada ("Qual dose você tomou?") e só a resposta seguinte confirma. `1`/`2` sem pergunta recente não fazem nada. O contexto das opções fica em `conversation_state` (uma linha por pessoa; lembretes enviados, avisos de estoque e a lista em aberto; expira em 6 h, a lista em 30 min).
-- **`intent: "livre"` e `respostas: []`** quando nada casa: é o sinal para o fluxo do N8N (4B) chamar o agente de IA. Confirmar dose **nunca** passa por IA.
+- **`intent: "livre"` e `respostas: []`** quando nada casa: é o sinal para o núcleo (`wa/nucleo.ts`) chamar o agente de IA (Lote 4B; só leitura). Confirmar dose **nunca** passa por IA.
 - **Remetente sem acesso:** só aceita códigos. Código de verificação do número (`verify_pending_phone`: 15 min, hash sha256, 5 tentativas, bloqueio de 15 min) e código de convite (`consume_whatsapp_invite`: preso ao número esperado, uso único, 24 h). Resposta de convite aceito inclui o **link de primeiro acesso** (`/primeiro-acesso?t=`, uso único, 24 h). Qualquer outra coisa: a resposta genérica.
 - `intent` possíveis: `codigo`, `opcao`, `dose_tomada`, `nao_tomou`, `lembrar_depois`, `eu_cuido`, `estoque`, `proximas_doses`, `dose_status`, `link_acesso`, `ajuda`, `livre`, `repetida`, `desconhecido`, `codigo_invalido`, `numero_verificado`, `convite_aceito`, `sem_permissao`.
 
@@ -80,7 +80,7 @@ Corpo: `{ "messageId": "<id da mensagem do WhatsApp>", "texto": "tomei" }` (ou `
 
 Textos em `wa/texts.ts` (pt-BR, curtos, sempre com o nome do paciente, uma ação por mensagem). Opções numeradas são o padrão (`*1* — Tomei`); com `SUPPORTS_BUTTONS=true` o texto vai sem as linhas numeradas e `opcoes` traz os rótulos para o N8N desenhar botões.
 
-Tabela `outbound_messages` (RLS por família, `UNIQUE (family_id, dedupe_key)`): a API **gera** as linhas (uma por destinatário com número verificado) e o N8N **reivindica** e **confirma**.
+Tabela `outbound_messages` (RLS por família, `UNIQUE (family_id, dedupe_key)`): o código **gera** as linhas (uma por destinatário com número verificado) e o agendador do worker **reivindica**, **marca como enviada antes de enviar** e envia pelo provedor.
 
 | Tipo | Quando entra | Quem recebe | Chave de dedupe |
 |---|---|---|---|

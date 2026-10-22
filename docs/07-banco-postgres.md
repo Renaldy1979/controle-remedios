@@ -56,10 +56,11 @@ Chaves `uuid` (`gen_random_uuid()`), datas `timestamptz` (UTC), `date` para data
 | `audit_log` | `actor_member_id`, `action`, `entity`, `entity_id`, `meta` |
 | `api_keys` | chaves `cdf_` por família; só `key_hash` (sha256, único), `scopes`, `last_used_at`, `revoked_at` |
 | `idempotency` | **único `(family_id, key)`**; `request_hash`, `status` (nulo = em andamento), `response` jsonb, `created_at` (a API expira em 24 h) |
-| `platform_api_keys` | chaves `cpl_` da plataforma (N8N), sem família |
+| `platform_api_keys` | chaves `cpl_` da plataforma, sem família. **Sem uso no portal desde o Lote 4B** (o N8N saiu; a API ainda aceita `cpl_` para integrações futuras, mas o portal não cria mais essa chave). Tabela mantida, sem dados novos |
 | `platform_audit_log` | auditoria das chamadas da plataforma (telefone mascarado) |
 | `phone_lockouts` | tentativas por telefone na verificação; sem política (só a função mexe) |
-| `outbound_messages`, `conversation_state` | fila de saída do WhatsApp e contexto da conversa (migração 0006, seção 6.3) |
+| `outbound_messages`, `conversation_state` | fila de saída do WhatsApp e contexto da conversa (migração 0006, seção 6.3). A saída ganhou `send_attempts`, `failed_at` e `error_summary` na 0008 |
+| `whatsapp_inbound`, `whatsapp_runtime`, `ai_usage`, `agent_sessions` | WhatsApp direto no portal (migração 0008, seção 6.4) |
 
 Integridade entre famílias: as FKs são simples (não compostas). O RLS impede escrever `family_id` alheio; um id de outra família numa FK exigiria conhecê-lo e a API valida o escopo do recurso. Se isso virar risco, passar a FKs compostas `(family_id, id)` numa migração.
 
@@ -67,7 +68,7 @@ Integridade entre famílias: as FKs são simples (não compostas). O RLS impede 
 
 - Todas as tabelas com `family_id` e `families`: `ENABLE` + `FORCE ROW LEVEL SECURITY` e a política `family_isolation`:
   `family_id = nullif(current_setting('app.familia_id', true), '')::uuid` em `USING` **e** `WITH CHECK` (em `families`: `id = ...`). O `nullif` evita erro de cast quando o valor é vazio; sem `app.familia_id` nada é visível nem gravável.
-- `platform_api_keys` e `platform_audit_log`: política `platform_access` com `current_setting('app.plataforma', true) = 'on'`. Dentro de `withPlataforma` as tabelas de família continuam invisíveis.
+- `platform_api_keys`, `platform_audit_log`, `whatsapp_inbound` e `whatsapp_runtime`: política `platform_access` com `current_setting('app.plataforma', true) = 'on'`. Dentro de `withPlataforma` as tabelas de família continuam invisíveis.
 - `phone_lockouts`: RLS ligado sem política e sem `GRANT` ao papel app.
 - Funções `SECURITY DEFINER` (`search_path` fixo, `EXECUTE` só para `medcuidar_app`), o mínimo para o que acontece **antes** de saber a família:
 
@@ -85,7 +86,7 @@ Integridade entre famílias: as FKs são simples (não compostas). O RLS impede 
 
 ### 4.1 Estados de acesso, convites e primeiro acesso (docs/06 seção 2)
 
-Fluxo: o admin cria o membro (`invited`) e o convite em `withFamilia`, guardando só `hashConviteCodigo(telefone, código)` e `expires_at = agora + 24 h` (`VALIDADE_CONVITE_MS`); mostra o código uma vez. O convidado envia o código ao WhatsApp do sistema; o N8N chama a API com o **remetente real**, que chama `consumirConviteWhatsapp(remetente, hashConviteCodigo(remetente, código))`:
+Fluxo: o admin cria o membro (`invited`) e o convite em `withFamilia`, guardando só `hashConviteCodigo(telefone, código)` e `expires_at = agora + 24 h` (`VALIDADE_CONVITE_MS`); mostra o código uma vez. O convidado envia o código ao WhatsApp do sistema; o worker do WhatsApp chama o núcleo da conversa com o **remetente real**, que chama `consumirConviteWhatsapp(remetente, hashConviteCodigo(remetente, código))`:
 
 - Só encontra o convite pelo **número do remetente** (`expected_phone`). Outro número, mesmo com o código certo, não acha o convite, **não gasta tentativa dele** e recebe a mesma resposta de "código errado" (não revela se existe convite). O custo do erro vai para o remetente (`phone_lockouts`: 5 erros em 15 min bloqueiam aquele número).
 - Erro com o número esperado: `attempts + 1`; no 5º erro o convite é revogado.
@@ -170,6 +171,24 @@ Aplicar no staging: `node /app/migrate/migrate.mjs` com `DATABASE_URL_ADMIN` tem
 Já existiam e passam a ser usadas: `members.phone_pending/verification_*`, `verify_pending_phone`, `consume_whatsapp_invite`, `first_access_links`, `api_keys`, `platform_api_keys`, `platform_audit_log`, `idempotency`, `message_log`. TS: `listarFamiliasAtivas`, `ativarMembroPorEmail` (`sistema.ts`) e `criarChavePlataforma/listarChavesPlataforma/revogarChavePlataforma/auditarPlataforma` (`plataforma.ts`). Testes: isolamento das duas tabelas novas (`packages/pg` e `lote4a.integration.test.ts`) e das duas funções.
 
 Aplicar no staging: `node /app/migrate/migrate.mjs` com `DATABASE_URL_ADMIN` temporária (`docs/09`, seção 12).
+
+## 6.4 Migração 0008 (Lote 4B — WhatsApp direto no portal, sem N8N)
+
+Só acréscimos (nenhum DROP, DELETE ou TRUNCATE). Código: `apps/web/src/server/wa/*` e `packages/pg/src/lock.ts`.
+
+| Objeto | Para quê |
+|---|---|
+| `whatsapp_inbound` (**sem `family_id`**, RLS `platform_access`) | **Fila de entrada** do webhook. `msg_id` único = dedupe; `phone` (só dígitos); `status` (`pendente`/`processando`/`feito`/`erro`); `stage` (`novo`/`respondido`/`enviado`: a retentativa nunca refaz o que já foi feito); `attempts`, `next_attempt_at` (recuo), `locked_until` (trava que expira), `error_summary` (motivo curto, **sem conteúdo**). `payload` (texto e base64 de mídia) e `response_text` são **apagados ao concluir**; linhas concluídas somem em 7 dias (LGPD) |
+| `whatsapp_runtime` (sem família, RLS `platform_access`) | Estado do WhatsApp do sistema: batimento do worker/líder, última consulta da instância (conectada ou não) e falhas de envio seguidas. Sem telefone nem conteúdo |
+| `ai_usage` (RLS por família) | Uso e custo de IA por chamada (Claude e Gemini): tokens, `cost_micros` (milionésimos de dólar), `estimated`; `idem_key` único por família. Nenhum conteúdo de mensagem |
+| `agent_sessions` (RLS por família) | Memória curta do agente (só texto, até 12 falas); apagada após 24 h parada |
+| `members.whatsapp_opt_out_at` | **PARAR** do WhatsApp (por membro). Preenchida = não recebe lembretes nem avisos agendados; **REATIVAR** limpa |
+| `outbound_messages.send_attempts / failed_at / error_summary` | Retentativa com recuo e **falha definitiva visível** (sem laço) |
+| `family_integrations.ai_monthly_limit_micros / ai_limit_notified_month` | Limite mensal de IA por família (nulo = `AI_MONTHLY_LIMIT_USD`, padrão US$ 5) e mês do último aviso de estouro |
+
+**Ficou sem uso (não removido, por regra de só acrescentar):** colunas `family_integrations.n8n_webhook_url`, `n8n_secret_enc`, `n8n_checked_at`, `n8n_check_ok`, `n8n_version` (migração 0007, do N8N que saiu) e a tabela `platform_api_keys` (chaves `cpl_`). Podem ser removidas numa limpeza futura autorizada pelo dono.
+
+**Trava consultiva:** `tentarTravaConsultiva(nome)` (`packages/pg/src/lock.ts`) pega um `pg_try_advisory_lock` de sessão numa conexão própria. O agendador de lembretes só roda na instância que a tem (se o processo cair, a conexão fecha e outra assume).
 
 ## 7. Divergências e pendências
 

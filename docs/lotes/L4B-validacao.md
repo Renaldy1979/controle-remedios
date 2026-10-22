@@ -6,10 +6,9 @@
 - **Quem testou:**
 - **Endereço do staging / versão (commit):**
 - **Aparelhos e navegadores:**
-- **Migração 0007 rodada no staging (Parte 0):** ☐ sim ☐ não
-- **Chave `cpl_` criada e `PLATFORM_KEYS_FROM_PORTAL` removida depois (Parte 0):** ☐ sim ☐ não
-- **Fluxos importados e credenciais criadas com os nomes exatos (Parte 0):** ☐ sim ☐ não
-- **Parte A (sem número) concluída:** ☐ sim ☐ não
+- **Migração 0008 rodada no staging (Parte 0):** ☐ sim ☐ não
+- **Variáveis novas criadas (`WHATSAPP_WEBHOOK_SECRET` e, se houver, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`):** ☐ sim ☐ não
+- **Parte A (sem número, pelo simulador) concluída:** ☐ sim ☐ não
 - **Parte B (com número real) concluída:** ☐ sim ☐ não ☐ ainda não há número
 - **Status:** ☐ validado ☐ validado com ajustes ☐ não validado ☐ validado só a Parte A (Parte B pendente)
 
@@ -20,15 +19,11 @@
 | Passo | Esperado | Aconteceu |
 | ----- | -------- | --------- |
 
-## Formato real das mensagens (Parte B, passo B0)
-Diferenças encontradas em relação ao documentado (remetente `@lid`, áudio, id de envio, rota de saúde da Evolution):
+## Formato real das mensagens (Parte B, passo B1)
+Diferenças encontradas em relação ao documentado (remetente `@lid`, áudio, id de envio, estado da instância):
 
 ## Ajustes pedidos
 
 ## Pendências
 
 ## Decisão
-
-☐ Liberar o Lote 5
-
-Assinatura / data:

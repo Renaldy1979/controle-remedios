@@ -196,12 +196,11 @@ Para ver o que o servidor está fazendo: serviço `medcuidar-web` → **Logs**. 
 | `FILE_URL_SECRET` | Lote 3 | segredo (32+ caracteres) que assina os links de 10 minutos das páginas das receitas |
 | `SIMULATOR_ENABLED` | Lote 4A (só staging) | `1` liga o Simulador de WhatsApp (seção 12). **Não defina em produção.** Sem ela o simulador não existe |
 | `SUPPORTS_BUTTONS` | não (padrão `false`) | `true` só com a API oficial da Meta; padrão: opções numeradas em texto |
-| `PLATFORM_KEYS_FROM_PORTAL` | não (padrão desligado) | `1` deixa o Administrador criar a chave `cpl_` do N8N em Configurações › WhatsApp. Só para o 4B; desligue depois |
 | `PORT`, `HOSTNAME` | não | a imagem já define `3000` e `0.0.0.0` |
 | `DATABASE_URL_ADMIN` | **nunca no serviço** | só no comando de migração do passo 5 |
 | `E2E_TEST_MODE` | **nunca** | só testes automáticos locais |
 
-Variáveis dos próximos lotes (WhatsApp, N8N, Evolution Go) entram quando o lote chegar. As do bucket de receitas são do Lote 3 (seção 11).
+As variáveis do WhatsApp direto no portal (Lote 4B: `WHATSAPP_WEBHOOK_SECRET`, `EVOLUTION_*`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `WHATSAPP_WORKER_ENABLED`...) estão em `docs/11-whatsapp-direto.md`, seção 2. As do bucket de receitas são do Lote 3 (seção 11).
 
 ## 9. Problemas comuns
 
@@ -322,9 +321,8 @@ Deve responder `Migrações aplicadas.` Pode rodar de novo sem problema.
 | `SIMULATOR_ENABLED` | `1` | não | **Só no staging.** Liga o item **Simulador de WhatsApp** em Configurações (só Administrador). Sem ela (ou com outro valor) a tela e a rota recusam. **Não defina em produção** |
 | `APP_URL` | `https://automacoes-medcuidar-app.8m5sgi.easypanel.host` | não | **Obrigatória, sem valor padrão** (já existia): o link de primeiro acesso enviado ao WhatsApp usa este endereço, sem barra no fim |
 | `SUPPORTS_BUTTONS` | `false` (ou não defina) | não | opcional; deixe fora no 4A |
-| `PLATFORM_KEYS_FROM_PORTAL` | não defina | não | opcional; só no 4B, para criar a chave do N8N pelo portal |
 
-Nenhum número de WhatsApp, URL do Evolution Go ou do N8N é necessário no 4A. Salve e faça **Deploy** (variável nova só vale depois de reiniciar).
+Nenhum número de WhatsApp nem URL da Evolution Go é necessário no 4A. Salve e faça **Deploy** (variável nova só vale depois de reiniciar).
 
 ### 12.2 Rodar a migração do Lote 4A
 
@@ -348,3 +346,11 @@ Deve responder `Migrações aplicadas.` (cria 2 tabelas e 2 funções; pode roda
 - A fila `outbound_messages` guarda o texto pronto (nome do paciente e remédio): é dado de saúde, protegido por RLS, e **nunca** vai para log. `message_log` guarda só a intenção (`intent:dose_tomada`), nunca o texto.
 - `platform_audit_log` guarda o telefone **mascarado** (`…1234`). Os logs do servidor não mostram telefone, código, chave nem texto de mensagem.
 - Número sem verificação: não recebe mensagem e é tratado como desconhecido (mesma resposta genérica).
+
+## 13. Lote 4B — WhatsApp direto no portal (sem N8N)
+
+Tudo está em `docs/11-whatsapp-direto.md` (variáveis, Evolution Go, anti-bloqueio, custos, sintoma → causa → correção) e no roteiro `docs/lotes/L4B-roteiro.md`. Em resumo:
+1. Deploy do código novo e **migração 0008** (mesmo comando da seção 12.2).
+2. Variáveis: `WHATSAPP_WEBHOOK_SECRET` (**obrigatória, sem valor padrão**), `ANTHROPIC_API_KEY` e `GEMINI_API_KEY` (opcionais; sem elas só o assistente de perguntas e áudio/foto ficam indisponíveis). `EVOLUTION_BASE_URL`, `EVOLUTION_API_KEY` e `EVOLUTION_INSTANCE_ID` só quando houver número.
+3. `WHATSAPP_WORKER_ENABLED=1` **somente depois** de o número estar conectado: o worker (fila + lembretes) roda dentro do servidor do portal (`instrumentation.ts`) e só uma instância por vez envia lembretes (trava consultiva do Postgres).
+4. Apague `PLATFORM_KEYS_FROM_PORTAL` e `ALLOW_PRIVATE_WEBHOOKS` se existirem (eram do N8N).

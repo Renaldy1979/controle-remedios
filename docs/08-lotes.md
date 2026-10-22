@@ -80,5 +80,6 @@ O dono trocou o N8N por código no portal (`docs/06` seção 5). Entrega: webhoo
 5. Registro da validação do dono em `docs/lotes/L<n>-validacao.md`.
 
 ## Situação atual
+- **Lote 4B (revisado em 22/10/2026) construído**, aguardando validação do dono: ver `docs/lotes/L4B-roteiro.md` (Parte A sem número, Parte B com número real) e `docs/11-whatsapp-direto.md`.
 - Fundação Postgres (sessão R1) em andamento: é o primeiro passo do Lote 1.
 - Reaproveitados nos próximos lotes: domínio, telas e design já feitos.
