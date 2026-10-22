@@ -53,7 +53,7 @@ test("Lote 4B: aguardando conexão → URL → segredo → Testar conexão → c
 
   await test.step("começa 'aguardando conexão' e o teste está desligado", async () => {
     await open(page, "/configuracoes/whatsapp");
-    await expect(card().getByText("Aguardando conexão")).toBeVisible();
+    await expect(card().getByText(/Aguardando conexão$/)).toBeVisible();
     await expect(card().getByRole("button", { name: "Testar conexão" })).toBeDisabled();
   });
 
@@ -84,7 +84,7 @@ test("Lote 4B: aguardando conexão → URL → segredo → Testar conexão → c
     segredoEsperado = "whsec_outro";
     await card().getByRole("button", { name: "Testar conexão" }).click();
     await expect(card().getByRole("status")).toContainText("recusou o segredo");
-    await expect(card().getByText("Aguardando conexão")).toBeVisible();
+    await expect(card().getByText(/Aguardando conexão$/)).toBeVisible();
     segredoEsperado = certo;
   });
 
