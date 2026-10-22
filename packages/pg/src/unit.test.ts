@@ -59,7 +59,7 @@ describe("token do link de primeiro acesso", () => {
   it("só tem 0-9a-f (sem _ nem -, que o WhatsApp lê como formatação) e o hash bate", () => {
     for (let i = 0; i < 500; i++) {
       const { token, hash } = gerarTokenPrimeiroAcesso();
-      expect(token).toMatch(/^[0-9a-f]{64}$/);
+      expect(token).toMatch(/^[0-9a-f]{48}$/);
       expect(hash).toBe(sha256(token));
     }
   });
