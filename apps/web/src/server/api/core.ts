@@ -191,6 +191,7 @@ export interface Contexto {
   agora: Date;
 }
 
+/** Em rotas sem segmento dinâmico o Next (produção) pode não passar o contexto: o código usa `ctx?.params`. */
 type ParamsCtx = { params: Promise<Record<string, string>> };
 
 /** Auditoria de toda chamada com chave de plataforma (falha ao gravar não derruba a resposta). */
@@ -238,7 +239,7 @@ export function rota<T>(
         if (!actor || (a.tipo === "familia" && actor.familyId !== a.familiaId)) return erroJson(404, "nao_encontrado", MSG_TELEFONE);
         familiaAuditada = actor.familyId;
 
-        const params = await ctx.params.catch(() => ({}));
+        const params = (await Promise.resolve(ctx?.params).catch(() => ({}))) ?? {};
         const idemKey = entrada.idemKey ?? (opts.idempotente === "sempre" ? `auto:${sha256(`${req.method}${req.nextUrl.pathname}${canonico(entrada.corpo)}`)}` : null);
         const hash = idemKey ? hashRequisicao(req, entrada.corpo) : "";
         if (idemKey) {
@@ -285,7 +286,7 @@ export function rotaFila<T>(
         const entrada = await lerEntrada(req);
         if (entrada instanceof NextResponse) return entrada;
         familiaAuditada = a.tipo === "familia" ? a.familiaId : null;
-        const params = await ctx.params.catch(() => ({}));
+        const params = (await Promise.resolve(ctx?.params).catch(() => ({}))) ?? {};
         const out = await fn({ req, corpo: entrada.corpo, params, familiaId: a.tipo === "familia" ? a.familiaId : null, agora: new Date() });
         return out instanceof NextResponse ? out : json(out);
       } catch (e) {

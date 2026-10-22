@@ -120,12 +120,13 @@ export function SimulatorPanel() {
               <select value={como} onChange={(e) => setComo(e.target.value)} className="min-h-touch rounded-md border-[1.5px] border-bd2 bg-sf px-3 text-body">
                 {pessoas.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.nome} · {formatPhone(p.telefone)} · {p.situacao === "verificado" ? "verificado" : "pendente"}
+                    {p.nome} ({p.situacao === "verificado" ? "verificado" : "pendente"})
                   </option>
                 ))}
                 <option value={NOVO}>Outro número (testar convite ou verificação)…</option>
               </select>
             </label>
+            {como !== NOVO && telefone ? <p className="w-full text-cap text-ink2">Número usado: <span className="num font-bold text-ink">{formatPhone(telefone)}</span></p> : null}
             {como === NOVO ? (
               <label className="flex min-w-[200px] flex-col gap-1">
                 <span className="text-cap font-bold text-ink2">Número do remetente</span>

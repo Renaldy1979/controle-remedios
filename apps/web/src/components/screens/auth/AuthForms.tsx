@@ -110,7 +110,7 @@ export function ConfirmEmailForm({ userId, secret }: { userId: string; secret: s
     return (
       <div className="flex flex-col gap-4">
         <FormNotice kind="ok">{state.ok}</FormNotice>
-        <ButtonLink href="/criar-familia" size="lg" icon="arrow_forward" full>
+        <ButtonLink href="/verificar-email" size="lg" icon="arrow_forward" full>
           Continuar
         </ButtonLink>
       </div>

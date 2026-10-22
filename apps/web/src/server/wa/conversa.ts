@@ -73,8 +73,6 @@ export async function remetenteDesconhecido(telefone: string, texto: string): Pr
 
 /* ------------------------------------------------------------------ remetente conhecido */
 
-const ctxVazio = (): ConvCtx => ({ doseIds: [], medIds: [] });
-
 async function guardarEscolha(actor: WaActor, ctx: ConvCtx, choose: NonNullable<ConvCtx["choose"]>, now: Date): Promise<void> {
   await withFamilia(actor.familyId, (tx) => gravarContexto(tx, actor.familyId, actor.memberId, { ...ctx, choose }, now));
 }
@@ -265,4 +263,3 @@ export async function conversa(entrada: ConversaEntrada): Promise<ConversaResult
   return { ...(await processarMensagem(actor, entrada)), familiaId: actor.familyId };
 }
 
-export { ctxVazio };

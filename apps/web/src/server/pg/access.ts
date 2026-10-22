@@ -38,7 +38,9 @@ export type Access =
 export const getAccess = cache(async (): Promise<Access> => {
   const account = await currentAccount();
   if (!account) return { status: "anon" };
-  const found = await resolverMembroPorAppwriteUser(account.id);
+  let found = await resolverMembroPorAppwriteUser(account.id);
+  // primeiro acesso por WhatsApp: com o e-mail já confirmado no Appwrite, o membro `whatsapp_verified` vira `active`
+  if (!found && account.emailVerified && (await ativarMembroPorEmail(account.email, account.id))) found = await resolverMembroPorAppwriteUser(account.id);
   if (!found) return account.emailVerified ? { status: "nofamily", account } : { status: "unverified", account };
   if (!found.ativo || found.estadoAcesso !== "active") return { status: "inactive" };
 

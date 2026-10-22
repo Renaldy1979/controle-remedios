@@ -246,11 +246,10 @@ export async function simFilaAction(): Promise<R<FilaSim[]>> {
     const headers = simHeaders({ "x-mc-simulador-familia": ctx.familyId });
     const out: FilaSim[] = [];
     const nomes = await withFamilia(ctx.familyId, async (tx) => new Map((await tx.select({ id: s.members.id, n: s.members.name }).from(s.members)).map((m) => [m.id, m.n])));
-    for (const [handler, path] of [[h.lembretesPendentes, "lembretes/pendentes"], [h.avisosEstoque, "avisos/estoque"], [h.avisosResumo, "avisos/resumo"]] as const) {
-      const resp = await handler(new NextRequest(`${BASE}/${path}?somenteLer=1`, { headers }), semParams);
-      const j = (await resp.json()) as { dados?: { mensagens: Array<{ id: string; membroId: string; telefone: string; tipo: string; texto: string; quando: string }> } };
-      for (const m of j.dados?.mensagens ?? []) out.push({ id: m.id, para: nomes.get(m.membroId) ?? "—", telefone: m.telefone, tipo: m.tipo, texto: m.texto, quando: m.quando });
-    }
+    // uma só chamada à fila completa (a geração roda uma vez); as rotas por tipo são as mesmas que o N8N usa
+    const resp = await h.filaCompleta(new NextRequest(`${BASE}/sistema/fila?somenteLer=1`, { headers }), semParams);
+    const j = (await resp.json()) as { dados?: { mensagens: Array<{ id: string; membroId: string; telefone: string; tipo: string; texto: string; quando: string }> } };
+    for (const m of j.dados?.mensagens ?? []) out.push({ id: m.id, para: nomes.get(m.membroId) ?? "—", telefone: m.telefone, tipo: m.tipo, texto: m.texto, quando: m.quando });
     return out.sort((a, b) => a.quando.localeCompare(b.quando));
   });
 }

@@ -100,7 +100,8 @@ export async function checkEmailConfirmed(): Promise<FormState> {
   const account = await currentAccount();
   if (!account) redirect("/login");
   if (!account.emailVerified) return { error: "Ainda não vimos a confirmação. Abra o link do e-mail e tente de novo." };
-  redirect("/criar-familia");
+  // quem veio do convite de WhatsApp vira `active` aqui; os demais seguem para criar a família
+  redirect((await ativarMembroPorEmail(account.email, account.id)) ? "/" : "/criar-familia");
 }
 
 /** Só confirma no clique do botão (prévias de e-mail e antivírus abririam o link e gastariam o token). */

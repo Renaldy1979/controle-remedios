@@ -70,9 +70,9 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await open(page, "/conta");
     await expect(page.getByText("Não informado")).toBeVisible();
     await page.getByLabel("Celular com DDD").fill("(11) 91234-5678");
-    await page.getByRole("button", { name: "Salvar número" }).click();
+    await page.getByRole("button", { name: "Gerar código" }).click();
     await expect(page.getByText("Pendente de validação").first()).toBeVisible();
-    await expect(page.getByText("A validação chega no Lote 4.")).toBeVisible();
+    await expect(page.getByText(/pelo WhatsApp do número/)).toBeVisible(); // o código de 6 dígitos (Lote 4A)
   });
 
   // ---- 4) pacientes, remédios e esquemas ----
@@ -195,7 +195,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await page.getByRole("dialog").getByLabel("Perfil").selectOption("Cuidadora");
     await page.getByRole("dialog").getByRole("button", { name: "Gerar código" }).click();
     const dialog = page.getByRole("dialog");
-    await expect(dialog.getByText("O uso do código pelo WhatsApp chega no Lote 4.")).toBeVisible();
+    await expect(dialog.getByText(/envia este código ao WhatsApp do sistema/)).toBeVisible();
     await expect(dialog.getByText("aparece só uma vez")).toBeVisible();
     const code = (await dialog.locator(".num").first().innerText()).trim();
     expect(code).toMatch(/^\d{6}$/);

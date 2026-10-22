@@ -59,6 +59,7 @@ Chaves `uuid` (`gen_random_uuid()`), datas `timestamptz` (UTC), `date` para data
 | `platform_api_keys` | chaves `cpl_` da plataforma (N8N), sem família |
 | `platform_audit_log` | auditoria das chamadas da plataforma (telefone mascarado) |
 | `phone_lockouts` | tentativas por telefone na verificação; sem política (só a função mexe) |
+| `outbound_messages`, `conversation_state` | fila de saída do WhatsApp e contexto da conversa (migração 0006, seção 6.3) |
 
 Integridade entre famílias: as FKs são simples (não compostas). O RLS impede escrever `family_id` alheio; um id de outra família numa FK exigiria conhecê-lo e a API valida o escopo do recurso. Se isso virar risco, passar a FKs compostas `(family_id, id)` numa migração.
 
@@ -154,6 +155,21 @@ Aplicar no staging: `node /app/migrate/migrate.mjs` com `DATABASE_URL_ADMIN` tem
 - **Avisos** (`notifications`, `dedupe_key` único por família): `prescription_expiring` com `rx_expiry:<receita>:<15|7|3|0>:<pessoa>` (uma vez por limite e por pessoa; só para quem tem `prescriptions.view` e `prescriptions.upload` ou `replenishment.manage`; só da receita que hoje cobre o remédio) e `replenishment_update` com `repl:<reposição>:<evento>:<pessoa>` (assumiu, etapa concluída, concluída, cancelada; para quem tem `replenishment.manage`, menos quem fez).
 - **Auditoria** (`audit_log`): `rx.attached`, `rx.edited`, `rx.shared`, `rx.superseded`, `rx.deleted`, `rx.restored`, `rx.file_opened`, `replenishment.opened|claimed|step_done|done|cancelled`. Só ids, contagens e quantidades; **nunca** texto clínico (médico, observações, nome do remédio por extenso).
 - Remédio: `medications.requires_prescription` ganhou o campo "Este remédio exige receita" no cadastro (padrão **marcado** na tela; remédios criados antes do Lote 3 ficam **sem exigência** até alguém marcar).
+
+## 6.3 Migração 0006 (Lote 4A)
+
+`0006_lote4a_whatsapp.sql`. Detalhes da API e da conversa em `docs/10-api-v1.md`.
+
+| Mudança | Para quê |
+|---|---|
+| tabela `outbound_messages` (RLS `family_isolation`) | **fila de saída** do WhatsApp: `member_id`, `kind`, `dedupe_key` (**único por família**), `body` (texto pronto, dado de saúde: nunca em log), `options`, `context` (ids de dose/remédio/aviso), `not_before`, `claimed_until` + `claim_count` (lease), `sent_at`, `discarded_at`. Índice parcial das pendentes |
+| tabela `conversation_state` (RLS `family_isolation`) | o que "1" e "2" querem dizer para cada pessoa agora (`data`: doses lembradas, remédios com aviso, lista numerada em aberto); **uma linha por pessoa** (`UNIQUE (family_id, member_id)`); expira em `expires_at` |
+| função `list_active_families()` (SECURITY DEFINER) | a rotina da plataforma percorre as famílias ativas sem conhecer nenhuma (devolve só `family_id` e `timezone`) |
+| função `activate_member_by_email(email, appwrite_user_id)` (SECURITY DEFINER) | primeiro acesso por WhatsApp: com o **e-mail confirmado no Appwrite**, o membro `whatsapp_verified` que definiu esse e-mail vira `active`. Só age com **exatamente um candidato** e usuário do Appwrite ainda não ligado a membro |
+
+Já existiam e passam a ser usadas: `members.phone_pending/verification_*`, `verify_pending_phone`, `consume_whatsapp_invite`, `first_access_links`, `api_keys`, `platform_api_keys`, `platform_audit_log`, `idempotency`, `message_log`. TS: `listarFamiliasAtivas`, `ativarMembroPorEmail` (`sistema.ts`) e `criarChavePlataforma/listarChavesPlataforma/revogarChavePlataforma/auditarPlataforma` (`plataforma.ts`). Testes: isolamento das duas tabelas novas (`packages/pg` e `lote4a.integration.test.ts`) e das duas funções.
+
+Aplicar no staging: `node /app/migrate/migrate.mjs` com `DATABASE_URL_ADMIN` temporária (`docs/09`, seção 12).
 
 ## 7. Divergências e pendências
 

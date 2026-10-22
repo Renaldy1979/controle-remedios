@@ -194,6 +194,9 @@ Para ver o que o servidor está fazendo: serviço `medcuidar-web` → **Logs**. 
 | `APPWRITE_API_KEY` | sim | chave com `users.read`, `users.write`, `sessions.write` e, no Lote 3, `files.read`, `files.write`, `buckets.read` |
 | `APPWRITE_PRESCRIPTIONS_BUCKET_ID` | Lote 3 | **Obrigatória** (não há valor padrão): ID do bucket privado das receitas (seção 11). Sem ela o portal mostra "O armazenamento das receitas ainda não foi configurado" |
 | `FILE_URL_SECRET` | Lote 3 | segredo (32+ caracteres) que assina os links de 10 minutos das páginas das receitas |
+| `SIMULATOR_ENABLED` | Lote 4A (só staging) | `1` liga o Simulador de WhatsApp (seção 12). **Não defina em produção.** Sem ela o simulador não existe |
+| `SUPPORTS_BUTTONS` | não (padrão `false`) | `true` só com a API oficial da Meta; padrão: opções numeradas em texto |
+| `PLATFORM_KEYS_FROM_PORTAL` | não (padrão desligado) | `1` deixa o Administrador criar a chave `cpl_` do N8N em Configurações › WhatsApp. Só para o 4B; desligue depois |
 | `PORT`, `HOSTNAME` | não | a imagem já define `3000` e `0.0.0.0` |
 | `DATABASE_URL_ADMIN` | **nunca no serviço** | só no comando de migração do passo 5 |
 | `E2E_TEST_MODE` | **nunca** | só testes automáticos locais |
@@ -305,3 +308,43 @@ Deve responder `Migrações aplicadas.` Pode rodar de novo sem problema.
 - Toda página inteira aberta fica em `audit_log` (`rx.file_opened`, só com o id do arquivo) e cada pessoa que abriu a receita fica em `prescription_views` ("quem viu").
 - A auditoria de receitas e reposição guarda **só ids e contagens**: nunca o nome do médico, as observações, o remédio por extenso ou o conteúdo da foto. Os logs do servidor também não mostram dados pessoais.
 - Excluir uma receita é **lógico** (com "Desfazer"): ela some do portal e a rota de arquivo passa a recusar, mas a foto continua no bucket até a limpeza definitiva (Lote 5).
+
+---
+
+## 12. Lote 4A — API, validação do número e simulador de WhatsApp
+
+**Nenhuma variável nova é obrigatória**: o Lote 4A roda com as do Lote 3 (`APP_URL` já era obrigatória e agora também monta o link de primeiro acesso). Há **uma migração** (`0006`) e **uma variável opcional que você liga só no staging**.
+
+### 12.1 Variáveis
+
+| Variável | Valor | Segredo? | Observação |
+|---|---|---|---|
+| `SIMULATOR_ENABLED` | `1` | não | **Só no staging.** Liga o item **Simulador de WhatsApp** em Configurações (só Administrador). Sem ela (ou com outro valor) a tela e a rota recusam. **Não defina em produção** |
+| `APP_URL` | `https://automacoes-medcuidar-app.8m5sgi.easypanel.host` | não | **Obrigatória, sem valor padrão** (já existia): o link de primeiro acesso enviado ao WhatsApp usa este endereço, sem barra no fim |
+| `SUPPORTS_BUTTONS` | `false` (ou não defina) | não | opcional; deixe fora no 4A |
+| `PLATFORM_KEYS_FROM_PORTAL` | não defina | não | opcional; só no 4B, para criar a chave do N8N pelo portal |
+
+Nenhum número de WhatsApp, URL do Evolution Go ou do N8N é necessário no 4A. Salve e faça **Deploy** (variável nova só vale depois de reiniciar).
+
+### 12.2 Rodar a migração do Lote 4A
+
+Depois do deploy, no serviço `medcuidar-web` → **Console** (troque `SENHA_DONO`, `HOST` e `NOME_DO_BANCO`, mantenha as aspas simples):
+
+```bash
+DATABASE_URL_ADMIN='postgres://medcuidar_owner:SENHA_DONO@HOST:5432/NOME_DO_BANCO' node /app/migrate/migrate.mjs
+```
+
+Deve responder `Migrações aplicadas.` (cria 2 tabelas e 2 funções; pode rodar de novo sem problema).
+
+### 12.3 Conferir
+
+1. `/api/health` → `{"status":"ok","database":"ok"}`.
+2. `/api/v1/openapi.json` abre (JSON com as rotas).
+3. Entre como administrador: em **Configurações** aparecem **WhatsApp** e **Simulador de WhatsApp** (este só com `SIMULATOR_ENABLED=1`).
+
+### 12.4 Privacidade (LGPD) do que o Lote 4A grava
+
+- Chaves de API: **só o hash**; o valor aparece uma vez. Código de verificação e de convite: **só o hash**, 15 min / 24 h, com limite de tentativas.
+- A fila `outbound_messages` guarda o texto pronto (nome do paciente e remédio): é dado de saúde, protegido por RLS, e **nunca** vai para log. `message_log` guarda só a intenção (`intent:dose_tomada`), nunca o texto.
+- `platform_audit_log` guarda o telefone **mascarado** (`…1234`). Os logs do servidor não mostram telefone, código, chave nem texto de mensagem.
+- Número sem verificação: não recebe mensagem e é tratado como desconhecido (mesma resposta genérica).

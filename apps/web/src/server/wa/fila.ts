@@ -79,11 +79,17 @@ async function inserir(tx: Tx, rows: Novo[]): Promise<number> {
 
 const opcoesDe = (r: T.Resposta) => (r.opcoes ?? []).map((o) => o.rotulo);
 
+/** Quando cada família foi "gerada" pela última vez (por processo): leituras sem lease (simulador) não repetem o trabalho a cada clique. */
+const ultimaGeracao = new Map<string, number>();
+const REUSO_LEITURA_MS = 5_000;
+export const _limparGeracao = () => ultimaGeracao.clear();
+
 /**
  * Cria as mensagens que já deveriam existir (idempotente). `agora` injetável para teste.
  * Devolve quantas linhas NOVAS entraram na fila.
  */
 export async function gerarMensagens(familyId: string, agora: Date = new Date()): Promise<number> {
+  ultimaGeracao.set(familyId, Date.now());
   const fam = await withFamilia(familyId, async (tx) => (await tx.select().from(s.families).where(eq(s.families.id, familyId)))[0]);
   if (!fam || !fam.active || fam.deletedAt) return 0;
   const settings = familySettingsSchema.parse(fam.settings ?? {});
@@ -234,7 +240,9 @@ export async function pendentes(
   familyId: string, opts: { reivindicar: boolean; limite?: number; agora?: Date; tipos?: string[] } = { reivindicar: true },
 ): Promise<MensagemPendente[]> {
   const agora = opts.agora ?? new Date();
-  await gerarMensagens(familyId, agora);
+  // quem reivindica sempre gera; quem só espia (simulador) reaproveita uma geração de poucos segundos atrás
+  const recente = !opts.reivindicar && !opts.agora && Date.now() - (ultimaGeracao.get(familyId) ?? 0) < REUSO_LEITURA_MS;
+  if (!recente) await gerarMensagens(familyId, agora);
   const entregues = await withFamilia(familyId, async (tx) => {
     const base = and(
       isNull(s.outboundMessages.sentAt), isNull(s.outboundMessages.discardedAt),
