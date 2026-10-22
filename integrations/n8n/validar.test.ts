@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- manipula JSON de fluxos de forma dinâmica */
 import { describe, expect, it } from "vitest";
 // @ts-expect-error módulo .mjs sem tipos
 import { FLUXOS } from "./build.mjs";
