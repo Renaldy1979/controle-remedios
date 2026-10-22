@@ -7,9 +7,9 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { tentarTravaConsultiva, withFamilia } from "@medcuidar/pg";
+import { listarFamiliasComWhatsapp, tentarTravaConsultiva, withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
-import { bancoDisponivel, conectarAdmin, encerrar, limparFamilias, prepararBanco, telefoneAleatorio, type Admin } from "@medcuidar/pg-testing";
+import { bancoDisponivel, conectarAdmin, encerrar, limparFamilias, limparFamiliasAntigasDeTeste, prepararBanco, telefoneAleatorio, type Admin } from "@medcuidar/pg-testing";
 import { SYSTEM_PROFILES, familySettingsSchema, type PermissionMap } from "@medcuidar/shared";
 import { ensureDosesForDay } from "../pg/doses";
 import { createFamilyWithAdmin } from "../pg/families";
@@ -19,7 +19,7 @@ import { registerPurchase } from "../pg/stock";
 import { contadores, loadWaActor, resolveSender, type WaActor } from "./actor";
 import { monitorarInstancia, registrarResultadoEnvio } from "./alertas";
 import { cicloAgendador } from "./agendador";
-import { gerarMensagens, pendentes, resumoSaida } from "./fila";
+import { gerarMensagens, pendentes, pendentesDeTodas, resumoSaida } from "./fila";
 import { MAX_TENTATIVAS, concluir, enfileirar, falhar, limparEntrada, reivindicar, resumoEntrada } from "./inbound";
 import { responderLivre, type DepsAgente } from "./ia/agente";
 import { executarFerramenta } from "./ia/ferramentas";
@@ -176,6 +176,7 @@ describe.skipIf(!up)("Lote 4B — WhatsApp direto no portal", () => {
     process.env["ANTHROPIC_MODEL"] = "claude-sonnet-5-5";
     admin = conectarAdmin();
     await prepararBanco();
+    await limparFamiliasAntigasDeTeste(admin);
     await admin`delete from whatsapp_inbound`;
   });
   beforeEach(async () => {
@@ -185,16 +186,7 @@ describe.skipIf(!up)("Lote 4B — WhatsApp direto no portal", () => {
     await admin`delete from whatsapp_inbound`;
     await admin`delete from whatsapp_runtime`;
     await admin.unsafe("delete from audit_log where family_id = any($1::uuid[])", [criadas]);
-    // outra suíte (4A) percorre TODAS as famílias em paralelo e pode abrir uma reposição no meio da limpeza: tenta de novo
-    for (let i = 0; i < 4; i++) {
-      try {
-        await limparFamilias(admin, criadas);
-        break;
-      } catch (e) {
-        if (i === 3) throw e;
-        await new Promise((r) => setTimeout(r, 500));
-      }
-    }
+    await limparFamilias(admin, criadas); // com tentativas e conferência: lança se sobrar família
     await admin`delete from phone_lockouts where phone like '5599%'`;
     await encerrar(admin);
   });
@@ -1184,6 +1176,41 @@ describe.skipIf(!up)("Lote 4B — WhatsApp direto no portal", () => {
       expect(fake.consultas).toHaveLength(0);
       expect(fake.enviados.filter((e) => e.numero === c.com)).toHaveLength(0);
       expect(fake.enviados.filter((e) => e.numero === c.sem).length).toBeGreaterThan(0);
+    });
+  });
+
+
+  /* ------------------------------------------------------------ custo da varredura de famílias */
+  describe("varredura de todas as famílias", () => {
+    it("leitura da plataforma (somenteLer) NÃO gera nem agenda nada: nenhuma linha nova na fila de nenhuma família", async () => {
+      const f = await novaFamilia("Leitura");
+      const antes = (await admin`select count(*)::int as n from outbound_messages where family_id = ${f.familyId}`)[0]!["n"];
+      await pendentesDeTodas({ reivindicar: false, agora: T0610, limite: 200 });
+      const depois = (await admin`select count(*)::int as n from outbound_messages where family_id = ${f.familyId}`)[0]!["n"];
+      expect(depois).toBe(antes);
+      expect(depois).toBe(0);
+      // o agendador (reivindicar) é quem gera
+      await pendentesDeTodas({ reivindicar: true, agora: T0610, limite: 200 });
+      expect((await admin`select count(*)::int as n from outbound_messages where family_id = ${f.familyId}`)[0]!["n"]).toBeGreaterThan(0);
+    });
+
+    it("o agendador só visita famílias com WhatsApp: número verificado (sem PARAR) e tratamento ativo", async () => {
+      const com = await novaFamilia("VisitaCom");
+      const semNumero = await novaFamilia("VisitaSemNumero");
+      await withFamilia(semNumero.familyId, (tx) => tx.update(s.members).set({ phoneVerified: null }).where(eq(s.members.id, semNumero.adminId)));
+      const parou = await novaFamilia("VisitaParou");
+      await withFamilia(parou.familyId, (tx) => tx.update(s.members).set({ whatsappOptOutAt: new Date() }).where(eq(s.members.id, parou.adminId)));
+      const ids = new Set((await listarFamiliasComWhatsapp()).map((x) => x.familiaId));
+      expect(ids.has(com.familyId)).toBe(true);
+      expect(ids.has(semNumero.familyId)).toBe(false);
+      expect(ids.has(parou.familyId)).toBe(false);
+    });
+
+    it("a limpeza dos testes confere que nada sobrou (e lança se sobrar)", async () => {
+      const f = await novaFamilia("Limpa");
+      await limparFamilias(admin, [f.familyId]);
+      expect((await admin`select count(*)::int as n from families where id = ${f.familyId}`)[0]!["n"]).toBe(0);
+      criadas.splice(criadas.indexOf(f.familyId), 1);
     });
   });
 

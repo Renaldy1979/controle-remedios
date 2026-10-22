@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
-import { bancoDisponivel, conectarAdmin, encerrar, limparFamilias, prepararBanco, type Admin } from "@medcuidar/pg-testing";
+import { bancoDisponivel, conectarAdmin, encerrar, limparFamilias, limparFamiliasAntigasDeTeste, prepararBanco, type Admin } from "@medcuidar/pg-testing";
 import { SYSTEM_PROFILES, familySettingsSchema, type PermissionMap } from "@medcuidar/shared";
 import type { Ctx } from "./access";
 import { ForbiddenError, UserError } from "./errors";
@@ -127,6 +127,7 @@ describe.skipIf(!up)("Lote 3 — receitas e reposição no Postgres", () => {
     process.env["FILE_URL_SECRET"] = "segredo-de-teste-com-mais-de-16-caracteres";
     admin = conectarAdmin();
     await prepararBanco();
+    await limparFamiliasAntigasDeTeste(admin);
   });
   afterAll(async () => {
     await admin.unsafe("delete from audit_log where family_id = any($1::uuid[])", [criadas]);

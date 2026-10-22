@@ -1,6 +1,6 @@
 import "server-only";
 import { and, asc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
-import { listarFamiliasAtivas, withFamilia, type Tx } from "@medcuidar/pg";
+import { listarFamiliasAtivas, listarFamiliasComWhatsapp, withFamilia, type Tx } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { effectiveRecipientsMode, localParts, resolveResponsible } from "@medcuidar/domain";
 import { can, familySettingsSchema, permissionMapSchema, type FamilySettings } from "@medcuidar/shared";
@@ -240,12 +240,12 @@ export function separarId(raw: string, familiaDaChave?: string): { familyId: str
  * número) e, se `reivindicar`, dá o lease às mensagens (sem `reivindicar` só espia: usado pelo simulador).
  */
 export async function pendentes(
-  familyId: string, opts: { reivindicar: boolean; limite?: number; agora?: Date; tipos?: string[] } = { reivindicar: true },
+  familyId: string, opts: { reivindicar: boolean; limite?: number; agora?: Date; tipos?: string[]; gerar?: boolean } = { reivindicar: true },
 ): Promise<MensagemPendente[]> {
   const agora = opts.agora ?? new Date();
   // quem reivindica sempre gera; quem só espia (simulador) reaproveita uma geração de poucos segundos atrás
   const recente = !opts.reivindicar && !opts.agora && Date.now() - (ultimaGeracao.get(familyId) ?? 0) < REUSO_LEITURA_MS;
-  if (!recente) await gerarMensagens(familyId, agora);
+  if (opts.gerar !== false && !recente) await gerarMensagens(familyId, agora);
   const entregues = await withFamilia(familyId, async (tx) => {
     const base = and(
       isNull(s.outboundMessages.sentAt), isNull(s.outboundMessages.discardedAt), isNull(s.outboundMessages.failedAt),
@@ -313,12 +313,17 @@ export async function pendentes(
   }));
 }
 
-/** Percorre todas as famílias ativas (chave de plataforma). Uma família com problema não derruba as outras. */
+/**
+ * Percorre as famílias (chave de plataforma). Leitura (`reivindicar: false`) só LÊ o que já está na fila: não gera mensagens nem mexe
+ * em doses ou estoque de nenhuma família (o custo antes crescia com o total de famílias). Quem gera e agenda é o agendador do worker
+ * (`saida.ts`), só nas famílias com WhatsApp. Uma família com problema não derruba as outras.
+ */
 export async function pendentesDeTodas(opts: { reivindicar: boolean; limite?: number; agora?: Date; tipos?: string[] }): Promise<MensagemPendente[]> {
   const out: MensagemPendente[] = [];
-  for (const f of await listarFamiliasAtivas()) {
+  const familias = opts.reivindicar ? await listarFamiliasComWhatsapp() : await listarFamiliasAtivas();
+  for (const f of familias) {
     try {
-      out.push(...(await pendentes(f.familiaId, opts)));
+      out.push(...(await pendentes(f.familiaId, { ...opts, gerar: opts.reivindicar })));
     } catch (e) {
       console.error("[fila] família falhou", (e as Error).name, (e as { code?: unknown }).code ?? "");
     }

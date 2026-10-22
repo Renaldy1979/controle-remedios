@@ -17,17 +17,27 @@ export function conectarAdmin(): Admin {
   return postgres(adminUrl(), { max: 2, onnotice: () => {} });
 }
 
-/** O Postgres local responde? (para pular a integração com uma mensagem clara) */
+/**
+ * O Postgres local responde? Com carga alta (várias suítes em paralelo) uma conexão pode demorar: 3 tentativas de 10 s.
+ * Se NÃO responder, a suíte é PULADA, mas com um aviso bem visível (um verde por pulo é falso verde). Com `REQUIRE_DB=1`
+ * (CI e conferência) a falta do banco FALHA a suíte em vez de pular.
+ */
 export async function bancoDisponivel(): Promise<boolean> {
-  const sql = postgres(adminUrl(), { max: 1, connect_timeout: 3, onnotice: () => {} });
-  try {
-    await sql`select 1`;
-    return true;
-  } catch {
-    return false;
-  } finally {
-    await sql.end({ timeout: 1 }).catch(() => {});
+  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    const sql = postgres(adminUrl(), { max: 1, connect_timeout: 10, onnotice: () => {} });
+    try {
+      await sql`select 1`;
+      return true;
+    } catch {
+      await new Promise((r) => setTimeout(r, 500));
+    } finally {
+      await sql.end({ timeout: 1 }).catch(() => {});
+    }
   }
+  const msg = "Postgres local INDISPONÍVEL: testes de integração PULADOS (isto NÃO é um verde de verdade). Rode `pnpm db:up`. Com REQUIRE_DB=1 isto falha.";
+  if (process.env["REQUIRE_DB"] === "1") throw new Error(msg);
+  console.error(`\n${"!".repeat(100)}\n!!! ${msg}\n${"!".repeat(100)}\n`);
+  return false;
 }
 
 export async function prepararBanco(): Promise<void> {
@@ -43,21 +53,63 @@ export async function encerrar(admin?: Admin): Promise<void> {
 /** Telefone fictício aleatório (só dígitos) para não colidir com o seed nem com outras execuções. */
 export const telefoneAleatorio = (): string => "5599" + String(Math.floor(Math.random() * 1e9)).padStart(9, "0");
 
-/** Filhos antes dos pais, para limpar por família. */
+/** Filhos antes dos pais, para limpar por família. `audit_log` aponta para membros: vai primeiro. */
 const ORDEM_LIMPEZA = [
-  "family_integrations", "ai_usage", "agent_sessions", "outbound_messages", "conversation_state", "api_keys", "message_log", "notifications", "replenishment_steps", "stock_movements", "replenishments", "prescription_views",
+  "audit_log", "family_integrations", "ai_usage", "agent_sessions", "outbound_messages", "conversation_state", "api_keys", "message_log", "notifications",
+  "replenishment_steps", "stock_movements", "replenishments", "prescription_views",
   "prescription_shares", "prescription_items", "prescription_files", "prescriptions", "dose_events", "stock_items",
   "treatment_phases", "treatments", "care_assignments", "patients", "medications", "first_access_links", "invites",
   "members", "profiles",
-  "idempotency", "audit_log", "families",
+  "idempotency", "families",
 ];
 
-export async function limparFamilias(admin: Admin, ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
-  for (const t of ORDEM_LIMPEZA) {
+async function apagarFamilias(admin: Admin, ids: string[]): Promise<void> {
+  // tabelas com family_id que ainda não estão na ordem (tabela nova nunca deixa linha órfã): antes dos membros
+  const todas = (await admin`select table_name from information_schema.columns where table_schema = 'public' and column_name = 'family_id'`).map((r) => r["table_name"] as string);
+  const extras = todas.filter((t) => !ORDEM_LIMPEZA.includes(t) && t !== "platform_audit_log");
+  const ordem = [...ORDEM_LIMPEZA.slice(0, ORDEM_LIMPEZA.indexOf("members")), ...extras, ...ORDEM_LIMPEZA.slice(ORDEM_LIMPEZA.indexOf("members"))];
+  for (const t of ordem) {
     const coluna = t === "families" ? "id" : "family_id";
     await admin.unsafe(`delete from ${t} where ${coluna} = any($1::uuid[])`, [ids]);
   }
+}
+
+/**
+ * Apaga as famílias de teste e TUDO delas. Outra suíte (ou o worker) pode abrir uma reposição ou aviso no meio da limpeza
+ * (a rotina de lembretes percorre todas as famílias): por isso tenta de novo. Depois CONFERE que sumiram e lança se sobrou alguma:
+ * teste que vaza família falha, não passa em silêncio.
+ */
+export async function limparFamilias(admin: Admin, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  let ultimo: unknown;
+  for (let i = 0; i < 6; i++) {
+    try {
+      await apagarFamilias(admin, ids);
+      ultimo = undefined;
+      break;
+    } catch (e) {
+      ultimo = e;
+      await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+    }
+  }
+  const [sobra] = await admin`select count(*)::int as n from families where id = any(${ids}::uuid[])`;
+  if (ultimo || (sobra?.["n"] as number) > 0) {
+    throw new Error(`Limpeza dos testes falhou: sobraram ${sobra?.["n"] ?? "?"} família(s) de teste${ultimo instanceof Error ? ` (${ultimo.message})` : ""}.`);
+  }
+}
+
+/**
+ * Faxina de famílias de teste esquecidas por execuções que caíram (membro com e-mail `zz-test-…` ou nomes do apoio, criadas há mais de
+ * 30 minutos, para nunca apagar o que outra suíte em andamento está usando). Nunca toca a família demo.
+ */
+export async function limparFamiliasAntigasDeTeste(admin: Admin): Promise<number> {
+  const rows = await admin`
+    select f.id from families f
+    where f.created_at < now() - interval '30 minutes' and f.name <> 'Família Souza (demo)'
+      and exists (select 1 from members m where m.family_id = f.id and m.email like 'zz-test-%')`;
+  const ids = rows.map((r) => r["id"] as string);
+  if (ids.length) await limparFamilias(admin, ids).catch(() => {});
+  return ids.length;
 }
 
 export type FamiliaTeste = {

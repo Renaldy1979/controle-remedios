@@ -17,7 +17,7 @@ import {
 import { FAMILY_TABLES } from "./schema";
 import * as s from "./schema";
 import {
-  bancoDisponivel, conectarAdmin, criarFamiliaTeste, encerrar, limparFamilias, prepararBanco, telefoneAleatorio,
+  bancoDisponivel, conectarAdmin, criarFamiliaTeste, encerrar, limparFamilias, limparFamiliasAntigasDeTeste, prepararBanco, telefoneAleatorio,
   type Admin, type FamiliaTeste,
 } from "./testing";
 
@@ -46,6 +46,7 @@ describe.skipIf(!disponivel)("Postgres + RLS (papel da aplicação)", () => {
   beforeAll(async () => {
     admin = conectarAdmin();
     await prepararBanco();
+    await limparFamiliasAntigasDeTeste(admin);
     A = await criarFamiliaTeste("A");
     B = await criarFamiliaTeste("B");
     criadas.push(A.id, B.id);

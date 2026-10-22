@@ -133,3 +133,12 @@ export async function ativarMembroPorEmail(
   const m = r[0];
   return m ? { membroId: m.member_id, familiaId: m.family_id } : null;
 }
+
+/**
+ * Famílias que o agendador do WhatsApp deve visitar: ativas, com pessoa de número verificado (que não pediu PARAR) e tratamento ativo.
+ * Bem menos que `listarFamiliasAtivas` quando há muitas famílias sem WhatsApp.
+ */
+export async function listarFamiliasComWhatsapp(db: Db = getDb()): Promise<FamiliaAtiva[]> {
+  const r = await db.execute<{ family_id: string; timezone: string }>(sql`select * from list_whatsapp_families()`);
+  return r.map((f) => ({ familiaId: f.family_id, fuso: f.timezone }));
+}

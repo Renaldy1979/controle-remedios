@@ -10,7 +10,7 @@ import { and, eq } from "drizzle-orm";
 import { withFamilia } from "@medcuidar/pg";
 import { localParts } from "@medcuidar/domain";
 import * as s from "@medcuidar/pg/schema";
-import { bancoDisponivel, conectarAdmin, encerrar, limparFamilias, prepararBanco, type Admin } from "@medcuidar/pg-testing";
+import { bancoDisponivel, conectarAdmin, encerrar, limparFamilias, limparFamiliasAntigasDeTeste, prepararBanco, type Admin } from "@medcuidar/pg-testing";
 import { SYSTEM_PROFILES, familySettingsSchema, type PermissionMap } from "@medcuidar/shared";
 import type { Ctx } from "./access";
 import { ForbiddenError, UserError } from "./errors";
@@ -95,6 +95,7 @@ describe.skipIf(!up)("Lote 2 — doses e estoque no Postgres", () => {
   beforeAll(async () => {
     admin = conectarAdmin();
     await prepararBanco();
+    await limparFamiliasAntigasDeTeste(admin);
   });
   afterAll(async () => {
     await admin.unsafe("delete from audit_log where family_id = any($1::uuid[])", [criadas]);

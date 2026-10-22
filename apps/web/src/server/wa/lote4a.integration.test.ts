@@ -14,7 +14,7 @@ import {
 } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { localParts } from "@medcuidar/domain";
-import { bancoDisponivel, conectarAdmin, encerrar, limparFamilias, prepararBanco, telefoneAleatorio, type Admin } from "@medcuidar/pg-testing";
+import { bancoDisponivel, conectarAdmin, encerrar, limparFamilias, limparFamiliasAntigasDeTeste, prepararBanco, telefoneAleatorio, type Admin } from "@medcuidar/pg-testing";
 import { SYSTEM_PROFILES, familySettingsSchema, type PermissionMap } from "@medcuidar/shared";
 import * as h from "../api/handlers";
 import { _limparLimites } from "../api/core";
@@ -119,6 +119,7 @@ describe.skipIf(!up)("Lote 4A — WhatsApp: API, conversa e fila no Postgres", (
     process.env["APP_URL"] = "http://app.test";
     admin = conectarAdmin();
     await prepararBanco();
+    await limparFamiliasAntigasDeTeste(admin);
     const k = await criarChavePlataforma("zz-test conversa", ["conversa"]);
     chavesPlataforma.push(k.id);
     cpl = k.chave;

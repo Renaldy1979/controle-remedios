@@ -71,6 +71,13 @@
       "when": 1792697577000,
       "tag": "0009_lote4b_numero_de_envio",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792700165556,
+      "tag": "0010_lote4b_familias_com_whatsapp",
+      "breakpoints": true
     }
   ]
 }

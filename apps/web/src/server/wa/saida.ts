@@ -1,5 +1,5 @@
 import "server-only";
-import { listarFamiliasAtivas } from "@medcuidar/pg";
+import { listarFamiliasComWhatsapp } from "@medcuidar/pg";
 import { registrarResultadoEnvio } from "./alertas";
 import { marcarEnviada, pendentes, registrarFalhaEnvio, separarId } from "./fila";
 import { logWa } from "./log";
@@ -31,7 +31,7 @@ export async function enviarPendentes(
   /** forma do número que funcionou nesta rodada, por membro (evita consultar de novo antes de o banco refletir) */
   const formas = new Map<string, string>();
   const out: ResultadoSaida = { enviadas: 0, falhas: 0, erroDefinitivo: 0, ambiguas: 0 };
-  for (const f of await listarFamiliasAtivas()) {
+  for (const f of await listarFamiliasComWhatsapp()) {
     if (opts.parar?.()) break;
     if (opts.somenteFamilia && f.familiaId !== opts.somenteFamilia) continue;
     let lista;

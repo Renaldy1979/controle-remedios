@@ -11,7 +11,7 @@ import {
   consumirConviteWhatsapp, hashConviteCodigo, resolverLinkPrimeiroAcesso, resolverMembroPorAppwriteUser, sha256, withFamilia,
 } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
-import { bancoDisponivel, conectarAdmin, encerrar, limparFamilias, prepararBanco, telefoneAleatorio, type Admin } from "@medcuidar/pg-testing";
+import { bancoDisponivel, conectarAdmin, encerrar, limparFamilias, limparFamiliasAntigasDeTeste, prepararBanco, telefoneAleatorio, type Admin } from "@medcuidar/pg-testing";
 import { SYSTEM_PROFILES, familySettingsSchema, type PermissionMap } from "@medcuidar/shared";
 import type { Ctx } from "./access";
 import { ForbiddenError, UserError } from "./errors";
@@ -80,6 +80,7 @@ describe.skipIf(!up)("Lote 1 — regras do portal no Postgres", () => {
   beforeAll(async () => {
     admin = conectarAdmin();
     await prepararBanco();
+    await limparFamiliasAntigasDeTeste(admin);
     A = await novaFamilia("A", criadas);
     B = await novaFamilia("B", criadas);
   });
