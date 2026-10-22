@@ -11,10 +11,4 @@ export default tseslint.config(
       "no-console": ["error", { allow: ["warn", "error"] }],
     },
   },
-  {
-    // scripts de linha de comando (gerador e validador dos fluxos do N8N): saída no console e process do Node
-    files: ["integrations/n8n/*.mjs"],
-    languageOptions: { globals: { process: "readonly", console: "readonly" } },
-    rules: { "no-console": "off" },
-  },
 );
