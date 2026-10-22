@@ -141,6 +141,21 @@ describe("Lote 4A — Simulador de WhatsApp", () => {
     expect(within(log).getAllByText(/digitando… \(simulado/).length).toBeGreaterThan(0);
   });
 
+  it("o link do convite aparece INTEIRO na conversa, mesmo com sublinhados (nada vira itálico dentro do endereço)", async () => {
+    const url = "http://localhost:3100/primeiro-acesso?t=a0PNU_RIkjA5JmdVSBqogMuHnbe1WulnIrFJkML_PA8";
+    wa.simEnviarAction.mockResolvedValueOnce({ ok: true as const, data: { respostas: [{ texto: `Bem-vindo(a)
+link: ${url} (vale 24 h) e _itálico_ de verdade` }], digitando: 1 } });
+    renderApp(<SimulatorPanel />);
+    await screen.findByLabelText("Falar como");
+    await waitFor(() => expect(screen.getByRole("option", { name: /Ana/ })).toBeInTheDocument());
+    await userEvent.type(screen.getByLabelText("Mensagem"), "convite");
+    await userEvent.click(screen.getByRole("button", { name: "Enviar" }));
+    const log = screen.getByRole("log", { name: "Mensagens" });
+    await waitFor(() => expect(log.textContent).toContain(url));
+    expect(log.querySelectorAll("em")).toHaveLength(1);
+    expect(log.querySelector("em")?.textContent).toBe("itálico");
+  });
+
   it("'Marcar como enviada' leva a mensagem para a conversa da pessoa", async () => {
     renderApp(<SimulatorPanel />);
     await userEvent.click(await screen.findByRole("button", { name: "Marcar como enviada" }));

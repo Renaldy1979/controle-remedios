@@ -25,13 +25,19 @@ const ATALHOS: Array<{ rotulo: string; texto: string }> = [
   { rotulo: "Ajuda", texto: "ajuda" },
 ];
 
-/** Negrito do WhatsApp (*texto*) e itálico (_texto_) para a leitura da conversa. */
+/** Negrito do WhatsApp (*texto*) e itálico (_texto_) para a leitura da conversa. Endereços (https://…) ficam INTEIROS: os "_" de um link não são itálico. */
 function Texto({ t }: { t: string }) {
-  const partes = t.split(/(\*[^*\n]+\*|_[^_\n]+_)/g);
+  const partes = t.split(/(https?:\/\/\S+)/g);
   return (
     <>
-      {partes.map((p, i) =>
-        p.startsWith("*") && p.endsWith("*") && p.length > 2 ? <strong key={i}>{p.slice(1, -1)}</strong> : p.startsWith("_") && p.endsWith("_") && p.length > 2 ? <em key={i}>{p.slice(1, -1)}</em> : <span key={i}>{p}</span>,
+      {partes.map((parte, k) =>
+        k % 2 === 1 ? (
+          <span key={k}>{parte}</span>
+        ) : (
+          parte.split(/(\*[^*\n]+\*|_[^_\n]+_)/g).map((p, i) =>
+            p.startsWith("*") && p.endsWith("*") && p.length > 2 ? <strong key={`${k}-${i}`}>{p.slice(1, -1)}</strong> : p.startsWith("_") && p.endsWith("_") && p.length > 2 ? <em key={`${k}-${i}`}>{p.slice(1, -1)}</em> : <span key={`${k}-${i}`}>{p}</span>,
+          )
+        ),
       )}
     </>
   );

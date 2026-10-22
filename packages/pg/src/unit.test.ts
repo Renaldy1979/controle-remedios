@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { uuidDeterministico } from "./ids";
-import { gerarApiKey, gerarCodigoVerificacao, hashCodigoVerificacao, sha256 } from "./crypto";
+import { gerarTokenPrimeiroAcesso, gerarApiKey, gerarCodigoVerificacao, hashCodigoVerificacao, sha256 } from "./crypto";
 import { withFamilia } from "./withFamilia";
 import { FAMILY_TABLES } from "./schema";
 import { adminUrl, appUrl } from "./env";
@@ -52,5 +52,15 @@ describe("env", () => {
 describe("schema", () => {
   it("lista as tabelas com family_id sem duplicatas", () => {
     expect(new Set(FAMILY_TABLES).size).toBe(FAMILY_TABLES.length);
+  });
+});
+
+describe("token do link de primeiro acesso", () => {
+  it("só tem 0-9a-f (sem _ nem -, que o WhatsApp lê como formatação) e o hash bate", () => {
+    for (let i = 0; i < 500; i++) {
+      const { token, hash } = gerarTokenPrimeiroAcesso();
+      expect(token).toMatch(/^[0-9a-f]{64}$/);
+      expect(hash).toBe(sha256(token));
+    }
   });
 });

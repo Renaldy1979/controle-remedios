@@ -22,7 +22,8 @@ export const hashConviteCodigo = (telefone: string, codigo: string): string =>
 
 /** Token do link de primeiro acesso (uso único, 24 h). Guarde só `hash`; envie `token` uma vez ao WhatsApp do usuário. */
 export function gerarTokenPrimeiroAcesso(): { token: string; hash: string } {
-  const token = randomBytes(32).toString("base64url");
+  // só 0-9a-f: sem "_" nem "-", que o WhatsApp (e o simulador) leem como itálico/formatação e podem mutilar o link na tela
+  const token = randomBytes(32).toString("hex");
   return { token, hash: sha256(token) };
 }
 

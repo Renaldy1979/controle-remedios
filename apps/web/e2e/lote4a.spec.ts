@@ -210,6 +210,9 @@ test("Lote 4A: número, simulador, tomei, estoque, chave de API, convite por Wha
     const url = new URL(linkPrimeiroAcesso);
     await open(rosa, `${url.pathname}${url.search}`);
     await expect(rosa.getByRole("heading", { name: "Primeiro acesso" })).toBeVisible();
+    // falha rápido e com a causa à vista (o título "Primeiro acesso" também aparece no aviso de link inválido)
+    await expect(rosa.getByText("Este link não vale mais"), `link capturado inválido: ${linkPrimeiroAcesso}`).toHaveCount(0);
+    await expect(rosa.getByLabel("Seu e-mail")).toBeVisible();
     for (const [w, h, cor] of [[1280, 900, "light"], [1280, 900, "dark"], [390, 844, "light"], [390, 844, "dark"]] as const) {
       await rosa.setViewportSize({ width: w, height: h });
       await rosa.emulateMedia({ colorScheme: cor });
@@ -219,6 +222,7 @@ test("Lote 4A: número, simulador, tomei, estoque, chave de API, convite por Wha
     }
     await rosa.setViewportSize({ width: 1280, height: 900 });
     await rosa.emulateMedia({ colorScheme: "light" });
+    await expect(rosa.getByText("Este link não vale mais")).toHaveCount(0); // abrir a página nunca gasta o link
     await rosa.getByLabel("Seu e-mail").fill(emailRosa);
     await rosa.getByLabel("Crie uma senha").fill(PASSWORD);
     await rosa.getByLabel("Repita a senha").fill(PASSWORD);
