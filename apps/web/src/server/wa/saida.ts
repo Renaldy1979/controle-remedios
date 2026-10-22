@@ -3,6 +3,7 @@ import { listarFamiliasAtivas } from "@medcuidar/pg";
 import { registrarResultadoEnvio } from "./alertas";
 import { marcarEnviada, pendentes, registrarFalhaEnvio, separarId } from "./fila";
 import { logWa } from "./log";
+import { enviarAoMembro } from "./destino";
 import { ErroEnvio, type ProvedorWhatsapp } from "./provider/types";
 import type { Ritmo } from "./ritmo";
 
@@ -27,6 +28,8 @@ export async function enviarPendentes(
   provedor: ProvedorWhatsapp, ritmo: Ritmo, opts: { agora?: () => Date; limitePorFamilia?: number; parar?: () => boolean; somenteFamilia?: string } = {},
 ): Promise<ResultadoSaida> {
   const agoraFn = opts.agora ?? (() => new Date());
+  /** forma do número que funcionou nesta rodada, por membro (evita consultar de novo antes de o banco refletir) */
+  const formas = new Map<string, string>();
   const out: ResultadoSaida = { enviadas: 0, falhas: 0, erroDefinitivo: 0, ambiguas: 0 };
   for (const f of await listarFamiliasAtivas()) {
     if (opts.parar?.()) break;
@@ -46,7 +49,7 @@ export async function enviarPendentes(
       if (!marcou.ok || marcou.jaEnviada) continue; // outra instância já cuidou
       try {
         await ritmo.escalonar(m.telefone);
-        await ritmo.enviar(provedor, m.telefone, m.texto);
+        formas.set(m.membroId, await enviarAoMembro(provedor, ritmo, { familiaId: ids.familyId, membroId: m.membroId, telefone: m.telefone, numeroEnvio: formas.get(m.membroId) ?? m.numeroEnvio }, m.texto));
         out.enviadas++;
         if (provedor.id !== "fake") await registrarResultadoEnvio(true, agoraFn());
         logWa({ etapa: "saida", tipo: m.tipo, id: ids.id });

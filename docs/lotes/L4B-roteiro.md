@@ -73,6 +73,7 @@ O simulador usa **a mesma fila e o mesmo worker** do WhatsApp real, só com um "
 |---|---|---|
 | B0 | **Conectar.** Crie a instância na Evolution Go, leia o **QR Code** com o celular do chip, preencha `EVOLUTION_BASE_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE_ID`, ponha o webhook em `https://…/api/whatsapp/evolution/<WHATSAPP_WEBHOOK_SECRET>`, ligue `WHATSAPP_WORKER_ENABLED=1` e faça **Deploy**. Em **Configurações → WhatsApp** toque em **Consultar agora**. | Etiqueta **Conectada** e **Worker ligado**. |
 | B1 | **Captura do formato real.** Do **seu** celular, mande "oi" para o número do sistema. | Como seu número ainda não foi verificado, você recebe a **resposta genérica** ("Não consegui te identificar por aqui…"). **Se nada chegar:** veja **Mensagens recebidas** (erro?) e a seção 3 do `docs/11` ("Se o formato real for diferente") e **pare aqui** avisando o que viu. |
+| B1b | **Nono dígito (use o número real do dono e o de um familiar, em DDD de Minas).** Cadastre cada um como a pessoa usa. Em **Configurações → WhatsApp** veja o número e depois mande "oi" de cada celular. Depois do passo B2 de cada um, aguarde um lembrete. | Cada pessoa é reconhecida **mesmo que o WhatsApp entregue o número com o 9 e o cadastro esteja sem (ou o contrário)**. Se alguém não for reconhecido, **anote o que o painel mostra** (contagem em "Mensagens recebidas") e se a conta é antiga. Os lembretes chegam **uma vez só**. Anote (sem copiar o número inteiro): o WhatsApp dessa pessoa usa a forma **com** ou **sem** o 9? |
 | B2 | **Validar o próprio número.** Em **Configurações → WhatsApp** gere o código (como no 4A) e **envie o código** pelo seu WhatsApp para o número do sistema. | "✅ Número verificado". A etiqueta no portal vira **Verificado**. **Anote:** a resposta demorou entre 2 e 6 segundos? Apareceu "digitando…"? |
 | B3 | **Lembrete.** Cadastre uma dose para **daqui a 2 a 3 minutos** (Esquemas) e espere. | Chega no seu celular **"⏰ Hora do remédio — …"** com as opções **1 — Tomei** / **2 — Lembrar em 15 min**, com um "digitando…" antes. **Um só**, sem repetir. |
 | B4 | Responda **1** (ou **tomei**). | "✅ Anotado". O estoque no portal cai 1. Mande **tomei** outra vez: "Nenhuma dose pendente". |
@@ -89,7 +90,7 @@ O simulador usa **a mesma fila e o mesmo worker** do WhatsApp real, só com um "
 ## Limitações conhecidas do Lote 4B
 - O **formato real** do que a Evolution Go manda ainda não foi conferido com mensagens reais (passo B1).
 - **"Tomei" por áudio** não confirma a dose (a transcrição pode errar): pede o texto. **Foto** nunca confirma nada.
-- O número de WhatsApp do **Brasil sem o nono dígito** é tratado acrescentando o 9; cadastros feitos sem o 9 não casam.
+- O celular do Brasil com ou sem o 9 é reconhecido pelas duas formas; o envio guarda a forma que funcionou. A consulta de número da Evolution Go e o texto do erro de número inexistente **ainda não foram vistos com número real** (passo B1b).
 - Resposta que ficou no meio do envio quando o servidor caiu **não é reenviada** (preferimos perder a responder em dobro).
 - Tetos de mensagens por minuto/hora valem por servidor (um portal).
 - Custos de IA são **estimativas** feitas com a tabela de preços do código; vale a fatura da Anthropic/Google.

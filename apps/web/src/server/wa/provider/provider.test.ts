@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 import fx from "./fixtures/eventos.json";
-import { conectadaDe, criarEvolutionGo, envioOk, idDaMensagemEnviada, midiaBaixada, remetenteDoInfo, respostaDeBotao, telefoneDoJid } from "./evolution-go";
+import { conectadaDe, erroNumeroInexistente, respostaUserCheck, criarEvolutionGo, envioOk, idDaMensagemEnviada, midiaBaixada, remetenteDoInfo, respostaDeBotao, telefoneDoJid } from "./evolution-go";
 import { criarFake } from "./fake";
 import { criarMeta } from "./meta";
 import { criarProvedor } from "./index";
@@ -189,5 +189,34 @@ describe("provedor fake, meta e escolha pelo ambiente", () => {
         else process.env[k] = antes[k];
       }
     }
+  });
+});
+
+describe("Evolution Go — consulta 'está no WhatsApp?' e número inexistente (TODO verificar com mensagem real)", () => {
+  it("respostaUserCheck aceita os formatos prováveis e devolve null para o desconhecido", () => {
+    expect(respostaUserCheck({ data: [{ Query: "5599988887777", IsInWhatsapp: true, JID: "559988887777@s.whatsapp.net" }] })).toEqual({ existe: true, numero: "559988887777" });
+    expect(respostaUserCheck({ data: { Users: [{ Query: "5599988887777", IsInWhatsapp: false }] } })).toEqual({ existe: false, numero: "5599988887777" });
+    expect(respostaUserCheck([{ IsInWhatsapp: true, JID: "5599988887777:3@s.whatsapp.net" }])).toEqual({ existe: true, numero: "5599988887777" });
+    expect(respostaUserCheck({ algo: 1 })).toBeNull();
+    expect(respostaUserCheck(null)).toBeNull();
+  });
+  it("erroNumeroInexistente só para 4xx que falam de número/WhatsApp inexistente", () => {
+    expect(erroNumeroInexistente(400, { error: "number not on whatsapp" })).toBe(true);
+    expect(erroNumeroInexistente(400, { error: "invalid number" })).toBe(true);
+    expect(erroNumeroInexistente(500, { error: "number not on whatsapp" })).toBe(false);
+    expect(erroNumeroInexistente(401, { error: "unauthorized" })).toBe(false);
+  });
+  it("numeroNoWhatsapp: POST /user/check e null quando a rota falha", async () => {
+    const f = vi.fn(async (_u: string, _i?: RequestInit) => new Response(JSON.stringify({ data: [{ IsInWhatsapp: true, JID: "559988887777@s.whatsapp.net" }] }), { status: 200 }));
+    const prov = criarEvolutionGo({ baseUrl: "https://e", apiKey: "k", instanceId: INSTANCIA, fetchFn: f as unknown as typeof fetch });
+    expect(await prov.numeroNoWhatsapp("5599988887777")).toEqual({ existe: true, numero: "559988887777" });
+    expect(f.mock.calls[0]![0]).toBe("https://e/user/check");
+    expect(JSON.parse(String(f.mock.calls[0]![1]!.body))).toMatchObject({ number: ["5599988887777"] });
+    const quebrado = criarEvolutionGo({ baseUrl: "https://e", apiKey: "k", instanceId: INSTANCIA, fetchFn: (async () => { throw new Error("x"); }) as unknown as typeof fetch });
+    expect(await quebrado.numeroNoWhatsapp("5599988887777")).toBeNull();
+  });
+  it("envio recusado por número inexistente marca a falha para a retentativa na outra forma", async () => {
+    const prov = criarEvolutionGo({ baseUrl: "https://e", apiKey: "k", instanceId: INSTANCIA, fetchFn: (async () => new Response(JSON.stringify({ error: "number not on whatsapp" }), { status: 400 })) as unknown as typeof fetch });
+    await expect(prov.enviarTexto("5599988887777", "x")).rejects.toMatchObject({ recusaClara: true, numeroInexistente: true });
   });
 });

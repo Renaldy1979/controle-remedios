@@ -91,6 +91,8 @@ export const members = pgTable("members", {
   removedAt: ts("removed_at"),
   /** Lote 4B: PARAR (WhatsApp). Nulo = recebe os avisos agendados; preenchido = pediu para parar (REATIVAR limpa). */
   whatsappOptOutAt: ts("whatsapp_opt_out_at"),
+  /** Forma do número (com ou sem o 9 do celular BR) que o WhatsApp aceitou no último envio/recebimento. Só dígitos; nulo = usar `phone_verified`. */
+  whatsappSendNumber: text("whatsapp_send_number"),
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex("members_phone_verified_uq").on(t.phoneVerified).where(sql`${t.phoneVerified} is not null`),
@@ -102,6 +104,7 @@ export const members = pgTable("members", {
   check("members_active_needs_auth", sql`${t.accessState} <> 'active' or (${t.appwriteUserId} is not null and ${t.email} is not null and ${t.emailConfirmedAt} is not null)`),
   check("members_auth_only_active", sql`${t.accessState} = 'active' or (${t.appwriteUserId} is null and ${t.emailConfirmedAt} is null)`),
   check("members_wa_needs_phone", sql`${t.accessState} <> 'whatsapp_verified' or ${t.phoneVerified} is not null`),
+  check("members_send_number_fmt", sql`${t.whatsappSendNumber} is null or ${t.whatsappSendNumber} ~ '^[0-9]{10,15}$'`),
   check("members_phone_pending_fmt", sql`${t.phonePending} is null or ${t.phonePending} ~ '^[0-9]{10,15}$'`),
 ]);
 

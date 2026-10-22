@@ -1,0 +1,2 @@
+ALTER TABLE "members" ADD COLUMN "whatsapp_send_number" text;--> statement-breakpoint
+ALTER TABLE "members" ADD CONSTRAINT "members_send_number_fmt" CHECK ("members"."whatsapp_send_number" is null or "members"."whatsapp_send_number" ~ '^[0-9]{10,15}$');

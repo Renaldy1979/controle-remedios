@@ -11,6 +11,7 @@ export function criarMeta(): ProvedorWhatsapp {
     enviarTexto: naoImplementado,
     presenca: naoImplementado,
     statusInstancia: naoImplementado,
+    numeroNoWhatsapp: naoImplementado,
     baixarMidia: naoImplementado,
   };
 }

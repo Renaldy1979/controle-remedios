@@ -44,13 +44,18 @@ export interface ProvedorWhatsapp {
   /** "digitando…" (falha é ignorada por quem chama) */
   presenca(numero: string): Promise<void>;
   statusInstancia(): Promise<EstadoInstancia>;
+  /**
+   * "Este número está no WhatsApp?" Devolve o número (só dígitos) na forma que o WhatsApp usa. `null` = o provedor não soube responder
+   * (rota ausente, erro, formato desconhecido): quem chama usa a forma cadastrada.
+   */
+  numeroNoWhatsapp(numero: string): Promise<{ existe: boolean; numero: string } | null>;
   /** Baixa a mídia quando o webhook não trouxe o base64. null se o provedor não conseguiu. */
   baixarMidia(ref: Record<string, unknown>): Promise<{ base64: string; mimetype: string } | null>;
 }
 
 /** Erro de envio com a informação que importa para o worker: se foi recusa clara (pode tentar de novo sem risco) ou ambíguo. */
 export class ErroEnvio extends Error {
-  constructor(message: string, readonly recusaClara: boolean) {
+  constructor(message: string, readonly recusaClara: boolean, readonly numeroInexistente = false) {
     super(message);
     this.name = "ErroEnvio";
   }

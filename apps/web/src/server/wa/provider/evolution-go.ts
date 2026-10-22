@@ -113,6 +113,28 @@ export function conectadaDe(corpo: unknown): boolean | null {
   return null;
 }
 
+/**
+ * Resposta de `POST /user/check` ("este número está no WhatsApp?"). TODO verificar com mensagem real: formato presumido pela doc da
+ * Evolution Go: lista de `{ Query, IsInWhatsapp, JID }`, às vezes dentro de `data`. Devolve null se o formato não for reconhecido.
+ */
+export function respostaUserCheck(resp: unknown): { existe: boolean; numero: string } | null {
+  const j = obj(resp);
+  const d = j["data"] ?? j["Data"] ?? resp;
+  const item = obj(Array.isArray(d) ? d[0] : (isObj(d) && Array.isArray(d["Users"] ?? d["users"]) ? ((d["Users"] ?? d["users"]) as unknown[])[0] : d));
+  const existe = item["IsInWhatsapp"] ?? item["isInWhatsapp"] ?? item["exists"] ?? item["Exists"];
+  if (typeof existe !== "boolean") return null;
+  const jid = pick(item, "JID", "Jid", "jid");
+  const numero = jid ? telefoneDoJid(jid) || soDigitos(jid.split("@")[0]!.split(":")[0]) : "";
+  return { existe, numero: numero || soDigitos(pick(item, "Query", "query", "number")) };
+}
+
+/** O envio falhou porque o número não existe no WhatsApp? TODO verificar com mensagem real (texto do erro). */
+export function erroNumeroInexistente(status: number, corpo: unknown): boolean {
+  if (status < 400 || status >= 500) return false;
+  const t = JSON.stringify(corpo ?? "").toLowerCase();
+  return /not (on|in|registered)|n[uú]mero.{0,20}(inexist|n[aã]o)|invalid (number|jid)|no account|not exist|exists/.test(t) && /whatsapp|number|jid|n[uú]mero/.test(t);
+}
+
 export function criarEvolutionGo(cfg: ConfigEvolutionGo): ProvedorWhatsapp {
   const f = cfg.fetchFn ?? fetch;
   const base = cfg.baseUrl.replace(/\/+$/, "");
@@ -193,7 +215,7 @@ export function criarEvolutionGo(cfg: ConfigEvolutionGo): ProvedorWhatsapp {
         throw new ErroEnvio(`rede: ${e instanceof Error ? e.name : "erro"}`, false);
       }
       const corpo = await r.json().catch(() => null);
-      if (!envioOk(r.status, corpo)) throw new ErroEnvio(`Evolution /send/text respondeu ${r.status}`, r.status >= 400 && r.status < 500);
+      if (!envioOk(r.status, corpo)) throw new ErroEnvio(`Evolution /send/text respondeu ${r.status}`, r.status >= 400 && r.status < 500, erroNumeroInexistente(r.status, corpo));
       return { messageId: idDaMensagemEnviada(corpo) || `sint-${Date.now()}` };
     },
 
@@ -206,6 +228,17 @@ export function criarEvolutionGo(cfg: ConfigEvolutionGo): ProvedorWhatsapp {
       const r = await chamar("/instance/status", { method: "GET" }, 10000);
       if (r.status !== 200) return { conectada: false };
       return { conectada: conectadaDe(await r.json().catch(() => null)) };
+    },
+
+    async numeroNoWhatsapp(numero) {
+      // TODO verificar com mensagem real: rota e corpo de "verificar usuário" da Evolution Go (`POST /user/check`)
+      try {
+        const r = await chamar("/user/check", { method: "POST", body: JSON.stringify({ number: [soDigitos(numero)], formatJid: true }) }, 10000);
+        if (r.status !== 200) return null;
+        return respostaUserCheck(await r.json().catch(() => null));
+      } catch {
+        return null;
+      }
     },
 
     async baixarMidia(ref) {

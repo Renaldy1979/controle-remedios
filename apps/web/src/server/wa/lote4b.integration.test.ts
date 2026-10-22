@@ -16,7 +16,7 @@ import { createFamilyWithAdmin } from "../pg/families";
 import * as meds from "../pg/medications";
 import * as patients from "../pg/patients";
 import { registerPurchase } from "../pg/stock";
-import { loadWaActor, resolveSender, type WaActor } from "./actor";
+import { contadores, loadWaActor, resolveSender, type WaActor } from "./actor";
 import { monitorarInstancia, registrarResultadoEnvio } from "./alertas";
 import { cicloAgendador } from "./agendador";
 import { gerarMensagens, pendentes, resumoSaida } from "./fila";
@@ -37,6 +37,8 @@ import { enviarPendentes } from "./saida";
 import { segredoConfere, tratarWebhook } from "./webhook";
 import { iniciarWorkerEntrada, processarItem, rodarUmaVez, type DepsWorker } from "./worker";
 import { startPhoneVerification } from "./phone-verify";
+import { variantesBr } from "./provider/telefone";
+import { vi } from "vitest";
 
 const up = await bancoDisponivel();
 if (!up) console.warn("[web] Postgres local indisponível: testes de integração do Lote 4B PULADOS. Rode `pnpm db:up`.");
@@ -1017,6 +1019,171 @@ describe.skipIf(!up)("Lote 4B — WhatsApp direto no portal", () => {
       const i = (await reivindicar())!;
       await concluir(i.id);
       expect((await linha(id))["payload"]).toBeNull();
+    });
+  });
+
+
+  /* ------------------------------------------------------------ nono dígito (celular BR com ou sem o 9) */
+  describe("celular brasileiro com e sem o 9 depois do DDD", () => {
+    /** Celular de teste: as duas formas do MESMO número (DDD fictício 99, prefixo de 8 dígitos começando em 6-9). */
+    const celular = () => {
+      const oito = String(6 + Math.floor(Math.random() * 4)) + String(Math.floor(Math.random() * 1e7)).padStart(7, "0");
+      return { com: `55999${oito}`, sem: `5599${oito}` };
+    };
+    const definirNumero = (familyId: string, memberId: string, phone: string) =>
+      withFamilia(familyId, (tx) => tx.update(s.members).set({ phoneVerified: phone }).where(eq(s.members.id, memberId)));
+    const sendNumber = async (id: string) => ((await admin`select whatsapp_send_number from members where id = ${id}`)[0]!["whatsapp_send_number"] as string | null);
+    const ritmoRapido = () => criarRitmo({ relogio: relogioFalso(), maxPorMinuto: 1000, maxPorHora: 10000 });
+
+    it("variantesBr: celular com/sem o 9 tem as duas formas; fixo e estrangeiro, uma só", () => {
+      const c = celular();
+      expect(variantesBr(c.com)).toEqual([c.com, c.sem]);
+      expect(variantesBr(c.sem)).toEqual([c.sem, c.com]);
+      expect(variantesBr("551132345678")).toEqual(["551132345678"]);
+      expect(variantesBr("14155550123")).toEqual(["14155550123"]);
+    });
+
+    it("cadastrado COM o 9, remetente chega SEM o 9 (e o contrário): o mesmo membro é reconhecido", async () => {
+      const f = await novaFamilia("Nono1");
+      const c = celular();
+      await definirNumero(f.familyId, f.adminId, c.com);
+      expect((await resolveSender(c.sem))?.memberId).toBe(f.adminId);
+      expect((await resolveSender(c.com))?.memberId).toBe(f.adminId);
+      expect((await resolveSender(c.sem))?.phone).toBe(c.com); // o número verificado continua o cadastrado
+      const g = await novaFamilia("Nono2");
+      const d = celular();
+      await definirNumero(g.familyId, g.adminId, d.sem);
+      expect((await resolveSender(d.com))?.memberId).toBe(g.adminId);
+      const { d: dep } = deps();
+      expect((await processarEntrada(msgTexto(d.com, "estoque"), dep.nucleo)).respostas[0]).toContain(g.medName);
+    });
+
+    it("ambiguidade (duas pessoas, uma de cada forma): AMBOS são recusados como desconhecidos, contados e logados SEM o número", async () => {
+      const f = await novaFamilia("Ambig9");
+      const outro = await pessoa(f.familyId, "Familiar", "Outro");
+      const c = celular();
+      await definirNumero(f.familyId, f.adminId, c.com);
+      await definirNumero(f.familyId, outro.id, c.sem);
+      const espiao = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const antes = contadores.remetenteAmbiguo;
+      expect(await resolveSender(c.com)).toBeNull();
+      expect(await resolveSender(c.sem)).toBeNull();
+      const linhas = espiao.mock.calls.map((x) => String(x[0])).join("\n");
+      espiao.mockRestore();
+      expect(contadores.remetenteAmbiguo).toBe(antes + 2);
+      expect(linhas).toContain("remetente_ambiguo");
+      expect(linhas).not.toContain(c.com.slice(4));
+      const { d } = deps();
+      const r = await processarEntrada(msgTexto(c.com, "tomei"), d.nucleo);
+      expect(r.origem).toBe("recusa");
+      expect(await saldo(f)).toBe(10);
+    });
+
+    it("entre famílias: formas diferentes em famílias diferentes também são ambíguas e nada vaza", async () => {
+      const A = await novaFamilia("NonoA"), B = await novaFamilia("NonoB");
+      const c = celular();
+      await definirNumero(A.familyId, A.adminId, c.com);
+      await definirNumero(B.familyId, B.adminId, c.sem);
+      expect(await resolveSender(c.com)).toBeNull();
+      expect(await resolveSender(c.sem)).toBeNull();
+      const { d, fake } = deps();
+      const r = await processarEntrada(msgTexto(c.sem, "estoque"), d.nucleo);
+      expect(r.respostas.join(" ")).not.toContain(A.medName);
+      expect(r.respostas.join(" ")).not.toContain(B.medName);
+      expect(fake.enviados).toHaveLength(0);
+    });
+
+    it("a variante NÃO sequestra o número de outra pessoa: com a outra forma já verificada, um código válido não verifica ninguém", async () => {
+      const f = await novaFamilia("Sequestro");
+      const dono = await pessoa(f.familyId, "Familiar", "Dono");
+      const intruso = await pessoa(f.familyId, "Familiar", "Intruso", { phone: null });
+      const c = celular();
+      await definirNumero(f.familyId, dono.id, c.com);
+      const ctx = actorDe(f.familyId, intruso.id, "Familiar", "Intruso") as unknown as Parameters<typeof startPhoneVerification>[0];
+      const v = await startPhoneVerification(ctx, c.sem);
+      const { d } = deps();
+      const r = await processarEntrada(msgTexto(c.sem, v.code), d.nucleo); // chega como o dono (variante): resolve o dono, não verifica
+      expect(r.intent).not.toBe("numero_verificado");
+      const [m] = await admin`select phone_verified from members where id = ${intruso.id}`;
+      expect(m!["phone_verified"]).toBeNull();
+      expect((await resolveSender(c.com))?.memberId).toBe(dono.id);
+    });
+
+    it("verificação pelo código: cadastrou SEM o 9 e o WhatsApp entrega COM o 9 (e o contrário); fica verificado como cadastrado", async () => {
+      const f = await novaFamilia("Posse9");
+      for (const cadastrado of [celular().sem, celular().com]) {
+        const p = await pessoa(f.familyId, "Familiar", `Rosa${cadastrado.slice(-3)}`, { phone: null });
+        const ctx = actorDe(f.familyId, p.id, "Familiar", "Rosa") as unknown as Parameters<typeof startPhoneVerification>[0];
+        const v = await startPhoneVerification(ctx, cadastrado);
+        const remetente = variantesBr(cadastrado)[1]!;
+        const { d } = deps();
+        expect((await processarEntrada(msgTexto(remetente, `${v.code}`), d.nucleo)).intent).toBe("numero_verificado");
+        const [m] = await admin`select phone_verified from members where id = ${p.id}`;
+        expect(m!["phone_verified"]).toBe(cadastrado);
+        expect((await resolveSender(remetente))?.memberId).toBe(p.id);
+      }
+    });
+
+    it("envio: a consulta 'está no WhatsApp?' decide a forma, que fica guardada no membro e não é consultada de novo", async () => {
+      const f = await novaFamilia("Envio1");
+      const c = celular();
+      await definirNumero(f.familyId, f.adminId, c.com);
+      const fake = criarFake();
+      fake.consulta.set(c.com, c.sem); // o WhatsApp dele é o antigo, sem o 9
+      const ritmo = ritmoRapido();
+      await enviarPendentes(fake, ritmo, { agora: () => T0610, somenteFamilia: f.familyId });
+      const dele = fake.enviados.filter((e) => e.numero === c.sem || e.numero === c.com);
+      expect(dele.length).toBeGreaterThan(0);
+      expect(dele.every((e) => e.numero === c.sem)).toBe(true);
+      expect(await sendNumber(f.adminId)).toBe(c.sem);
+      expect(fake.consultas).toEqual([c.com]);
+      // novo aviso: usa a forma guardada, sem consultar
+      await admin`delete from outbound_messages where family_id = ${f.familyId}`;
+      await enviarPendentes(fake, ritmo, { agora: () => new Date(T0610.getTime() + 60_000), somenteFamilia: f.familyId });
+      expect(fake.consultas).toEqual([c.com]);
+      expect(fake.enviados.filter((e) => e.numero === c.com)).toHaveLength(0);
+    });
+
+    it("envio sem a consulta: 'número inexistente' na forma cadastrada → UMA retentativa na outra forma, sem duplicar, e guarda a que funcionou", async () => {
+      const f = await novaFamilia("Envio2");
+      const c = celular();
+      await definirNumero(f.familyId, f.adminId, c.com);
+      const fake = criarFake(); // consultaIndisponivel = true: a rota não responde
+      fake.inexistentes.add(c.com);
+      const r = await enviarPendentes(fake, ritmoRapido(), { agora: () => T0610, somenteFamilia: f.familyId });
+      expect(r.falhas).toBe(0);
+      const lembretes = fake.enviados.filter((e) => e.texto.includes("Hora do remédio"));
+      expect(lembretes).toHaveLength(1);
+      expect(lembretes[0]!.numero).toBe(c.sem);
+      expect(await sendNumber(f.adminId)).toBe(c.sem);
+      const [m] = await admin`select count(*)::int as n from outbound_messages where family_id = ${f.familyId} and kind = 'dose_reminder' and sent_at is not null`;
+      expect(m!["n"]).toBe(1);
+    });
+
+    it("as duas formas inexistentes: falha clara normal (recuo/erro), sem mensagem enviada", async () => {
+      const f = await novaFamilia("Envio3");
+      const c = celular();
+      await definirNumero(f.familyId, f.adminId, c.com);
+      const fake = criarFake();
+      fake.inexistentes.add(c.com);
+      fake.inexistentes.add(c.sem);
+      const r = await enviarPendentes(fake, ritmoRapido(), { agora: () => T0610, somenteFamilia: f.familyId });
+      expect(r.falhas).toBeGreaterThan(0);
+      expect(fake.enviados).toHaveLength(0);
+    });
+
+    it("aprende com quem escreve: a forma do número que chegou fica guardada e é a usada nos lembretes", async () => {
+      const f = await novaFamilia("Aprende");
+      const c = celular();
+      await definirNumero(f.familyId, f.adminId, c.com);
+      const { d } = deps();
+      await processarEntrada({ ...msgTexto(c.com, "estoque"), numeroResposta: c.sem }, d.nucleo);
+      expect(await sendNumber(f.adminId)).toBe(c.sem);
+      const fake = criarFake();
+      await enviarPendentes(fake, ritmoRapido(), { agora: () => T0610, somenteFamilia: f.familyId });
+      expect(fake.consultas).toHaveLength(0);
+      expect(fake.enviados.filter((e) => e.numero === c.com)).toHaveLength(0);
+      expect(fake.enviados.filter((e) => e.numero === c.sem).length).toBeGreaterThan(0);
     });
   });
 

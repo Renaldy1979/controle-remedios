@@ -4,6 +4,8 @@ import { resolverMembroPorTelefone, withFamilia, type EstadoAcesso } from "@medc
 import * as s from "@medcuidar/pg/schema";
 import { PERMISSION_KEYS, familySettingsSchema, permissionMapSchema, type FamilySettings, type PermissionKey, type PermissionMap } from "@medcuidar/shared";
 import type { DoseActor } from "../pg/doses";
+import { logWa } from "./log";
+import { variantesBr } from "./provider/telefone";
 
 /**
  * O que quem só validou o WhatsApp (`whatsapp_verified`) pode fazer (docs/06 seção 2): dar o check, ver a próxima dose,
@@ -34,6 +36,8 @@ export interface WaActor extends DoseActor {
   phone: string;
   /** Perfil real (para decisões de lista), diferente de member.profileName quando restrito. */
   realProfile: string;
+  /** Forma do número (com/sem o 9) que o WhatsApp aceitou por último; nulo = usar `phone`. */
+  sendNumber: string | null;
 }
 
 /** Carrega o ator a partir do membro já resolvido. Inativo, removido ou família inativa → null. */
@@ -60,12 +64,40 @@ export async function loadWaActor(familyId: string, memberId: string, access: Es
     access,
     phone,
     realProfile: row.profile.name,
+    sendNumber: row.member.whatsappSendNumber,
   };
 }
 
-/** Remetente (telefone VERIFICADO, só dígitos) → ator. Desconhecido, não verificado ou sem acesso → null (sem distinguir). */
+/** Contadores do processo (sem número, sem conteúdo): quantas vezes um remetente foi recusado por ambiguidade entre as variantes do número. */
+export const contadores = { remetenteAmbiguo: 0 };
+
+/**
+ * Membros VERIFICADOS que casam com o telefone nas DUAS formas brasileiras (com e sem o 9). Devolve os distintos, com o número
+ * verificado de cada um. Duas pessoas diferentes = ambiguidade.
+ */
+export async function membrosPorVariantes(telefone: string): Promise<Array<{ m: NonNullable<Awaited<ReturnType<typeof resolverMembroPorTelefone>>>; numero: string }>> {
+  const achados = new Map<string, { m: NonNullable<Awaited<ReturnType<typeof resolverMembroPorTelefone>>>; numero: string }>();
+  for (const v of variantesBr(telefone)) {
+    const m = await resolverMembroPorTelefone(v);
+    if (m && !achados.has(m.membroId)) achados.set(m.membroId, { m, numero: v });
+  }
+  return [...achados.values()];
+}
+
+/**
+ * Remetente (telefone, só dígitos) → ator. Casa as DUAS variantes do celular brasileiro (com e sem o 9) contra números VERIFICADOS,
+ * mas SÓ quando elas levam a exatamente UM membro. Duas pessoas (da mesma família ou de famílias diferentes) = ambiguidade: recusa como
+ * desconhecido, conta e loga SEM o número. Desconhecido, não verificado ou sem acesso → null (sem distinguir).
+ */
 export async function resolveSender(telefone: string): Promise<WaActor | null> {
-  const m = await resolverMembroPorTelefone(telefone);
-  if (!m || !m.ativo || !m.familiaAtiva || m.estadoAcesso === "invited") return null;
-  return loadWaActor(m.familiaId, m.membroId, m.estadoAcesso, telefone);
+  const achados = await membrosPorVariantes(telefone);
+  if (achados.length === 0) return null;
+  if (achados.length > 1) {
+    contadores.remetenteAmbiguo++;
+    logWa({ etapa: "remetente_ambiguo", total: contadores.remetenteAmbiguo });
+    return null;
+  }
+  const { m, numero } = achados[0]!;
+  if (!m.ativo || !m.familiaAtiva || m.estadoAcesso === "invited") return null;
+  return loadWaActor(m.familiaId, m.membroId, m.estadoAcesso, numero);
 }

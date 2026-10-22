@@ -30,8 +30,10 @@ export interface MensagemPendente {
   id: string;
   familiaId: string;
   membroId: string;
-  /** Número verificado do destinatário (só dígitos). */
+  /** Número verificado do destinatário (só dígitos), como cadastrado. */
   telefone: string;
+  /** Forma (com/sem o 9) que o WhatsApp aceitou por último; nulo = ainda não se sabe. */
+  numeroEnvio: string | null;
   tipo: string;
   texto: string;
   opcoes: Array<{ numero: number; rotulo: string }>;
@@ -252,7 +254,7 @@ export async function pendentes(
       or(isNull(s.outboundMessages.claimedUntil), lte(s.outboundMessages.claimedUntil, agora)),
     );
     const q = tx
-      .select({ o: s.outboundMessages, phone: s.members.phoneVerified, state: s.members.accessState, active: s.members.active, removed: s.members.removedAt, optOut: s.members.whatsappOptOutAt })
+      .select({ o: s.outboundMessages, phone: s.members.phoneVerified, state: s.members.accessState, active: s.members.active, removed: s.members.removedAt, optOut: s.members.whatsappOptOutAt, sendNum: s.members.whatsappSendNumber })
       .from(s.outboundMessages)
       .innerJoin(s.members, eq(s.members.id, s.outboundMessages.memberId))
       .where(base)
@@ -302,6 +304,7 @@ export async function pendentes(
     familiaId: familyId,
     membroId: r.o.memberId,
     telefone: r.phone!,
+    numeroEnvio: r.sendNum,
     tipo: r.o.kind,
     texto: r.o.body,
     opcoes: r.o.options.map((rotulo, i) => ({ numero: i + 1, rotulo })),

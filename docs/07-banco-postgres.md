@@ -183,6 +183,7 @@ Só acréscimos (nenhum DROP, DELETE ou TRUNCATE). Código: `apps/web/src/server
 | `ai_usage` (RLS por família) | Uso e custo de IA por chamada (Claude e Gemini): tokens, `cost_micros` (milionésimos de dólar), `estimated`; `idem_key` único por família. Nenhum conteúdo de mensagem |
 | `agent_sessions` (RLS por família) | Memória curta do agente (só texto, até 12 falas); apagada após 24 h parada |
 | `members.whatsapp_opt_out_at` | **PARAR** do WhatsApp (por membro). Preenchida = não recebe lembretes nem avisos agendados; **REATIVAR** limpa |
+| `members.whatsapp_send_number` (migração 0009) | Forma do celular BR (com ou sem o 9) que o WhatsApp aceitou por último, só dígitos. Nulo = usar `phone_verified`. Ver `docs/handoffs/L4B-limpeza.md` |
 | `outbound_messages.send_attempts / failed_at / error_summary` | Retentativa com recuo e **falha definitiva visível** (sem laço) |
 | `family_integrations.ai_monthly_limit_micros / ai_limit_notified_month` | Limite mensal de IA por família (nulo = `AI_MONTHLY_LIMIT_USD`, padrão US$ 5) e mês do último aviso de estouro |
 

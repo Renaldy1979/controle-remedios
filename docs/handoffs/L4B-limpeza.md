@@ -24,5 +24,13 @@
 ## Verificação depois da remoção
 `pnpm install`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (os testes do legado saem da contagem), `pnpm n8n:validar`, e2e dos lotes 1 a 4B.
 
-## Pendência de regra (não copiada porque a identidade é sensível)
-`packages/channels/src/phone.ts` tinha `phoneVariants`: o WhatsApp pode entregar números antigos do Brasil **sem o nono dígito** (55 + DDD + 8 dígitos). O código novo (`resolveSender`) casa o número exato. Se, com número real, o dono validar um número e a mensagem chegar sem o 9, será preciso casar as duas variantes **só na identificação do remetente** (com teste de que não vaza entre famílias). Anotado como risco do roteiro 4B (B1).
+## Nono dígito do celular brasileiro (resolvido no Lote 4B)
+Contas antigas do WhatsApp em vários DDDs (inclusive Minas Gerais) têm o JID **sem o 9** (55 + DDD + 8 dígitos), e o provedor pode entregar ou aceitar o número em qualquer uma das duas formas. Decisões:
+
+1. **Armazenamento:** o número cadastrado fica **como a pessoa digitou**, só dígitos com DDI 55 (`normalizePhone`), sem forçar o 9. A comparação é sempre **pelas duas variantes** (`variantesBr` em `apps/web/src/server/wa/provider/telefone.ts`). Só celulares (8 dígitos começando em 6 a 9) têm duas formas; fixo e número estrangeiro têm uma.
+2. **Identidade do remetente (`resolveSender`):** casa as duas variantes contra números **verificados**. Só vale se levarem a **exatamente um** membro. Duas pessoas (na mesma família ou em famílias diferentes) = **ambiguidade**: o remetente é tratado como desconhecido (resposta genérica) e só um contador sobe (`contadores.remetenteAmbiguo`, log `remetente_ambiguo` sem número). Nada vaza entre famílias.
+3. **Verificação e convite por código:** tentam as duas formas; o número fica verificado **exatamente como foi cadastrado**. Se qualquer forma do número já é de um membro verificado, o código **não é aceito** (resposta genérica): uma variante nunca "sequestra" o número de outra pessoa.
+4. **Envio dos lembretes (`wa/destino.ts`):** usa a forma guardada em `members.whatsapp_send_number` (migração 0009), aprendida quando a pessoa escreve (o número do remetente que chegou) ou num envio anterior. Sem forma guardada, pergunta ao provedor "este número está no WhatsApp?" (`numeroNoWhatsapp`, `POST /user/check` na Evolution Go). Se a consulta não existir ou falhar, tenta a forma cadastrada e, em caso de **"número inexistente"** (recusa clara, nada saiu), faz **uma** retentativa com a outra forma, **sem duplicar**. A forma que funcionou fica guardada. As respostas a quem escreveu sempre vão para o número de onde a mensagem veio.
+5. **A confirmar com número real** (`TODO verificar com mensagem real`): rota e formato de `/user/check`, o texto do erro de número inexistente no `/send/text` e se o webhook entrega mesmo o JID sem o 9. Roteiro: `docs/lotes/L4B-roteiro.md`, passo B1b.
+
+O número do chip do sistema **não** entra em código, docs ou testes: é só configuração da Evolution Go.

@@ -18,6 +18,13 @@ export interface ProvedorFake extends ProvedorWhatsapp {
   /** falhas programadas para os próximos envios (teste de retentativa) */
   falharProximos(n: number, recusaClara?: boolean): void;
   conectada: boolean | null;
+  /** números (só dígitos) que o fake trata como "não existe no WhatsApp": o envio falha com `numeroInexistente` */
+  readonly inexistentes: Set<string>;
+  /** respostas da consulta "está no WhatsApp?": número consultado → número devolvido; sem entrada e `consultaIndisponivel` = null */
+  readonly consulta: Map<string, string>;
+  consultaIndisponivel: boolean;
+  /** consultas feitas (para os testes) */
+  readonly consultas: string[];
   limpar(): void;
 }
 
@@ -27,7 +34,7 @@ export function criarFake(opts: { arquivo?: string } = {}): ProvedorFake {
   let falhas = 0, clara = true, seq = 0;
   const p: ProvedorFake = {
     id: "fake",
-    enviados, presencas, conectada: true,
+    enviados, presencas, conectada: true, inexistentes: new Set<string>(), consulta: new Map<string, string>(), consultaIndisponivel: true, consultas: [],
     falharProximos(n, recusaClara = true) { falhas = n; clara = recusaClara; },
     limpar() { enviados.length = 0; presencas.length = 0; falhas = 0; },
     parseWebhook(corpo) {
@@ -41,6 +48,7 @@ export function criarFake(opts: { arquivo?: string } = {}): ProvedorFake {
       };
     },
     async enviarTexto(numero, texto) {
+      if (p.inexistentes.has(numero.replace(/\D/g, ""))) throw new ErroEnvio("número inexistente", true, true);
       if (falhas > 0) {
         falhas--;
         throw new ErroEnvio("falha programada", clara);
@@ -54,6 +62,12 @@ export function criarFake(opts: { arquivo?: string } = {}): ProvedorFake {
     },
     async presenca(numero) { presencas.push(numero); },
     async statusInstancia() { return { conectada: p.conectada }; },
+    async numeroNoWhatsapp(numero) {
+      p.consultas.push(numero);
+      if (p.consultaIndisponivel && !p.consulta.has(numero)) return null;
+      const r = p.consulta.get(numero);
+      return r ? { existe: true, numero: r } : { existe: false, numero };
+    },
     async baixarMidia() { return null; },
   };
   return p;

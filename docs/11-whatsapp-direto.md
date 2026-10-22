@@ -108,7 +108,7 @@ O WhatsApp bloqueia números que parecem "robôs de spam". O sistema ajuda (paus
 | Estado da instância **Desconectada** (e aviso no sino) | O celular do chip perdeu a conexão ou o WhatsApp derrubou o aparelho | Na Evolution Go, leia o QR Code de novo. Depois toque em **Consultar agora** |
 | Estado **"Aguardando conexão"** | Faltam as variáveis `EVOLUTION_*` ou ainda não houve consulta | Preencha as três variáveis, faça Deploy e toque em **Consultar agora** |
 | Pessoa diz que **não recebe lembretes** | Número não verificado, ou ela escreveu **PARAR**, ou o perfil não permite confirmar doses | Em **Configurações › WhatsApp → Pessoas** veja "Número verificado". Peça para escrever **REATIVAR** |
-| **"Não consegui te identificar por aqui"** para alguém que devia ser atendido | Número não verificado, desativado ou escrito diferente (o WhatsApp antigo do Brasil pode vir sem o nono dígito) | Confira o número da pessoa; refaça a verificação. Se for o caso do nono dígito, veja a seção 8 |
+| **"Não consegui te identificar por aqui"** para alguém que devia ser atendido | Número não verificado, desativado ou escrito diferente (ou duas pessoas com as duas formas, com e sem o 9, do mesmo número) | Confira o número da pessoa; refaça a verificação. O nono dígito é tratado sozinho; se duas pessoas tiverem as duas formas do mesmo número, nenhuma é reconhecida (seção 8) |
 | *"O assistente de perguntas está indisponível"* | `ANTHROPIC_API_KEY` ausente ou inválida | Cadastre a chave no EasyPanel e faça Deploy. O resto funciona sem ela |
 | *"O assistente de perguntas está pausado neste mês"* | Limite mensal de IA atingido | Aumente o limite em Configurações › WhatsApp, ou espere o mês virar |
 | Áudio: *"não consegui entender o áudio"* | `GEMINI_API_KEY` ausente, áudio longo (> 3 min) ou ruim | Cadastre a chave, ou peça para escrever |
@@ -118,7 +118,7 @@ O WhatsApp bloqueia números que parecem "robôs de spam". O sistema ajuda (paus
 
 ## 8. Limitações conhecidas
 - O formato real do webhook da Evolution Go ainda **não foi conferido com mensagens reais** (por isso a Parte B do roteiro começa com um teste de captura).
-- Se um número antigo do Brasil chegar **sem o nono dígito**, o portal acrescenta o 9 para procurar o cadastro. Se o cadastro foi feito **sem** o 9, a pessoa não é reconhecida: recadastre com o 9.
+- **Nono dígito:** o portal reconhece o celular brasileiro **com ou sem o 9** (cadastre como a pessoa usa). Se duas pessoas tiverem as duas formas do mesmo número, nenhuma é atendida (por segurança). Para os lembretes, o sistema pergunta à Evolution Go qual forma existe no WhatsApp e guarda a que funcionou; se o número não existir numa forma, tenta a outra **uma vez**. Detalhes em `docs/handoffs/L4B-limpeza.md`. A consulta `/user/check` e o texto do erro **ainda não foram conferidos com número real**.
 - Os tetos de mensagens por minuto/hora valem **por servidor**. Com um único portal (o normal), valem para o número inteiro.
 - Se o processo cair no meio de **enviar** uma resposta, ela **não é reenviada** (preferimos perder uma resposta a responder em dobro). O mesmo vale para lembretes cujo envio não teve resposta clara do provedor.
 - O sistema só trata texto, áudio e foto. Figurinha, vídeo, documento e localização recebem *"só entendo texto, áudio e foto"*. Grupos são ignorados.

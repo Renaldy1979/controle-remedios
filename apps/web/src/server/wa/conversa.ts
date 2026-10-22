@@ -8,7 +8,8 @@ import { can } from "@medcuidar/shared";
 import { ForbiddenError, UserError, isUniqueViolation } from "../pg/errors";
 import { confirmDose, snoozeDose } from "../pg/doses";
 import { claim } from "../pg/replenishment";
-import { resolveSender, type WaActor } from "./actor";
+import { membrosPorVariantes, resolveSender, type WaActor } from "./actor";
+import { variantesBr } from "./provider/telefone";
 import { issueFirstAccessLink } from "./first-access";
 import { findMentions, interpretText, parseCode, parseOption, type Intent } from "./interpret";
 import {
@@ -48,26 +49,40 @@ const MAX_OPCOES = 9;
 export async function remetenteDesconhecido(telefone: string, texto: string): Promise<ConversaResultado> {
   const code = parseCode(texto);
   if (!code) return { respostas: [T.desconhecido()], intent: "desconhecido" };
+  // se QUALQUER forma do número (com/sem o 9) já é de um membro verificado, não aceita código: nada de "sequestrar" número alheio
+  if ((await membrosPorVariantes(telefone)).length > 0) return { respostas: [T.desconhecido()], intent: "desconhecido" };
+  const variantes = variantesBr(telefone);
+  let bloqueado = false, emUso = false;
 
-  // 1) código de verificação do número (o dono do número envia o código que o portal mostrou)
-  const v = await verificarTelefonePendente(telefone, hashCodigoVerificacao(code));
-  if (v.resultado === "verificado" && v.familiaId && v.membroId) {
-    const nome = await withFamilia(v.familiaId, async (tx) => (await tx.select({ n: s.members.name }).from(s.members).where(eq(s.members.id, v.membroId!)))[0]?.n ?? "");
-    await withFamilia(v.familiaId, (tx) => tx.insert(s.auditLog).values({ familyId: v.familiaId!, actorMemberId: v.membroId, action: "member.phone_verified", entity: "member", entityId: v.membroId, meta: {} }));
-    return { respostas: [T.numeroVerificado({ nome })], intent: "numero_verificado" };
+  // 1) código de verificação do número (o dono do número envia o código que o portal mostrou). O cadastro pode estar com ou sem o 9:
+  //    tenta as duas formas; quem tem o número pendente nessa forma é verificado exatamente como foi cadastrado.
+  for (const v of variantes) {
+    const r = await verificarTelefonePendente(v, hashCodigoVerificacao(code));
+    if (r.resultado === "verificado" && r.familiaId && r.membroId) {
+      const nome = await withFamilia(r.familiaId, async (tx) => (await tx.select({ n: s.members.name }).from(s.members).where(eq(s.members.id, r.membroId!)))[0]?.n ?? "");
+      await withFamilia(r.familiaId, (tx) => tx.insert(s.auditLog).values({ familyId: r.familiaId!, actorMemberId: r.membroId, action: "member.phone_verified", entity: "member", entityId: r.membroId, meta: {} }));
+      return { respostas: [T.numeroVerificado({ nome })], intent: "numero_verificado" };
+    }
+    bloqueado ||= r.resultado === "bloqueado";
+    emUso ||= r.resultado === "em_uso";
   }
-  if (v.resultado === "bloqueado") return { respostas: [T.codigoBloqueado()], intent: "codigo_invalido" };
-  if (v.resultado === "em_uso") return { respostas: [T.numeroEmUso()], intent: "codigo_invalido" };
+  if (emUso) return { respostas: [T.numeroEmUso()], intent: "codigo_invalido" };
+  if (bloqueado) return { respostas: [T.codigoBloqueado()], intent: "codigo_invalido" };
 
-  // 2) código de convite por WhatsApp (preso ao número esperado, uso único, 24 h)
-  const c = await consumirConviteWhatsapp(telefone, hashConviteCodigo(telefone, code));
-  if (c.resultado === "verificado" && c.familiaId && c.membroId) {
-    const nome = await withFamilia(c.familiaId, async (tx) => (await tx.select({ n: s.members.name }).from(s.members).where(eq(s.members.id, c.membroId!)))[0]?.n ?? "");
-    const link = await issueFirstAccessLink(c.familiaId, c.membroId, c.membroId, "member.whatsapp_invite_accepted");
-    return { respostas: [T.conviteAceito({ nome, link: link.url })], intent: "convite_aceito" };
+  // 2) código de convite por WhatsApp (preso ao número esperado, uso único, 24 h), também nas duas formas
+  bloqueado = false;
+  for (const v of variantes) {
+    const c = await consumirConviteWhatsapp(v, hashConviteCodigo(v, code));
+    if (c.resultado === "verificado" && c.familiaId && c.membroId) {
+      const nome = await withFamilia(c.familiaId, async (tx) => (await tx.select({ n: s.members.name }).from(s.members).where(eq(s.members.id, c.membroId!)))[0]?.n ?? "");
+      const link = await issueFirstAccessLink(c.familiaId, c.membroId, c.membroId, "member.whatsapp_invite_accepted");
+      return { respostas: [T.conviteAceito({ nome, link: link.url })], intent: "convite_aceito" };
+    }
+    bloqueado ||= c.resultado === "bloqueado";
+    emUso ||= c.resultado === "em_uso";
   }
-  if (c.resultado === "bloqueado") return { respostas: [T.codigoBloqueado()], intent: "codigo_invalido" };
-  if (c.resultado === "em_uso") return { respostas: [T.numeroEmUso()], intent: "codigo_invalido" };
+  if (emUso) return { respostas: [T.numeroEmUso()], intent: "codigo_invalido" };
+  if (bloqueado) return { respostas: [T.codigoBloqueado()], intent: "codigo_invalido" };
   return { respostas: [T.codigoInvalido()], intent: "codigo_invalido" };
 }
 

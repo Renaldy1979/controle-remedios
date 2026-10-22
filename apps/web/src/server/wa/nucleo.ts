@@ -11,6 +11,7 @@ import { responderLivre, type DepsAgente } from "./ia/agente";
 import { geminiModelo, type LeitorMidia } from "./ia/midia";
 import { registrarUso } from "./ia/uso";
 import type { MensagemRecebida } from "./provider/types";
+import { mesmoCelular } from "./provider/telefone";
 import * as T from "./texts";
 
 /**
@@ -48,6 +49,15 @@ const REATIVAR = /^(reativar|reativar avisos|ativar avisos|voltar avisos|quero r
 export function comandoDeAvisos(texto: string): "parar" | "reativar" | null {
   const t = normalizeText(texto);
   return PARAR.test(t) ? "parar" : REATIVAR.test(t) ? "reativar" : null;
+}
+
+/** Guarda no membro a forma do número (com/sem o 9) que o WhatsApp aceitou. Nunca falha a conversa. */
+export async function lembrarNumeroDeEnvio(familyId: string, memberId: string, numero: string): Promise<void> {
+  try {
+    await withFamilia(familyId, (tx) => tx.update(s.members).set({ whatsappSendNumber: numero }).where(eq(s.members.id, memberId)));
+  } catch {
+    /* só otimização */
+  }
 }
 
 export async function definirPausa(actor: WaActor, pausar: boolean, agora: Date): Promise<void> {
@@ -102,6 +112,11 @@ export async function processarEntrada(m: MensagemRecebida, d: DepsNucleo): Prom
     const r = m.tipo === "texto" ? await remetenteDesconhecido(m.telefone, m.texto) : { respostas: [T.desconhecido()], intent: "desconhecido" as const };
     logWa({ etapa: "remetente", msgId: m.msgId, conhecido: false, intent: r.intent });
     return { respostas: r.respostas.map((x) => x.texto), origem: r.intent === "desconhecido" ? "recusa" : "codigo", intent: r.intent };
+  }
+
+  // quem escreve mostra a forma do número que o WhatsApp usa de verdade (com ou sem o 9): guarda para os envios agendados
+  if (m.numeroResposta !== actor.sendNumber && m.numeroResposta !== actor.phone && mesmoCelular(actor.phone, m.numeroResposta)) {
+    await lembrarNumeroDeEnvio(actor.familyId, actor.memberId, m.numeroResposta);
   }
 
   // 2) mídia recusada pelo provedor (grande demais...) e tipos que não entendemos
