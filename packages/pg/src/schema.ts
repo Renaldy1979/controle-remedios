@@ -89,6 +89,8 @@ export const members = pgTable("members", {
   verificationExpiresAt: ts("verification_expires_at"),
   verificationAttempts: smallint("verification_attempts").notNull().default(0),
   removedAt: ts("removed_at"),
+  /** Lote 4B: PARAR (WhatsApp). Nulo = recebe os avisos agendados; preenchido = pediu para parar (REATIVAR limpa). */
+  whatsappOptOutAt: ts("whatsapp_opt_out_at"),
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex("members_phone_verified_uq").on(t.phoneVerified).where(sql`${t.phoneVerified} is not null`),
@@ -559,6 +561,10 @@ export const outboundMessages = pgTable("outbound_messages", {
   claimCount: smallint("claim_count").notNull().default(0),
   sentAt: ts("sent_at"),
   discardedAt: ts("discarded_at"),
+  /** Lote 4B: tentativas de envio pelo worker, falha definitiva (visível no portal) e motivo curto SEM conteúdo da mensagem. */
+  sendAttempts: smallint("send_attempts").notNull().default(0),
+  failedAt: ts("failed_at"),
+  errorSummary: text("error_summary"),
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex("outbound_messages_dedupe_uq").on(t.familyId, t.dedupeKey),
@@ -585,7 +591,7 @@ export const FAMILY_TABLES = [
   "dose_events", "stock_items", "stock_movements", "prescriptions", "prescription_files", "prescription_items",
   "prescription_shares", "prescription_views", "replenishments", "replenishment_steps", "notifications",
   "message_log", "audit_log", "api_keys", "idempotency", "invites", "first_access_links",
-  "outbound_messages", "conversation_state", "family_integrations",
+  "outbound_messages", "conversation_state", "family_integrations", "ai_usage", "agent_sessions",
 ] as const;
 
 /**
@@ -601,6 +607,83 @@ export const familyIntegrations = pgTable("family_integrations", {
   n8nCheckedAt: ts("n8n_checked_at"),
   n8nCheckOk: boolean("n8n_check_ok"),
   n8nVersion: text("n8n_version"),
+  /** Lote 4B: limite mensal de IA da família em milionésimos de dólar (nulo = padrão do ambiente) e o mês (aaaa-mm) do último aviso de estouro. */
+  aiMonthlyLimitMicros: integer("ai_monthly_limit_micros"),
+  aiLimitNotifiedMonth: text("ai_limit_notified_month"),
   createdAt: createdAt(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("family_integrations_family_uq").on(t.familyId)]);
+
+/* ------------------------------------------------------------------ WhatsApp direto no portal, sem N8N (Lote 4B) */
+
+/**
+ * Fila de ENTRADA do WhatsApp (webhook → worker). Sem `family_id`: o remetente só é identificado no processamento, por isso a RLS é a da
+ * plataforma (`app.plataforma`). `msg_id` único = o webhook repetido não entra duas vezes. O `payload` (texto, base64 de mídia) e a resposta
+ * pronta são APAGADOS ao concluir; as linhas concluídas somem depois de 7 dias.
+ * status: pendente | processando | feito | erro. stage: novo | respondido | enviado (a retentativa nunca refaz o que já foi feito).
+ */
+export const whatsappInbound = pgTable("whatsapp_inbound", {
+  id: id(),
+  msgId: text("msg_id").notNull(),
+  phone: text("phone").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>(),
+  status: text("status").notNull().default("pendente"),
+  stage: text("stage").notNull().default("novo"),
+  responseText: text("response_text"),
+  responseOrigin: text("response_origin"),
+  attempts: smallint("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  lockedUntil: ts("locked_until"),
+  errorSummary: text("error_summary"),
+  createdAt: createdAt(),
+  finishedAt: ts("finished_at"),
+}, (t) => [
+  uniqueIndex("whatsapp_inbound_msg_uq").on(t.msgId),
+  index("whatsapp_inbound_status_idx").on(t.status, t.nextAttemptAt),
+  index("whatsapp_inbound_phone_idx").on(t.phone, t.createdAt),
+  check("whatsapp_inbound_status_ck", sql`${t.status} in ('pendente','processando','feito','erro')`),
+  check("whatsapp_inbound_stage_ck", sql`${t.stage} in ('novo','respondido','enviado')`),
+]);
+
+/** Estado do WhatsApp do SISTEMA (uma instância): batimento do worker, última consulta da instância, falhas seguidas. RLS da plataforma. */
+export const whatsappRuntime = pgTable("whatsapp_runtime", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<Record<string, unknown>>().notNull().default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Uso e custo de IA por família (Claude e Gemini). Uma linha por chamada; `idem_key` único = medir de novo não duplica.
+ * `cost_micros` = custo em milionésimos de dólar (inteiro). Nenhum conteúdo de mensagem.
+ */
+export const aiUsage = pgTable("ai_usage", {
+  id: id(),
+  familyId: familyId(),
+  memberId: uuid("member_id").references(() => members.id, { onDelete: "set null" }),
+  /** conversa | audio | imagem */
+  operation: text("operation").notNull(),
+  provider: text("provider").notNull(),
+  model: text("model").notNull(),
+  msgId: text("msg_id"),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
+  cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  mediaTokens: integer("media_tokens").notNull().default(0),
+  costMicros: integer("cost_micros").notNull().default(0),
+  estimated: boolean("estimated").notNull().default(false),
+  idemKey: text("idem_key").notNull(),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("ai_usage_idem_uq").on(t.familyId, t.idemKey),
+  index("ai_usage_family_time_idx").on(t.familyId, t.createdAt),
+]);
+
+/** Memória curta do agente de IA (só texto), uma linha por pessoa. Expira em horas; o worker apaga as paradas. */
+export const agentSessions = pgTable("agent_sessions", {
+  id: id(),
+  familyId: familyId(),
+  memberId: uuid("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  turns: jsonb("turns").$type<Array<{ role: "user" | "assistant"; text: string }>>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("agent_sessions_member_uq").on(t.familyId, t.memberId)]);

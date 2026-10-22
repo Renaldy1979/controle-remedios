@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { getDb } from "./client";
+import { tentarTravaConsultiva } from "./lock";
 import { withFamilia, withPlataforma } from "./withFamilia";
 import {
   consumirConviteWhatsapp, consumirLinkPrimeiroAcesso, resolverApiKeyPorHash, resolverLinkPrimeiroAcesso, resolverMembroPorAppwriteUser, resolverMembroPorTelefone, verificarTelefonePendente,
@@ -180,6 +181,51 @@ describe.skipIf(!disponivel)("Postgres + RLS (papel da aplicação)", () => {
       } finally {
         await admin`delete from platform_api_keys where id = ${keyId}`;
       }
+    });
+
+    it("Lote 4B: ai_usage e agent_sessions são isolados por família; whatsapp_inbound e whatsapp_runtime só na plataforma", async () => {
+      for (const F of [A, B]) {
+        await withFamilia(F.id, async (tx) => {
+          await tx.insert(s.aiUsage).values({ familyId: F.id, memberId: F.memberId, operation: "conversa", provider: "anthropic", model: "claude-sonnet-5-5", idemKey: `rls-${F.id}`, costMicros: 10 });
+          await tx.insert(s.agentSessions).values({ familyId: F.id, memberId: F.memberId, turns: [{ role: "user", text: "oi" }] });
+        });
+      }
+      await withFamilia(A.id, async (tx) => {
+        expect((await tx.select().from(s.aiUsage)).map((r) => r.familyId)).toEqual([A.id]);
+        expect((await tx.select().from(s.agentSessions)).map((r) => r.familyId)).toEqual([A.id]);
+      });
+      // escrever em nome da família B é barrado pelo RLS
+      const code = await sqlstate(() => withFamilia(A.id, (tx) => tx.insert(s.aiUsage).values({ familyId: B.id, operation: "conversa", provider: "anthropic", model: "m", idemKey: "x" })));
+      expect(code).toBe("42501");
+      // as tabelas sem família não aparecem em família nem sem contexto
+      const chave = `zz-${A.id}`;
+      await withPlataforma((tx) => tx.insert(s.whatsappInbound).values({ msgId: chave, phone: "5599000000000" }));
+      await withPlataforma((tx) => tx.insert(s.whatsappRuntime).values({ key: chave, value: {} }));
+      try {
+        expect(await withFamilia(A.id, (tx) => tx.select().from(s.whatsappInbound))).toHaveLength(0);
+        expect(await withFamilia(A.id, (tx) => tx.select().from(s.whatsappRuntime))).toHaveLength(0);
+        expect(await getDb().select().from(s.whatsappInbound)).toHaveLength(0);
+        expect(await sqlstate(() => withFamilia(A.id, (tx) => tx.insert(s.whatsappInbound).values({ msgId: "y", phone: "5599" })))).toBe("42501");
+        const dentro = await withPlataforma((tx) => tx.select().from(s.whatsappInbound).where(eq(s.whatsappInbound.msgId, chave)));
+        expect(dentro).toHaveLength(1);
+        // a fila de entrada não deixa o mesmo id entrar duas vezes
+        const dup = await sqlstate(() => withPlataforma((tx) => tx.insert(s.whatsappInbound).values({ msgId: chave, phone: "5599000000001" })));
+        expect(dup).toBe("23505");
+      } finally {
+        await admin`delete from whatsapp_inbound where msg_id = ${chave}`;
+        await admin`delete from whatsapp_runtime where key = ${chave}`;
+      }
+    });
+
+    it("Lote 4B: trava consultiva de sessão — uma instância por vez", async () => {
+      const nome = `zz-pg-${A.id}`;
+      const t1 = await tentarTravaConsultiva(nome);
+      expect(t1).not.toBeNull();
+      expect(await tentarTravaConsultiva(nome)).toBeNull();
+      await t1!.liberar();
+      const t2 = await tentarTravaConsultiva(nome);
+      expect(t2).not.toBeNull();
+      await t2!.liberar();
     });
 
     it("phone_lockouts não é acessível ao papel da aplicação", async () => {

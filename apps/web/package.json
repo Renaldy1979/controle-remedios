@@ -12,6 +12,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.1.0",
     "@medcuidar/domain": "workspace:^",
     "@medcuidar/pg": "workspace:*",
     "@medcuidar/shared": "workspace:*",
