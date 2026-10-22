@@ -7,7 +7,7 @@ import { cx } from "@/lib/format";
 import { visibleSections } from "@/lib/settings-sections";
 import { useActions, useConnection, useDataKind, useSnapshot } from "@/data";
 import { Button } from "@/components/ui/Button";
-import { logoutAction } from "@/server/auth-actions";
+import { signOut } from "@/server/pg/auth-actions";
 import { Avatar } from "@/components/ui/Avatar";
 import { Icon } from "@/components/ui/Icon";
 import { ThemeToggle } from "./theme";
@@ -190,7 +190,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           ) : null}
           {kind === "postgres" ? (
-            <form action={logoutAction}>
+            <form action={signOut}>
               <button type="submit" className="flex min-h-touch w-full items-center gap-2 rounded-md px-3 font-bold text-ink2 hover:bg-sf2">
                 <Icon name="logout" size={22} />
                 Sair

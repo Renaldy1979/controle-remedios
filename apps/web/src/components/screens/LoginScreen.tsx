@@ -5,14 +5,12 @@ import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
-import { requestCodeAction, verifyCodeAction } from "@/server/auth-actions";
 
 /**
- * Login por código de 6 dígitos enviado no WhatsApp (docs/01 RF0).
- * Origem real (DATA_SOURCE=appwrite): códigos pelo servidor. Origem mock: simulado ("000000" mostra o erro).
- * A resposta é a mesma para número cadastrado ou não (RF0.2).
+ * Tela de login SIMULADA, só para DATA_SOURCE=mock (desenvolvimento e /design-system): o login real é por e-mail e senha (Appwrite).
+ * Código "000000" mostra o erro.
  */
-export function LoginScreen({ real = false }: { real?: boolean }) {
+export function LoginScreen() {
   const router = useRouter();
   const toast = useToast();
   const [step, setStep] = useState<"phone" | "code">("phone");
@@ -41,12 +39,7 @@ export function LoginScreen({ real = false }: { real?: boolean }) {
       setStep("code");
       setWait(30);
     };
-    if (!real) return void setTimeout(go, 500);
-    // resposta igual para número cadastrado ou não (RF0.2)
-    requestCodeAction(phone).then(go, () => {
-      setBusy(false);
-      setErr("Sem conexão. Tente de novo.");
-    });
+    setTimeout(go, 500);
   };
 
   const verify = () => {
@@ -57,14 +50,7 @@ export function LoginScreen({ real = false }: { real?: boolean }) {
       setBusy(false);
       setErr("Esse código não confere ou venceu. Confira a mensagem no WhatsApp ou peça um novo.");
     };
-    if (!real) return void setTimeout(() => (code === "000000" ? wrong() : router.push("/")), 400);
-    verifyCodeAction(phone, code).then(
-      (r) => (r.ok ? window.location.assign("/") : wrong()),
-      () => {
-        setBusy(false);
-        setErr("Sem conexão. Tente de novo.");
-      },
-    );
+    setTimeout(() => (code === "000000" ? wrong() : router.push("/")), 400);
   };
 
   return (
@@ -123,7 +109,6 @@ export function LoginScreen({ real = false }: { real?: boolean }) {
                 icon="refresh"
                 onClick={() => {
                   setWait(30);
-                  if (real) void requestCodeAction(phone);
                   toast({ icon: "chat", message: "Se o número estiver cadastrado, enviamos um novo código" });
                 }}
               >

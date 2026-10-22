@@ -585,7 +585,7 @@ export const FAMILY_TABLES = [
   "dose_events", "stock_items", "stock_movements", "prescriptions", "prescription_files", "prescription_items",
   "prescription_shares", "prescription_views", "replenishments", "replenishment_steps", "notifications",
   "message_log", "audit_log", "api_keys", "idempotency", "invites", "first_access_links",
-  "outbound_messages", "conversation_state",
+  "outbound_messages", "conversation_state", "family_integrations",
 ] as const;
 
 /**

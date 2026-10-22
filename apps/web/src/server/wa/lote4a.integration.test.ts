@@ -688,7 +688,7 @@ describe.skipIf(!up)("Lote 4A — WhatsApp: API, conversa e fila no Postgres", (
       const daFamilia = await lerJson(await h.lembretesPendentes(req("GET", "/lembretes/pendentes?somenteLer=1", bearer(ka.chave)), semParams));
       expect(daFamilia.dados.mensagens.every((m: { familiaId: string }) => m.familiaId === a.familyId)).toBe(true);
       expect(daFamilia.dados.mensagens.length).toBeGreaterThan(0);
-      const todas = await lerJson(await h.lembretesPendentes(req("GET", "/lembretes/pendentes?somenteLer=1", bearer(cpl)), semParams));
+      const todas = await lerJson(await h.lembretesPendentes(req("GET", "/lembretes/pendentes?somenteLer=1&limite=200", bearer(cpl)), semParams));
       const fams = new Set(todas.dados.mensagens.map((m: { familiaId: string }) => m.familiaId));
       expect(fams.has(a.familyId) && fams.has(b.familyId)).toBe(true);
 

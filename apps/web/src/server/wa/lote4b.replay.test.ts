@@ -166,11 +166,11 @@ describe.skipIf(!up)("Lote 4B — replay dos fluxos 01 (conversa) e 02 (lembrete
   });
   afterAll(async () => {
     for (const id of chavesPlataforma) await revogarChavePlataforma(id);
-    await admin`delete from platform_audit_log where key_id in (select id from platform_api_keys where name like 'zz-test%')`;
-    await admin`delete from platform_api_keys where name like 'zz-test%'`;
+    // só as chaves DESTE arquivo (por id): a limpeza por prefixo derrubaria as chaves de testes que rodam em paralelo
+    await admin`delete from platform_audit_log where key_id = any(${chavesPlataforma}::uuid[])`;
+    await admin`delete from platform_api_keys where id = any(${chavesPlataforma}::uuid[])`;
     await admin.unsafe("delete from audit_log where family_id = any($1::uuid[])", [criadas]);
     await limparFamilias(admin, criadas);
-    await admin`delete from phone_lockouts where phone like '5599%'`;
     await encerrar(admin);
   });
 
