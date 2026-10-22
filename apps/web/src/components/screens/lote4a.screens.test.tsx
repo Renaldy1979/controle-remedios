@@ -19,14 +19,13 @@ const wa = vi.hoisted(() => {
     ],
     admin: true,
     chaves: [{ id: "k1", nome: "Planilha", prefixo: "cdf_", criadaEm: "19/10/2026 às 10:00", ultimoUso: "nunca", revogada: false }],
-    chavesPlataforma: null,
     simulador: true,
   };
   return {
     estado,
     estadoWhatsappAction: vi.fn(async () => ({ ok: true as const, data: estado })),
-    criarChaveAction: vi.fn(async (_n: string, _t: string) => ({ ok: true as const, data: { chave: "cdf_SEGREDO-mostrado-uma-vez" } })),
-    revogarChaveAction: vi.fn(async (_id: string, _t: string) => ({ ok: true as const, data: undefined })),
+    criarChaveAction: vi.fn(async (_n: string) => ({ ok: true as const, data: { chave: "cdf_SEGREDO-mostrado-uma-vez" } })),
+    revogarChaveAction: vi.fn(async (_id: string) => ({ ok: true as const, data: undefined })),
     reenviarLinkAcessoAction: vi.fn(async (_id: string) => ({ ok: true as const, data: { link: "https://x.test/primeiro-acesso?t=abc" } })),
     iniciarVerificacaoAction: vi.fn(async (_t: string) => ({ ok: true as const, data: { codigo: "123456", telefone: "(11) 91234-5678", expiraEm: "", expiraHora: "10:15" } })),
     removerMeuNumeroAction: vi.fn(async () => ({ ok: true as const, data: undefined })),
@@ -39,8 +38,9 @@ const wa = vi.hoisted(() => {
     })),
     simEnviarAction: vi.fn(async (i: { telefone: string; texto?: string }) =>
       i.texto === "livre"
-        ? { ok: true as const, data: { respostas: [], intent: "livre" } }
-        : { ok: true as const, data: { respostas: [{ texto: "✅ *Anotado*\nAdelino: Zypred das 08:00. Obrigado!" }], intent: "dose_tomada" } }),
+        ? { ok: true as const, data: { respostas: [{ texto: "ℹ️ O assistente de perguntas está indisponível no momento." }], digitando: 1 } }
+        : { ok: true as const, data: { respostas: [{ texto: "✅ *Anotado*\nAdelino: Zypred das 08:00. Obrigado!" }], digitando: 1 } }),
+    simEnviarAgoraAction: vi.fn(async () => ({ ok: true as const, data: [] })),
     simFilaAction: vi.fn(async () => ({
       ok: true as const,
       data: [{ id: "f.m", para: "Ana", telefone: "5511912345678", tipo: "dose_reminder", texto: "⏰ *Hora do remédio — Adelino*\nZypred, às 08:00.\n*1* — Tomei\n*2* — Lembrar em 15 min", quando: "2026-10-19T11:00:00Z" }],
@@ -80,7 +80,7 @@ describe("Lote 4A — Configurações › WhatsApp", () => {
     await userEvent.click(within(card).getByRole("button", { name: "Criar chave" }));
     expect(await screen.findByText("cdf_SEGREDO-mostrado-uma-vez")).toBeInTheDocument();
     expect(screen.getByText(/não será mostrada de novo/)).toBeInTheDocument();
-    expect(wa.criarChaveAction).toHaveBeenCalledWith("Teste", "familia");
+    expect(wa.criarChaveAction).toHaveBeenCalledWith("Teste");
     await userEvent.click(screen.getByRole("button", { name: "Já copiei" }));
     expect(screen.queryByText("cdf_SEGREDO-mostrado-uma-vez")).not.toBeInTheDocument();
   });
@@ -88,7 +88,7 @@ describe("Lote 4A — Configurações › WhatsApp", () => {
   it("revogar chave chama a ação", async () => {
     renderApp(<WhatsappPanel />);
     await userEvent.click(await screen.findByRole("button", { name: "Revogar" }));
-    await waitFor(() => expect(wa.revogarChaveAction).toHaveBeenCalledWith("k1", "familia"));
+    await waitFor(() => expect(wa.revogarChaveAction).toHaveBeenCalledWith("k1"));
   });
 
   it("reenviar link de acesso mostra o link novo uma vez", async () => {
@@ -126,7 +126,7 @@ describe("Lote 4A — Simulador de WhatsApp", () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it("envia pela API, mostra a resposta e, para texto livre, avisa que o agente de IA é do Lote 4B", async () => {
+  it("envia pela fila e pelo worker, mostra o digitando simulado e a resposta (inclusive a do assistente indisponível)", async () => {
     renderApp(<SimulatorPanel />);
     await screen.findByLabelText("Falar como");
     await waitFor(() => expect(screen.getByRole("option", { name: /Ana/ })).toBeInTheDocument());
@@ -137,7 +137,8 @@ describe("Lote 4A — Simulador de WhatsApp", () => {
     expect(wa.simEnviarAction).toHaveBeenCalledWith({ telefone: "5511912345678", texto: "tomei" });
     await userEvent.type(screen.getByLabelText("Mensagem"), "livre");
     await userEvent.click(screen.getByRole("button", { name: "Enviar" }));
-    expect(await within(log).findByText(/agente de IA chega no Lote 4B/)).toBeInTheDocument();
+    expect(await within(log).findByText(/assistente de perguntas está indisponível/)).toBeInTheDocument();
+    expect(within(log).getAllByText(/digitando… \(simulado/).length).toBeGreaterThan(0);
   });
 
   it("'Marcar como enviada' leva a mensagem para a conversa da pessoa", async () => {

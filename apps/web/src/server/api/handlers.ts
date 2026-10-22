@@ -1,12 +1,12 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, isNull, lt, notInArray } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hashCodigoVerificacao, sha256 as sha, verificarTelefonePendente, withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
-import { addDays, localParts, prescriptionStatus, zonedToUtc } from "@medcuidar/domain";
+import { localParts } from "@medcuidar/domain";
 import { requirePermission } from "../pg/guard";
-import { confirmDose, effectiveStatus, snoozeDose, undoDose } from "../pg/doses";
+import { confirmDose, snoozeDose, undoDose } from "../pg/doses";
 import { claim, completeStep } from "../pg/replenishment";
 import { authorizeFile } from "../pg/prescriptions";
 import { signFileUrl, verifyFileSignature } from "../files";
@@ -14,6 +14,7 @@ import { appUrl } from "../env";
 import { conversa, remetenteDesconhecido } from "../wa/conversa";
 import { marcarEnviada, pendentes, pendentesDeTodas, separarId } from "../wa/fila";
 import { proximasDosesHoje, visaoEstoque } from "../wa/queries";
+import { lerDosesDoDia, lerReceitas, lerReposicoes } from "../wa/leitura";
 import { loadWaActor, resolveSender } from "../wa/actor";
 import { codigoBloqueado, codigoInvalido, numeroEmUso, numeroVerificado } from "../wa/texts";
 import { ApiError, canonico, consulta, erroJson, idemConcluir, idemIniciar, json, rota, rotaFila, rotaRemetente } from "./core";
@@ -24,12 +25,6 @@ import { API_VERSION } from "./version";
 const uuid = z.string().uuid("Identificador inválido.");
 const idDaRota = (p: Record<string, string>, k = "id") => uuid.parse(p[k]);
 const canal = (origem: "plataforma" | "familia") => (origem === "plataforma" ? "whatsapp" : "system") as "whatsapp" | "system";
-
-const p2 = (n: number) => String(n).padStart(2, "0");
-const hhmm = (d: Date, tz: string) => {
-  const { minutes } = localParts(d, tz);
-  return `${p2(Math.floor(minutes / 60))}:${p2(minutes % 60)}`;
-};
 
 /* ------------------------------------------------------------------ doses */
 
@@ -43,29 +38,8 @@ export const dosesProximas = rota(async ({ actor, req, agora }) => {
 });
 
 export const dosesDoDia = rota(async ({ actor, req, agora }) => {
-  requirePermission(actor, "dashboard.view");
   const q = z.object({ data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).parse(consulta(req));
-  const data = q.data ?? localParts(agora, actor.timezone).date;
-  const ini = zonedToUtc(data, 0, actor.timezone);
-  const fim = zonedToUtc(addDays(data, 1), 0, actor.timezone);
-  return withFamilia(actor.familyId, async (tx) => {
-    const rows = await tx
-      .select({ d: s.doseEvents, med: s.medications.name, patient: s.patients.name })
-      .from(s.doseEvents)
-      .innerJoin(s.treatments, eq(s.treatments.id, s.doseEvents.treatmentId))
-      .innerJoin(s.medications, eq(s.medications.id, s.doseEvents.medicationId))
-      .innerJoin(s.patients, eq(s.patients.id, s.doseEvents.patientId))
-      .where(and(gte(s.doseEvents.scheduledAt, ini), lt(s.doseEvents.scheduledAt, fim), isNull(s.treatments.deletedAt)))
-      .orderBy(asc(s.doseEvents.scheduledAt));
-    return {
-      data,
-      doses: rows.map(({ d, med, patient }) => ({
-        id: d.id, pacienteId: d.patientId, paciente: patient.trim().split(/\s+/)[0], remedioId: d.medicationId, remedio: med,
-        hora: hhmm(d.scheduledAt, actor.timezone), situacao: effectiveStatus(d.status, d.scheduledAt, agora, actor.settings),
-        confirmadaPor: d.confirmedByMemberId ?? null, canal: d.channel ?? null,
-      })),
-    };
-  });
+  return lerDosesDoDia(actor, q.data ?? localParts(agora, actor.timezone).date, agora);
 });
 
 const confirmarCorpo = z.object({ messageId: z.string().max(200).optional() }).default({});
@@ -100,22 +74,7 @@ export const estoqueVisao = rota(async ({ actor, agora }) =>
     remedioId: l.medicationId, pacienteId: l.patientId, paciente: l.paciente, remedio: l.remedio, diasRestantes: l.dias, nivel: l.nivel, estimativa: l.estimativa,
   })));
 
-export const reposicoesListar = rota(async ({ actor }) => {
-  requirePermission(actor, "stock.view");
-  return withFamilia(actor.familyId, async (tx) => {
-    const rows = await tx
-      .select({ r: s.replenishments, med: s.medications.name, patient: s.patients.name })
-      .from(s.replenishments)
-      .innerJoin(s.medications, eq(s.medications.id, s.replenishments.medicationId))
-      .innerJoin(s.patients, eq(s.patients.id, s.replenishments.patientId))
-      .where(notInArray(s.replenishments.status, ["done", "cancelled"]));
-    const steps = rows.length ? await tx.select().from(s.replenishmentSteps).where(inArray(s.replenishmentSteps.replenishmentId, rows.map((x) => x.r.id))) : [];
-    return rows.map(({ r, med, patient }) => ({
-      id: r.id, remedioId: r.medicationId, pacienteId: r.patientId, paciente: patient.trim().split(/\s+/)[0], remedio: med, situacao: r.status, abertaEm: r.openedAt.toISOString(),
-      etapas: steps.filter((e) => e.replenishmentId === r.id).sort((a, b) => a.step - b.step).map((e) => ({ etapa: e.step, responsavelId: e.ownerMemberId, concluida: e.doneAt !== null, naoSeAplica: e.notApplicable })),
-    }));
-  });
-});
+export const reposicoesListar = rota(async ({ actor }) => lerReposicoes(actor));
 
 export const reposicoesAssumir = rota(async ({ actor, params, agora }) => {
   await claim(actor, idDaRota(params), {}, agora);
@@ -144,26 +103,7 @@ export const remediosListar = rota(async ({ actor }) => {
 
 /* ------------------------------------------------------------------ receitas (exigem acesso completo + permissão) */
 
-export const receitasListar = rota(async ({ actor, agora }) => {
-  requirePermission(actor, "prescriptions.view");
-  const hoje = localParts(agora, actor.timezone).date;
-  return withFamilia(actor.familyId, async (tx) => {
-    const rows = await tx
-      .select({ r: s.prescriptions, patient: s.patients.name })
-      .from(s.prescriptions)
-      .innerJoin(s.patients, eq(s.patients.id, s.prescriptions.patientId))
-      .where(isNull(s.prescriptions.deletedAt))
-      .orderBy(desc(s.prescriptions.issuedOn));
-    const itens = rows.length ? await tx.select().from(s.prescriptionItems).where(inArray(s.prescriptionItems.prescriptionId, rows.map((x) => x.r.id))) : [];
-    return rows.map(({ r, patient }) => {
-      const info = prescriptionStatus(r.issuedOn, r.validUntil, hoje, { supersededById: r.supersededById ?? (r.status === "superseded" ? "manual" : null), hasPendingRequest: false });
-      return {
-        id: r.id, pacienteId: r.patientId, paciente: patient.trim().split(/\s+/)[0], emitidaEm: r.issuedOn, validaAte: r.validUntil, situacao: info.status,
-        remedioIds: itens.filter((i) => i.prescriptionId === r.id).map((i) => i.medicationId),
-      };
-    });
-  });
-});
+export const receitasListar = rota(async ({ actor, agora }) => lerReceitas(actor, agora));
 
 /** Páginas da receita com URL assinada de curta duração (5 a 10 min), presa à pessoa, ao arquivo e à família. */
 export const receitasArquivos = rota(async ({ actor, params }) => {

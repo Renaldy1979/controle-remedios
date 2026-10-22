@@ -7,8 +7,8 @@ import { TextField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
 import {
-  criarChaveAction, estadoWhatsappAction, gerarSegredoN8nAction, reenviarLinkAcessoAction, revogarChaveAction, salvarWebhookN8nAction, testarN8nAction,
-  type ChaveWa, type EstadoWa, type N8nVm, type PessoaWa,
+  consultarInstanciaAction, criarChaveAction, definirLimiteIaAction, estadoWhatsappAction, reenviarLinkAcessoAction, revogarChaveAction,
+  type ChaveWa, type EstadoWa, type PessoaWa, type StatusWa,
 } from "@/server/wa/actions";
 import { WhatsappNumberCard } from "./WhatsappNumberCard";
 
@@ -33,15 +33,10 @@ export function WhatsappPanel() {
     <div className="flex max-w-[860px] flex-col gap-6">
       <WhatsappNumberCard onChange={() => void carregar()} />
       <PessoasCard pessoas={estado.pessoas} onChange={carregar} />
+      {estado.status ? <StatusCard status={estado.status} onChange={carregar} /> : null}
       {estado.admin ? (
-        <>
-          <ChavesCard titulo="Chaves de API da família" ajuda="Chaves cdf_… dão acesso à API só desta família (sempre junto com o X-Telefone de uma pessoa com número verificado)." tipo="familia" chaves={estado.chaves} onChange={carregar} />
-          {estado.chavesPlataforma ? (
-            <ChavesCard titulo="Chave da plataforma (N8N)" ajuda="Chaves cpl_… (escopo conversa) valem para TODAS as famílias do sistema. Use só uma, no N8N do Lote 4B." tipo="plataforma" chaves={estado.chavesPlataforma} onChange={carregar} />
-          ) : null}
-        </>
+        <ChavesCard titulo="Chaves de API da família" ajuda="Chaves cdf_… dão acesso à API só desta família (sempre junto com o X-Telefone de uma pessoa com número verificado). Servem para integrações futuras; o WhatsApp não precisa delas." chaves={estado.chaves} onChange={carregar} />
       ) : null}
-      {estado.n8n ? <N8nCard n8n={estado.n8n} onChange={carregar} /> : null}
       {estado.simulador ? (
         <ButtonLink href="/configuracoes/simulador" variant="secondary" icon="forum">
           Abrir o simulador de WhatsApp
@@ -108,7 +103,7 @@ function PessoasCard({ pessoas, onChange }: { pessoas: PessoaWa[]; onChange: () 
   );
 }
 
-function ChavesCard({ titulo, ajuda, tipo, chaves, onChange }: { titulo: string; ajuda: string; tipo: "familia" | "plataforma"; chaves: ChaveWa[]; onChange: () => Promise<void> }) {
+function ChavesCard({ titulo, ajuda, chaves, onChange }: { titulo: string; ajuda: string; chaves: ChaveWa[]; onChange: () => Promise<void> }) {
   const toast = useToast();
   const [nome, setNome] = useState("");
   const [busy, setBusy] = useState("");
@@ -118,7 +113,7 @@ function ChavesCard({ titulo, ajuda, tipo, chaves, onChange }: { titulo: string;
   const criar = async () => {
     setBusy("criar");
     setErro("");
-    const r = await criarChaveAction(nome, tipo);
+    const r = await criarChaveAction(nome);
     setBusy("");
     if (!r.ok) return setErro(r.message);
     setNova(r.data.chave);
@@ -127,7 +122,7 @@ function ChavesCard({ titulo, ajuda, tipo, chaves, onChange }: { titulo: string;
   };
   const revogar = async (id: string) => {
     setBusy(id);
-    const r = await revogarChaveAction(id, tipo);
+    const r = await revogarChaveAction(id);
     setBusy("");
     if (!r.ok) return toast({ icon: "error", message: r.message, error: true });
     toast({ icon: "check_circle", message: "Chave revogada" });
@@ -152,11 +147,6 @@ function ChavesCard({ titulo, ajuda, tipo, chaves, onChange }: { titulo: string;
             <Icon name="key" size={22} /> Copie agora: esta chave não será mostrada de novo
           </p>
           <code className="break-all rounded-md bg-sf p-2 text-body">{nova}</code>
-          {tipo === "plataforma" ? (
-            <p className="text-cap">
-              No N8N, abra <strong>Credenciais › Criar credencial › Header Auth</strong>, dê o nome <strong>MedCuidar API</strong>, em “Name” escreva <code>Authorization</code> e em “Value” escreva <code>Bearer </code> seguido desta chave (com um espaço depois de “Bearer”). Se perder a chave, revogue e crie outra.
-            </p>
-          ) : null}
           <div className="flex gap-3">
             <Button size="sm" icon="content_copy" onClick={() => void copiar()}>
               Copiar
@@ -175,7 +165,7 @@ function ChavesCard({ titulo, ajuda, tipo, chaves, onChange }: { titulo: string;
         }}
       >
         <div className="min-w-[220px] flex-1">
-          <TextField label="Nome da nova chave" placeholder={tipo === "familia" ? "Ex.: Planilha da Rosa" : "Ex.: N8N do staging"} value={nome} error={erro} onChange={(e) => { setNome(e.target.value); setErro(""); }} />
+          <TextField label="Nome da nova chave" placeholder="Ex.: Planilha da Rosa" value={nome} error={erro} onChange={(e) => { setNome(e.target.value); setErro(""); }} />
         </div>
         <Button type="submit" icon="add" loading={busy === "criar"} loadingText="Criando…">
           Criar chave
@@ -211,115 +201,119 @@ function ChavesCard({ titulo, ajuda, tipo, chaves, onChange }: { titulo: string;
   );
 }
 
-/** Ligação com o N8N: URL do webhook do fluxo 05, segredo do teste e o botão Testar conexão (só Administrador). */
-function N8nCard({ n8n, onChange }: { n8n: N8nVm; onChange: () => Promise<void> }) {
-  const toast = useToast();
-  const [url, setUrl] = useState(n8n.url ?? "");
-  const [erroUrl, setErroUrl] = useState("");
-  const [busy, setBusy] = useState("");
-  const [segredo, setSegredo] = useState<string | null>(null);
-  const [resultado, setResultado] = useState<{ ok: boolean; mensagem: string } | null>(null);
+const ESTADO_INSTANCIA: Record<StatusWa["instancia"]["estado"], { tone: "ok" | "lt" | "ms"; icon: string; label: string }> = {
+  conectada: { tone: "ok", icon: "check_circle", label: "Conectada" },
+  desconectada: { tone: "ms", icon: "error", label: "Desconectada" },
+  aguardando: { tone: "lt", icon: "schedule", label: "Aguardando conexão" },
+};
 
-  const salvar = async () => {
-    setBusy("url");
-    setErroUrl("");
-    const r = await salvarWebhookN8nAction(url);
-    setBusy("");
-    if (!r.ok) return setErroUrl(r.message);
-    setResultado(null);
-    toast({ icon: "check_circle", message: "Endereço salvo" });
-    await onChange();
-  };
-  const gerar = async () => {
-    setBusy("segredo");
-    const r = await gerarSegredoN8nAction();
+const usd = (v: number) => `US$ ${v.toFixed(2).replace(".", ",")}`;
+
+/** Estado do WhatsApp do sistema (só Administrador): instância, worker, filas e o uso de IA do mês com o limite. */
+function StatusCard({ status, onChange }: { status: StatusWa; onChange: () => Promise<void> }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState("");
+  const [limite, setLimite] = useState(String(status.ia.limiteUsd).replace(".", ","));
+  const [erroLimite, setErroLimite] = useState("");
+  const inst = ESTADO_INSTANCIA[status.instancia.estado];
+
+  const consultar = async () => {
+    setBusy("consultar");
+    const r = await consultarInstanciaAction();
     setBusy("");
     if (!r.ok) return toast({ icon: "error", message: r.message, error: true });
-    setSegredo(r.data.segredo);
-    setResultado(null);
+    toast({ icon: "check_circle", message: "Estado atualizado" });
     await onChange();
   };
-  const testar = async () => {
-    setBusy("teste");
-    setResultado(null);
-    const r = await testarN8nAction();
-    setBusy("");
-    if (!r.ok) return setResultado({ ok: false, mensagem: r.message });
-    setResultado({ ok: r.data.ok, mensagem: r.data.mensagem });
-    await onChange();
-  };
-  const copiar = async () => {
-    try {
-      await navigator.clipboard.writeText(segredo ?? "");
-      toast({ icon: "content_copy", message: "Segredo copiado" });
-    } catch {
-      toast({ icon: "error", message: "Não deu para copiar. Selecione o texto e copie.", error: true });
+  const salvarLimite = async () => {
+    setBusy("limite");
+    setErroLimite("");
+    const v = Number(limite.replace(",", "."));
+    if (!Number.isFinite(v)) {
+      setBusy("");
+      return setErroLimite("Informe um valor em dólares, por exemplo 5 ou 7,50.");
     }
+    const r = await definirLimiteIaAction(v);
+    setBusy("");
+    if (!r.ok) return setErroLimite(r.message);
+    toast({ icon: "check_circle", message: "Limite salvo" });
+    await onChange();
   };
+  const pct = status.ia.limiteUsd > 0 ? Math.min(100, Math.round((status.ia.usadoUsd / status.ia.limiteUsd) * 100)) : 100;
 
   return (
-    <section aria-label="Ligação com o N8N" className="flex flex-col gap-3 rounded-lg border border-bd bg-sf p-4">
+    <section aria-label="WhatsApp do sistema" className="flex flex-col gap-4 rounded-lg border border-bd bg-sf p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="font-display text-t2 font-bold">WhatsApp do sistema (N8N)</h2>
-        {n8n.estado === "conectado" ? (
-          <StatusChip compact tone="ok" icon="check_circle" label="N8N conectado" />
+        <h2 className="font-display text-t2 font-bold">WhatsApp do sistema</h2>
+        <StatusChip compact tone={inst.tone} icon={inst.icon} label={inst.label} />
+      </div>
+      {!status.configurado ? (
+        <p className="text-ink2">Ainda sem número: faltam as variáveis da Evolution Go neste ambiente. O portal funciona normalmente; veja o passo a passo em docs/11-whatsapp-direto.md.</p>
+      ) : (
+        <p className="text-ink2">
+          Provedor: <strong>{status.provedor}</strong>
+          {status.instancia.consultadaEm ? ` · consultado em ${new Date(status.instancia.consultadaEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : " · ainda não consultado"}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="secondary" icon="network_check" onClick={() => void consultar()} loading={busy === "consultar"} loadingText="Consultando…" disabled={!status.configurado}>
+          Consultar agora
+        </Button>
+        {status.worker.ligado ? (
+          <StatusChip compact tone="ok" icon="play_circle" label="Worker ligado" />
+        ) : status.worker.habilitado ? (
+          <StatusChip compact tone="lt" icon="schedule" label="Worker ligado, sem batimento recente" />
         ) : (
-          <StatusChip compact tone="lt" icon="schedule" label="Aguardando conexão" />
+          <StatusChip compact tone="neu" icon="pause_circle" label="Worker desligado (WHATSAPP_WORKER_ENABLED)" />
         )}
       </div>
-      <p className="text-ink2">
-        {n8n.estado === "conectado"
-          ? `Último teste OK em ${n8n.teste?.em ?? ""}${n8n.teste?.versao ? ` · fluxos versão ${n8n.teste.versao}` : ""}. O número do WhatsApp é conectado na Evolution Go (passo a passo em docs/11).`
-          : "WhatsApp do sistema: aguardando conexão. Importe os fluxos no N8N, ative o fluxo 05 e preencha abaixo; depois toque em Testar conexão."}
-      </p>
 
-      <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => { e.preventDefault(); void salvar(); }}>
-        <div className="min-w-[260px] flex-1">
-          <TextField
-            label="Endereço do webhook do fluxo 05 (Teste de conexão)"
-            placeholder="https://seu-n8n.exemplo.com.br/webhook/medcuidar-teste-conexao"
-            value={url}
-            error={erroUrl}
-            onChange={(e) => { setUrl(e.target.value); setErroUrl(""); }}
-          />
-        </div>
-        <Button type="submit" variant="secondary" icon="save" loading={busy === "url"} loadingText="Salvando…">
-          Salvar endereço
-        </Button>
-      </form>
-      <p className="text-cap text-ink2">Use o endereço de <strong>produção</strong> do webhook (sem “webhook-test”), só https e público.</p>
-
-      {segredo ? (
-        <div role="alert" className="flex flex-col gap-2 rounded-lg border-2 border-br bg-brt p-3">
-          <p className="flex items-center gap-2 font-bold">
-            <Icon name="key" size={22} /> Copie agora: este segredo não será mostrado de novo
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-md border border-bd p-3">
+          <h3 className="font-bold">Mensagens recebidas</h3>
+          <p className="text-ink2">
+            Pendentes: <strong className="num text-ink">{status.entrada.pendentes}</strong> · Em andamento: <strong className="num text-ink">{status.entrada.processando}</strong> · Com erro: <strong className="num text-ink">{status.entrada.erros}</strong>
           </p>
-          <code className="break-all rounded-md bg-sf p-2 text-body">{segredo}</code>
-          <p className="text-cap">
-            No N8N: <strong>Credenciais › Criar credencial › Header Auth</strong>, nome <strong>MedCuidar Teste de conexão</strong>, “Name” = <code>X-MedCuidar-Token</code> e “Value” = este segredo.
-          </p>
-          <div className="flex gap-3">
-            <Button size="sm" icon="content_copy" onClick={() => void copiar()}>Copiar</Button>
-            <Button size="sm" variant="ghost" onClick={() => setSegredo(null)}>Já copiei</Button>
-          </div>
+          {status.entrada.maisAntigaSeg !== null ? <p className="text-cap text-ink2">A mais antiga espera há {status.entrada.maisAntigaSeg} s.</p> : null}
+          {status.entrada.ultimosErros.map((e, i) => (
+            <p key={i} className="text-cap text-ms">Erro em {e.quando}: {e.motivo} ({e.tentativas} tentativas)</p>
+          ))}
         </div>
-      ) : null}
-
-      <div className="flex flex-wrap gap-3">
-        <Button variant="secondary" icon="key" onClick={() => void gerar()} loading={busy === "segredo"} loadingText="Gerando…">
-          {n8n.temSegredo ? "Gerar novo segredo" : "Gerar segredo"}
-        </Button>
-        <Button icon="network_check" onClick={() => void testar()} loading={busy === "teste"} loadingText="Testando…" disabled={!n8n.url || !n8n.temSegredo}>
-          Testar conexão
-        </Button>
+        <div className="rounded-md border border-bd p-3">
+          <h3 className="font-bold">Avisos e lembretes a enviar</h3>
+          <p className="text-ink2">
+            Na fila: <strong className="num text-ink">{status.saida.pendentes}</strong> · Falharam: <strong className="num text-ink">{status.saida.comErro}</strong>
+          </p>
+          {status.saida.ultimosErros.map((e, i) => (
+            <p key={i} className="text-cap text-ms">Falha em {e.quando} ({e.tipo}): {e.motivo}</p>
+          ))}
+        </div>
       </div>
-      {!n8n.url || !n8n.temSegredo ? <p className="text-cap text-ink2">Para testar: salve o endereço e gere o segredo.</p> : null}
-      {resultado ? (
-        <p role="status" className={`flex items-start gap-2 rounded-lg border-2 p-3 font-bold ${resultado.ok ? "border-ok bg-ok-bg" : "border-ms-bd bg-ms-bg"}`}>
-          <Icon name={resultado.ok ? "check_circle" : "error"} size={22} />
-          <span>{resultado.mensagem}</span>
+
+      <div className="flex flex-col gap-2 rounded-md border border-bd p-3">
+        <h3 className="font-bold">Assistente de perguntas (IA) — {status.ia.mes.slice(5)}/{status.ia.mes.slice(0, 4)}</h3>
+        {!status.ia.configurada ? (
+          <p className="text-ink2">Sem ANTHROPIC_API_KEY: perguntas livres respondem que o assistente está indisponível. Confirmar dose, estoque e próximas doses funcionam normalmente.</p>
+        ) : (
+          <p className="text-ink2">Modelo: <strong>{status.ia.modelo}</strong>{status.ia.midia ? " · áudio e foto: ligados" : " · áudio e foto: desligados (sem GEMINI_API_KEY)"}</p>
+        )}
+        <p>
+          Gasto no mês: <strong className="num">{usd(status.ia.usadoUsd)}</strong> de <strong className="num">{usd(status.ia.limiteUsd)}</strong> ({status.ia.chamadas} chamadas)
+          {status.ia.excedeu ? <StatusChip compact tone="ms" icon="pause_circle" label="Assistente pausado" /> : null}
         </p>
-      ) : null}
+        <div role="progressbar" aria-label="Uso do limite mensal de IA" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} className="h-3 w-full overflow-hidden rounded-pill bg-brt">
+          <div className={`h-full ${status.ia.excedeu ? "bg-ms" : "bg-br"}`} style={{ width: `${pct}%` }} />
+        </div>
+        <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => { e.preventDefault(); void salvarLimite(); }}>
+          <div className="min-w-[200px]">
+            <TextField label="Limite mensal (US$)" inputMode="decimal" value={limite} error={erroLimite} onChange={(e) => { setLimite(e.target.value); setErroLimite(""); }} />
+          </div>
+          <Button type="submit" variant="secondary" icon="save" loading={busy === "limite"} loadingText="Salvando…">
+            Salvar limite
+          </Button>
+        </form>
+        <p className="text-cap text-ink2">Ao chegar no limite, o assistente de perguntas pausa e você recebe um aviso no sino. Confirmar dose, estoque e próximas doses continuam funcionando.</p>
+      </div>
     </section>
   );
 }

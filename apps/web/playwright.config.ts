@@ -31,7 +31,7 @@ export default defineConfig({
     reuseExistingServer: !!process.env["E2E_REUSE_SERVER"],
     timeout: 900_000,
     // RX_STORAGE=memory (só com E2E_TEST_MODE=1): as páginas das receitas ficam na memória do servidor de teste, não no bucket do Appwrite
-    env: { DATA_SOURCE: "postgres", E2E_TEST_MODE: "1", SIMULATOR_ENABLED: "1", PLATFORM_KEYS_FROM_PORTAL: "1", ALLOW_PRIVATE_WEBHOOKS: "1", RX_STORAGE: "memory", FILE_URL_SECRET: "e2e-segredo-de-teste-com-mais-de-16-caracteres", APP_URL: `http://localhost:${PORT}`, NEXT_SKIP_TYPECHECK: "1",
+    env: { DATA_SOURCE: "postgres", E2E_TEST_MODE: "1", SIMULATOR_ENABLED: "1", ANTHROPIC_API_KEY: "", GEMINI_API_KEY: "", WHATSAPP_WORKER_ENABLED: "", RX_STORAGE: "memory", FILE_URL_SECRET: "e2e-segredo-de-teste-com-mais-de-16-caracteres", APP_URL: `http://localhost:${PORT}`, NEXT_SKIP_TYPECHECK: "1",
       // `next start` roda em produção, onde o banco não tem URL padrão: usa o Postgres local do docker-compose.dev.yml
       DATABASE_URL: process.env["DATABASE_URL"] ?? "postgres://medcuidar_app:medcuidar_app_dev@localhost:5440/medcuidar",
     },

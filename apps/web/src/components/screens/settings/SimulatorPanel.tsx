@@ -5,7 +5,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
 import { formatPhone } from "@/lib/phone";
 import {
-  simEnviarAction, simFilaAction, simMarcarEnviadaAction, simPessoasAction, type FalarComo, type FilaSim,
+  simEnviarAction, simEnviarAgoraAction, simFilaAction, simMarcarEnviadaAction, simPessoasAction, type FalarComo, type FilaSim,
 } from "@/server/wa/actions";
 
 interface Bolha {
@@ -37,7 +37,7 @@ function Texto({ t }: { t: string }) {
   );
 }
 
-/** Simulador de WhatsApp: fala com a MESMA rota que o N8N usará. Nenhuma mensagem real é enviada. */
+/** Simulador de WhatsApp: usa a MESMA fila e o MESMO worker do WhatsApp real, com um provedor de mentira. Nenhuma mensagem real é enviada. */
 export function SimulatorPanel() {
   const toast = useToast();
   const [pessoas, setPessoas] = useState<FalarComo[]>([]);
@@ -86,14 +86,25 @@ export function SimulatorPanel() {
     setBusy(false);
     if (!r.ok) return empurrar(chave, [{ de: "aviso", texto: r.message }]);
     const novas: Bolha[] = r.data.respostas.map((x) => ({ de: "sistema", texto: x.texto }));
-    if (r.data.intent === "livre") novas.push({ de: "aviso", texto: "Texto livre: o agente de IA chega no Lote 4B." });
+    if (r.data.digitando > 0) novas.unshift({ de: "aviso", texto: "digitando… (simulado: pausa de 2 a 6 s antes de responder)" });
     empurrar(chave, novas);
     void carregarFila();
-    // a verificação do número cria uma "pessoa verificada" nova na lista
-    if (r.data.intent === "numero_verificado" || r.data.intent === "convite_aceito") {
-      const p = await simPessoasAction();
-      if (p.ok) setPessoas(p.data);
+    // a verificação do número ou o convite aceito cria uma "pessoa verificada" nova na lista
+    const p = await simPessoasAction();
+    if (p.ok) setPessoas(p.data);
+  };
+
+  const enviarAgora = async () => {
+    setBusy(true);
+    const r = await simEnviarAgoraAction();
+    setBusy(false);
+    if (!r.ok) return toast({ icon: "error", message: r.message, error: true });
+    for (const m of r.data) {
+      const dono = pessoas.find((p) => p.telefone === m.telefone);
+      if (dono) empurrar(dono.id, [{ de: "sistema", texto: m.texto }]);
     }
+    toast({ icon: "check_circle", message: r.data.length ? `${r.data.length} mensagem(ns) enviada(s) (simulado)` : "Nada para enviar agora" });
+    await carregarFila();
   };
 
   const marcar = async (m: FilaSim) => {
@@ -184,6 +195,9 @@ export function SimulatorPanel() {
               Atualizar
             </Button>
           </div>
+          <Button size="sm" icon="send" loading={busy} loadingText="Enviando…" onClick={() => void enviarAgora()}>
+            Enviar agora (simulado)
+          </Button>
           {fila.length === 0 ? (
             <p className="text-ink2">Nada para enviar agora. Lembretes de dose, estoque baixo e resumo aparecem aqui para quem tem número verificado.</p>
           ) : (

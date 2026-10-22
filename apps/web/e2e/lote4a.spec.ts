@@ -124,14 +124,14 @@ test("Lote 4A: número, simulador, tomei, estoque, chave de API, convite por Wha
     await expect(quantity(page)).toHaveAttribute("data-quantity", "9");
   });
 
-  await test.step("5) 'estoque' e 'próximas doses'; texto livre avisa que o agente de IA chega no 4B", async () => {
+  await test.step("5) 'estoque' e 'próximas doses'; texto livre sem a chave da IA avisa que o assistente está indisponível", async () => {
     await open(page, "/configuracoes/simulador");
     await falar(page, "estoque");
     await expect(conversa(page).getByText(/Adelino — Zypred/)).toBeVisible();
     await falar(page, "próximas doses");
     await expect(conversa(page).getByText("Próximas doses")).toBeVisible();
     await falar(page, "qual a melhor dieta para diabetes?");
-    await expect(conversa(page).getByText(/agente de IA chega no Lote 4B/)).toBeVisible();
+    await expect(conversa(page).getByText(/assistente de perguntas está indisponível/)).toBeVisible();
   });
 
   await test.step("8) criar e revogar uma chave de API (o valor aparece uma vez)", async () => {

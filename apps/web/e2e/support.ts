@@ -33,7 +33,7 @@ export async function verifyEmail(email: string): Promise<void> {
 }
 
 const ORDER = [
-  "family_integrations", "outbound_messages", "conversation_state", "api_keys", "message_log", "notifications", "replenishment_steps", "stock_movements", "replenishments", "prescription_views",
+  "family_integrations", "ai_usage", "agent_sessions", "outbound_messages", "conversation_state", "api_keys", "message_log", "notifications", "replenishment_steps", "stock_movements", "replenishments", "prescription_views",
   "prescription_shares", "prescription_items", "prescription_files", "prescriptions", "dose_events", "stock_items",
   "treatment_phases", "treatments", "care_assignments", "audit_log", "patients", "medications", "first_access_links",
   "invites", "members", "profiles", "idempotency", "families",
@@ -60,6 +60,7 @@ export async function cleanup(): Promise<{ appwriteUsers: number; families: numb
     if (ids.length) {
       for (const t of ORDER) await sql.unsafe(`delete from ${t} where ${t === "families" ? "id" : "family_id"} = any($1::uuid[])`, [ids]);
       await sql`delete from phone_lockouts where phone like '5599%'`;
+      await sql`delete from whatsapp_inbound where msg_id like 'sim-%'`;
     }
     await sql`delete from platform_audit_log where key_id in (select id from platform_api_keys where name like ${PREFIX + '%'})`;
     await sql`delete from platform_api_keys where name like ${PREFIX + '%'}`;

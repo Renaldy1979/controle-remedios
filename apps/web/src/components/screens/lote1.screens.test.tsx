@@ -20,7 +20,7 @@ const waMock = vi.hoisted(() => ({
 vi.mock("@/server/wa/actions", () => ({
   estadoWhatsappAction: async () => ({
     ok: true as const,
-    data: { eu: { verificado: "", pendente: "(11) 91234-5678", codigoAtivo: false, codigoExpiraEm: null }, pessoas: [], admin: true, chaves: [], chavesPlataforma: null, simulador: false, n8n: null },
+    data: { eu: { verificado: "", pendente: "(11) 91234-5678", codigoAtivo: false, codigoExpiraEm: null }, pessoas: [], admin: true, chaves: [], simulador: false, status: null },
   }),
   iniciarVerificacaoAction: waMock.iniciarVerificacaoAction,
   removerMeuNumeroAction: async () => ({ ok: true as const, data: undefined }),

@@ -15,8 +15,9 @@ import * as T from "./texts";
  * Fila de saída do WhatsApp (docs/10). Duas etapas, ambas idempotentes:
  *  1) GERAR: transforma o que aconteceu (dose na hora, esquecida, estoque baixo, receita, resumo) em linhas de
  *     `outbound_messages`, uma por pessoa com número VERIFICADO, com `dedupe_key` único.
- *  2) REIVINDICAR: entrega ao N8N o que enviar AGORA, com lease (`claimed_until`) via FOR UPDATE SKIP LOCKED;
- *     o N8N confirma com `marcarEnviada`. Sem confirmação, o lease vence e a mensagem volta (no máximo 5 vezes).
+ *  2) REIVINDICAR: entrega ao worker o que enviar AGORA, com lease (`claimed_until`) via FOR UPDATE SKIP LOCKED;
+ *     o worker marca como enviada ANTES de mandar (nunca duplica) e desfaz só se o provedor recusar com clareza.
+ *     Sem confirmação, o lease vence e a mensagem volta (no máximo 5 vezes). Falha definitiva vira erro visível (`failed_at`).
  * Quem não tem número verificado não gera linha: vê o aviso no portal (sino).
  */
 
@@ -34,7 +35,7 @@ export interface MensagemPendente {
   tipo: string;
   texto: string;
   opcoes: Array<{ numero: number; rotulo: string }>;
-  /** Mesma mensagem nunca sai duas vezes: chave estável para dedupe do lado do N8N. */
+  /** Mesma mensagem nunca sai duas vezes: chave estável de dedupe. */
   dedupe: string;
   quando: string;
 }
@@ -58,7 +59,7 @@ async function destinatarios(tx: Tx): Promise<Destinatario[]> {
     .where(and(eq(s.members.active, true), isNull(s.members.removedAt)));
   const out: Destinatario[] = [];
   for (const r of rows) {
-    if (!r.m.phoneVerified || (r.m.accessState !== "whatsapp_verified" && r.m.accessState !== "active")) continue;
+    if (!r.m.phoneVerified || r.m.whatsappOptOutAt || (r.m.accessState !== "whatsapp_verified" && r.m.accessState !== "active")) continue;
     const parsed = permissionMapSchema.safeParse(r.permissions);
     const eff = effectivePermissions(r.m.accessState, r.profileName, parsed.success ? parsed.data : {});
     out.push({
@@ -245,13 +246,13 @@ export async function pendentes(
   if (!recente) await gerarMensagens(familyId, agora);
   const entregues = await withFamilia(familyId, async (tx) => {
     const base = and(
-      isNull(s.outboundMessages.sentAt), isNull(s.outboundMessages.discardedAt),
+      isNull(s.outboundMessages.sentAt), isNull(s.outboundMessages.discardedAt), isNull(s.outboundMessages.failedAt),
       lte(s.outboundMessages.notBefore, agora),
       opts.tipos?.length ? inArray(s.outboundMessages.kind, opts.tipos) : undefined,
       or(isNull(s.outboundMessages.claimedUntil), lte(s.outboundMessages.claimedUntil, agora)),
     );
     const q = tx
-      .select({ o: s.outboundMessages, phone: s.members.phoneVerified, state: s.members.accessState, active: s.members.active, removed: s.members.removedAt })
+      .select({ o: s.outboundMessages, phone: s.members.phoneVerified, state: s.members.accessState, active: s.members.active, removed: s.members.removedAt, optOut: s.members.whatsappOptOutAt })
       .from(s.outboundMessages)
       .innerJoin(s.members, eq(s.members.id, s.outboundMessages.memberId))
       .where(base)
@@ -268,6 +269,8 @@ export async function pendentes(
       const doseId = r.o.context["doseId"];
       const obsoleta =
         !r.phone || !r.active || r.removed || (r.state !== "active" && r.state !== "whatsapp_verified") ||
+        // quem PAROU não recebe avisos agendados (o link de primeiro acesso, pedido por um administrador, é a exceção)
+        (r.optOut !== null && r.o.kind !== "first_access_link") ||
         r.o.claimCount >= MAX_ENTREGAS || (typeof doseId === "string" && !abertas.has(doseId));
       (obsoleta ? descartar : boas).push(r);
     }
@@ -321,7 +324,8 @@ export async function pendentesDeTodas(opts: { reivindicar: boolean; limite?: nu
 }
 
 /**
- * O N8N confirma o envio. Idempotente: marcar de novo devolve `jaEnviada`. `falhou` solta o lease para tentar de novo.
+ * Confirma o envio (o worker, ANTES de mandar; o simulador, ao "enviar"). Idempotente: marcar de novo devolve `jaEnviada`.
+ * `falhou` solta o lease para tentar de novo.
  * Também marca o aviso do portal como enviado ao WhatsApp (`notifications.whatsapp_sent_at`).
  */
 export async function marcarEnviada(
@@ -343,3 +347,42 @@ export async function marcarEnviada(
   });
 }
 
+
+/* ------------------------------------------------------------------ falha de envio (worker) */
+
+export const MAX_TENTATIVAS_ENVIO = 4;
+const recuoEnvioMs = (tentativas: number) => Math.min(60_000 * 2 ** Math.max(tentativas - 1, 0), 30 * 60_000);
+
+/**
+ * O provedor RECUSOU com clareza (nada saiu): desfaz o "enviada" e agenda nova tentativa com recuo. Depois de MAX_TENTATIVAS_ENVIO vira
+ * erro definitivo e visível (`failed_at`, motivo curto SEM o texto da mensagem), nunca um laço. Devolve o destino.
+ */
+export async function registrarFalhaEnvio(
+  familyId: string, id: string, motivo: string, agora: Date = new Date(),
+): Promise<"nova_tentativa" | "erro_definitivo"> {
+  const resumo = motivo.replace(/\s+/g, " ").replace(/\d{8,}/g, "…").slice(0, 200);
+  return withFamilia(familyId, async (tx) => {
+    const [m] = await tx.select({ n: s.outboundMessages.sendAttempts }).from(s.outboundMessages).where(eq(s.outboundMessages.id, id)).for("update");
+    const tentativas = (m?.n ?? 0) + 1;
+    if (tentativas >= MAX_TENTATIVAS_ENVIO) {
+      await tx.update(s.outboundMessages).set({ sentAt: null, claimedUntil: null, sendAttempts: tentativas, failedAt: agora, errorSummary: resumo }).where(eq(s.outboundMessages.id, id));
+      return "erro_definitivo" as const;
+    }
+    await tx.update(s.outboundMessages).set({
+      sentAt: null, claimedUntil: null, sendAttempts: tentativas, errorSummary: resumo, notBefore: new Date(agora.getTime() + recuoEnvioMs(tentativas)),
+    }).where(eq(s.outboundMessages.id, id));
+    return "nova_tentativa" as const;
+  });
+}
+
+/** Resumo para o portal: o que está na fila de saída e o que falhou em definitivo (sem texto de mensagem, sem telefone). */
+export async function resumoSaida(familyId: string): Promise<{ pendentes: number; comErro: number; ultimosErros: Array<{ tipo: string; motivo: string; quando: Date }> }> {
+  return withFamilia(familyId, async (tx) => {
+    const [p] = await tx.select({ n: sql<number>`count(*)::int` }).from(s.outboundMessages)
+      .where(and(isNull(s.outboundMessages.sentAt), isNull(s.outboundMessages.discardedAt), isNull(s.outboundMessages.failedAt)));
+    const erros = await tx.select({ tipo: s.outboundMessages.kind, motivo: s.outboundMessages.errorSummary, quando: s.outboundMessages.failedAt })
+      .from(s.outboundMessages).where(sql`${s.outboundMessages.failedAt} is not null`).orderBy(sql`${s.outboundMessages.failedAt} desc`).limit(5);
+    const [c] = await tx.select({ n: sql<number>`count(*)::int` }).from(s.outboundMessages).where(sql`${s.outboundMessages.failedAt} is not null`);
+    return { pendentes: p?.n ?? 0, comErro: c?.n ?? 0, ultimosErros: erros.map((e) => ({ tipo: e.tipo, motivo: e.motivo ?? "sem detalhe", quando: e.quando ?? new Date() })) };
+  });
+}

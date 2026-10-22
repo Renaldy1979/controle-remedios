@@ -11,7 +11,7 @@ import { simulatorEnabled } from "../env";
 
 /**
  * Núcleo da API pública `/api/v1` (docs/10), no padrão do projeto controle-financeiro:
- *  - Authorization: Bearer <chave>. `cdf_` = uma família; `cpl_` = plataforma (N8N), escopo `conversa`.
+ *  - Authorization: Bearer <chave>. `cdf_` = uma família; `cpl_` = plataforma (integrações futuras), escopo `conversa`.
  *    Só o sha256 da chave é guardado; a busca é por hash (índice único), a chave em claro nunca é comparada nem logada.
  *  - X-Telefone (só dígitos) identifica o usuário: só número VERIFICADO e membro ativo. Desconhecido, não verificado,
  *    desativado ou de outra família = a mesma resposta 404 genérica.
@@ -186,7 +186,7 @@ export interface Contexto {
   req: NextRequest;
   corpo: unknown;
   params: Record<string, string>;
-  /** Chamada vinda de chave de plataforma (N8N/simulador) ou de chave de família. */
+  /** Chamada vinda de chave de plataforma (simulador) ou de chave de família. */
   origem: "plataforma" | "familia";
   agora: Date;
 }

@@ -1,19 +1,17 @@
 "use server";
-import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { criarChavePlataforma, listarChavesPlataforma, revogarChavePlataforma, withFamilia } from "@medcuidar/pg";
+import { withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { can } from "@medcuidar/shared";
 import { formatPhone, normalizePhone } from "@/lib/phone";
 import { ForbiddenError, UserError } from "../pg/errors";
 import { isAdmin } from "../pg/guard";
-import { platformKeysFromPortal, simulatorEnabled } from "../env";
+import { simulatorEnabled } from "../env";
 import { simulatorSecret } from "../api/core";
 import { stampLabel } from "../pg/stamp";
 import { resolveSender } from "./actor";
-import { gerarSegredoDoTeste, lerEstadoN8n, salvarUrlN8n, testarN8n, type EstadoN8n } from "./n8n";
 import { issueFirstAccessLink } from "./first-access";
 import { criarChaveFamilia, listarChavesFamilia, revogarChaveFamilia } from "./keys";
 import { meuWhatsapp, startPhoneVerification } from "./phone-verify";
@@ -62,30 +60,27 @@ export interface ChaveWa {
   ultimoUso: string;
   revogada: boolean;
 }
-/** Estado da ligação com o N8N, para a tela (só Administrador). */
-export interface N8nVm {
-  url: string | null;
-  temSegredo: boolean;
-  /** aguardando = nenhum teste OK ainda; conectado = o último teste passou */
-  estado: "aguardando" | "conectado";
-  teste: { em: string; ok: boolean; versao: string | null } | null;
+/** WhatsApp do sistema (instância, worker, fila e IA), para a tela do Administrador. Nada de telefone nem de conteúdo de mensagem. */
+export interface StatusWa {
+  provedor: string;
+  /** variáveis da Evolution Go presentes (ou provedor fake) */
+  configurado: boolean;
+  instancia: { estado: "conectada" | "desconectada" | "aguardando"; desde: string | null; consultadaEm: string | null };
+  worker: { habilitado: boolean; ligado: boolean; ultimoBatimento: string | null };
+  entrada: { pendentes: number; processando: number; erros: number; maisAntigaSeg: number | null; ultimosErros: Array<{ motivo: string; quando: string; tentativas: number }> };
+  saida: { pendentes: number; comErro: number; ultimosErros: Array<{ tipo: string; motivo: string; quando: string }> };
+  ia: { configurada: boolean; modelo: string; midia: boolean; mes: string; usadoUsd: number; limiteUsd: number; chamadas: number; excedeu: boolean };
 }
 export interface EstadoWa {
   eu: { verificado: string; pendente: string; codigoAtivo: boolean; codigoExpiraEm: string | null };
   pessoas: PessoaWa[];
   admin: boolean;
   chaves: ChaveWa[];
-  chavesPlataforma: ChaveWa[] | null;
   simulador: boolean;
-  n8n: N8nVm | null;
+  status: StatusWa | null;
 }
 
 const dia = (d: Date | null, tz: string) => (d ? stampLabel(d, tz) : "nunca");
-const n8nVm = (e: EstadoN8n, tz: string): N8nVm => ({
-  url: e.url, temSegredo: e.temSegredo, estado: e.estado,
-  teste: e.teste ? { em: stampLabel(e.teste.em, tz), ok: e.teste.ok, versao: e.teste.versao } : null,
-});
-
 export async function estadoWhatsappAction(): Promise<R<EstadoWa>> {
   return run(async () => {
     const ctx = await sessao();
@@ -111,9 +106,8 @@ export async function estadoWhatsappAction(): Promise<R<EstadoWa>> {
       eu: { verificado: formatPhone(eu.verificado), pendente: formatPhone(eu.pendente), codigoAtivo: eu.codigoExpiraEm !== null, codigoExpiraEm: eu.codigoExpiraEm?.toISOString() ?? null },
       pessoas, admin: adm,
       chaves: adm ? (await listarChavesFamilia(ctx)).map(mapa) : [],
-      chavesPlataforma: adm && platformKeysFromPortal() ? (await listarChavesPlataforma()).map((k) => mapa({ ...k, prefixo: "cpl_" })) : null,
       simulador: simulatorEnabled() && adm,
-      n8n: adm ? n8nVm(await lerEstadoN8n(ctx.familyId), ctx.timezone) : null,
+      status: adm ? await statusWhatsapp(ctx.familyId, ctx.timezone) : null,
     };
   });
 }
@@ -136,31 +130,18 @@ export async function removerMeuNumeroAction(): Promise<R> {
   });
 }
 
-export async function criarChaveAction(nome: string, tipo: "familia" | "plataforma"): Promise<R<{ chave: string }>> {
+export async function criarChaveAction(nome: string): Promise<R<{ chave: string }>> {
   return run(async () => {
     const ctx = await sessao();
     const n = z.string().trim().min(2, "Dê um nome à chave (2 a 60 letras).").max(60).parse(nome);
-    if (tipo === "plataforma") {
-      if (!isAdmin(ctx)) throw new UserError("Só um Administrador cuida das chaves de API.");
-      if (!platformKeysFromPortal()) throw new UserError("A chave da plataforma não é criada por aqui neste ambiente.");
-      const k = await criarChavePlataforma(n, ["conversa"]);
-      await withFamilia(ctx.familyId, (tx) => tx.insert(s.auditLog).values({ familyId: ctx.familyId, actorMemberId: ctx.memberId, action: "api_key.create", entity: "api_key", entityId: k.id, meta: { kind: "plataforma" } }));
-      return { chave: k.chave };
-    }
     return { chave: (await criarChaveFamilia(ctx, n)).chave };
   });
 }
 
-export async function revogarChaveAction(id: string, tipo: "familia" | "plataforma"): Promise<R> {
+export async function revogarChaveAction(id: string): Promise<R> {
   return run(async () => {
     const ctx = await sessao();
-    const kid = z.string().uuid().parse(id);
-    if (tipo === "plataforma") {
-      if (!isAdmin(ctx) || !platformKeysFromPortal()) throw new ForbiddenError("api_key");
-      if (!(await revogarChavePlataforma(kid))) throw new UserError("Chave não encontrada ou já revogada.");
-      return;
-    }
-    await revogarChaveFamilia(ctx, kid);
+    await revogarChaveFamilia(ctx, z.string().uuid().parse(id));
   });
 }
 
@@ -219,13 +200,14 @@ const BASE = "http://simulador.local/api/v1";
 const semParams = { params: Promise.resolve({}) };
 
 export interface RespostaSim {
-  respostas: Array<{ texto: string; opcoes?: Array<{ numero: number; rotulo: string }> }>;
-  intent: string;
+  respostas: Array<{ texto: string }>;
+  /** quantas vezes o sistema mostraria "digitando…" (simulado) */
+  digitando: number;
 }
 
 /**
- * Envia a mensagem pela MESMA rota que o N8N usará (POST /api/v1/conversa/mensagem), dentro do processo, com o segredo
- * interno do simulador no lugar da chave cpl_. Não existe canal real neste lote: nada é enviado a ninguém.
+ * Envia a mensagem pela MESMA fila e pelo MESMO worker do WhatsApp real (`simulador.ts`): entra em `whatsapp_inbound`, o núcleo da
+ * conversa responde (e o agente de IA, se houver ANTHROPIC_API_KEY) e a resposta sai por um provedor `fake`. Nada é enviado a ninguém.
  */
 export async function simEnviarAction(input: { telefone: string; texto?: string; acao?: string }): Promise<R<RespostaSim>> {
   return run(async () => {
@@ -235,12 +217,17 @@ export async function simEnviarAction(input: { telefone: string; texto?: string;
     // o simulador só fala como gente DESTA família; um número verificado em outro cadastro é recusado
     const dono = await resolveSender(tel);
     if (dono && dono.familyId !== ctx.familyId) throw new UserError("Esse número já pertence a outro cadastro e não pode ser usado aqui.");
-    const h = await import("../api/handlers");
-    const corpo = { messageId: `sim-${randomUUID()}`, ...(input.texto !== undefined ? { texto: input.texto } : {}), ...(input.acao ? { acao: input.acao } : {}) };
-    const resp = await h.conversaMensagem(new NextRequest(`${BASE}/conversa/mensagem`, { method: "POST", headers: simHeaders({ "x-telefone": tel }), body: JSON.stringify(corpo) }), semParams);
-    const j = (await resp.json()) as { dados?: RespostaSim; erro?: { mensagem: string } };
-    if (!resp.ok || !j.dados) throw new UserError(j.erro?.mensagem ?? "A API não respondeu.");
-    return j.dados;
+    const { conversarNoSimulador } = await import("./simulador");
+    return conversarNoSimulador(tel, { ...(input.texto !== undefined ? { texto: input.texto } : {}), ...(input.acao ? { acao: input.acao } : {}) });
+  });
+}
+
+/** "Enviar agora (simulado)": o agendador de verdade, mas só desta família e com o provedor fake. Devolve o que "saiu". */
+export async function simEnviarAgoraAction(): Promise<R<Array<{ para: string; telefone: string; texto: string }>>> {
+  return run(async () => {
+    const ctx = await sessaoSimulador();
+    const { enviarAgoraNoSimulador } = await import("./simulador");
+    return enviarAgoraNoSimulador(ctx.familyId);
   });
 }
 
@@ -261,7 +248,7 @@ export async function simFilaAction(): Promise<R<FilaSim[]>> {
     const headers = simHeaders({ "x-mc-simulador-familia": ctx.familyId });
     const out: FilaSim[] = [];
     const nomes = await withFamilia(ctx.familyId, async (tx) => new Map((await tx.select({ id: s.members.id, n: s.members.name }).from(s.members)).map((m) => [m.id, m.n])));
-    // uma só chamada à fila completa (a geração roda uma vez); as rotas por tipo são as mesmas que o N8N usa
+    // uma só chamada à fila completa (a geração roda uma vez); é a mesma rota de diagnóstico da API
     const resp = await h.filaCompleta(new NextRequest(`${BASE}/sistema/fila?somenteLer=1`, { headers }), semParams);
     const j = (await resp.json()) as { dados?: { mensagens: Array<{ id: string; membroId: string; telefone: string; tipo: string; texto: string; quando: string }> } };
     for (const m of j.dados?.mensagens ?? []) out.push({ id: m.id, para: nomes.get(m.membroId) ?? "—", telefone: m.telefone, tipo: m.tipo, texto: m.texto, quando: m.quando });
@@ -269,7 +256,7 @@ export async function simFilaAction(): Promise<R<FilaSim[]>> {
   });
 }
 
-/** "Marcar como enviada": como o N8N faria. O "1" e o "2" passam a valer para essa mensagem, e ela aparece na conversa da pessoa. */
+/** "Marcar como enviada": como o worker faria. O "1" e o "2" passam a valer para essa mensagem, e ela aparece na conversa da pessoa. */
 export async function simMarcarEnviadaAction(id: string): Promise<R<FilaSim | null>> {
   return run(async () => {
     const ctx = await sessaoSimulador();
@@ -300,45 +287,67 @@ export async function simMarcarEnviadaAction(id: string): Promise<R<FilaSim | nu
   });
 }
 
-/* ------------------------------------------------------------------ N8N (Lote 4B): URL do webhook, segredo e teste de conexão */
+/* ------------------------------------------------------------------ WhatsApp do sistema (Lote 4B): estado, IA e limite */
 
 async function sessaoAdmin() {
   const ctx = await sessao();
-  if (!isAdmin(ctx)) throw new ForbiddenError("n8n");
+  if (!isAdmin(ctx)) throw new ForbiddenError("whatsapp_status");
   return ctx;
 }
-const auditar = (ctx: Awaited<ReturnType<typeof sessao>>, action: string) =>
-  withFamilia(ctx.familyId, (tx) => tx.insert(s.auditLog).values({ familyId: ctx.familyId, actorMemberId: ctx.memberId, action, entity: "family_integration", entityId: ctx.familyId, meta: {} }));
 
-/** Guarda a URL do webhook do fluxo 05 (https, sem rede interna, DNS resolvido). */
-export async function salvarWebhookN8nAction(url: string): Promise<R<N8nVm>> {
+/** Monta o painel do administrador: instância, worker, fila de entrada/saída, uso e custo de IA no mês. */
+export async function statusWhatsapp(familyId: string, tz: string): Promise<StatusWa> {
+  const [{ resumoEntrada }, { resumoSaida }, { lerRuntime }, { resumoDeUso }, prov, { modeloConfigurado }] = await Promise.all([
+    import("./inbound"), import("./fila"), import("./runtime"), import("./ia/uso"), import("./provider"), import("./ia/modelo"),
+  ]);
+  const [entrada, saida, inst, worker, uso] = await Promise.all([
+    resumoEntrada(), resumoSaida(familyId), lerRuntime<{ conectada: boolean | null; desde: string; consultadaEm: string }>("instancia"),
+    lerRuntime<{ em: string }>("worker"), resumoDeUso(familyId, tz),
+  ]);
+  const provedor = prov.provedorConfigurado();
+  const configurado = provedor === "fake" ? true : provedor === "meta" ? false : prov.evolutionConfigurada();
+  const batimento = worker?.em ?? null;
+  const ligado = !!batimento && Date.now() - Date.parse(batimento) < 3 * 60_000;
+  return {
+    provedor, configurado,
+    instancia: {
+      estado: !configurado || !inst || inst.conectada === null ? "aguardando" : inst.conectada ? "conectada" : "desconectada",
+      desde: inst?.desde ?? null, consultadaEm: inst?.consultadaEm ?? null,
+    },
+    worker: { habilitado: process.env["WHATSAPP_WORKER_ENABLED"] === "1", ligado, ultimoBatimento: batimento },
+    entrada: {
+      pendentes: entrada.pendentes, processando: entrada.processando, erros: entrada.erros, maisAntigaSeg: entrada.maisAntigaSeg,
+      ultimosErros: entrada.ultimosErros.map((e) => ({ motivo: e.motivo, quando: stampLabel(e.quando, tz), tentativas: e.tentativas })),
+    },
+    saida: { pendentes: saida.pendentes, comErro: saida.comErro, ultimosErros: saida.ultimosErros.map((e) => ({ tipo: e.tipo, motivo: e.motivo, quando: stampLabel(e.quando, tz) })) },
+    ia: {
+      configurada: !!(process.env["ANTHROPIC_API_KEY"] ?? "").trim(), modelo: modeloConfigurado(), midia: !!(process.env["GEMINI_API_KEY"] ?? "").trim(),
+      mes: uso.mes, usadoUsd: uso.usadoMicros / 1_000_000, limiteUsd: uso.limiteMicros / 1_000_000, chamadas: uso.chamadas, excedeu: uso.excedeu,
+    },
+  };
+}
+
+/** Botão "Consultar agora": pergunta ao provedor se o número está conectado e guarda o resultado. */
+export async function consultarInstanciaAction(): Promise<R<StatusWa>> {
   return run(async () => {
     const ctx = await sessaoAdmin();
-    await salvarUrlN8n(ctx.familyId, z.string().trim().min(8, "Cole a URL do webhook do N8N.").max(500).parse(url));
-    await auditar(ctx, "n8n.webhook_url.set");
-    return n8nVm(await lerEstadoN8n(ctx.familyId), ctx.timezone);
+    const { criarProvedor } = await import("./provider");
+    const { monitorarInstancia } = await import("./alertas");
+    const p = criarProvedor();
+    if (!p) throw new UserError("O WhatsApp ainda não está configurado neste ambiente (veja docs/11-whatsapp-direto.md).");
+    await monitorarInstancia(p);
+    return statusWhatsapp(ctx.familyId, ctx.timezone);
   });
 }
 
-/** Gera (ou troca) o segredo do teste. Aparece uma só vez; no banco fica cifrado. */
-export async function gerarSegredoN8nAction(): Promise<R<{ segredo: string; n8n: N8nVm }>> {
+/** Limite mensal de IA da família, em dólares (0 pausa o assistente de perguntas). */
+export async function definirLimiteIaAction(usd: number): Promise<R<StatusWa>> {
   return run(async () => {
     const ctx = await sessaoAdmin();
-    const segredo = await gerarSegredoDoTeste(ctx.familyId);
-    await auditar(ctx, "n8n.secret.generate");
-    return { segredo, n8n: n8nVm(await lerEstadoN8n(ctx.familyId), ctx.timezone) };
-  });
-}
-
-/** Botão "Testar conexão": POST assinado ao fluxo 05, 5 s, sem seguir redirect. */
-export async function testarN8nAction(): Promise<R<{ ok: boolean; mensagem: string; n8n: N8nVm }>> {
-  return run(async () => {
-    const ctx = await sessaoAdmin();
-    const { resultado, estado } = await testarN8n(ctx.familyId);
-    await auditar(ctx, resultado.ok ? "n8n.test.ok" : "n8n.test.fail");
-    const mensagem = resultado.ok
-      ? `Conectado ao N8N${resultado.versao ? ` (fluxos versão ${resultado.versao})` : ""} em ${resultado.ms} ms.`
-      : resultado.erro;
-    return { ok: resultado.ok, mensagem, n8n: n8nVm(estado, ctx.timezone) };
+    const v = z.number({ invalid_type_error: "Informe um valor em dólares." }).min(0, "O valor não pode ser negativo.").max(1000, "Máximo de US$ 1.000 por mês.").parse(usd);
+    const { definirLimiteMensal } = await import("./ia/uso");
+    await definirLimiteMensal(ctx.familyId, v);
+    await withFamilia(ctx.familyId, (tx) => tx.insert(s.auditLog).values({ familyId: ctx.familyId, actorMemberId: ctx.memberId, action: "ai.limit.set", entity: "family_integration", entityId: ctx.familyId, meta: { usd: v } }));
+    return statusWhatsapp(ctx.familyId, ctx.timezone);
   });
 }

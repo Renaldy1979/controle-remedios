@@ -1,7 +1,7 @@
 /**
  * Textos prontos do WhatsApp (pt-BR, curtos, sempre com o nome do paciente, uma ação por mensagem).
- * A API devolve o texto pronto; o N8N só envia. Opções numeradas são o padrão ("Responda 1 para Tomei");
- * com SUPPORTS_BUTTONS=true o texto vai sem as linhas numeradas e o N8N desenha botões a partir de `opcoes`.
+ * O núcleo da conversa devolve o texto pronto; o worker só envia pelo provedor. Opções numeradas são o padrão ("Responda 1 para Tomei");
+ * com SUPPORTS_BUTTONS=true o texto vai sem as linhas numeradas e `opcoes` traz os rótulos para o provedor desenhar botões.
  */
 
 export interface Opcao {
@@ -176,3 +176,30 @@ export const linkAcesso = (p: { link: string }): Resposta => ({
   texto: `${titulo("🔗", "Link de primeiro acesso")}\nDefina seu e-mail e senha aqui (vale 24 h, uso único):\n${p.link}`,
 });
 export const linkAcessoNaoPrecisa = (): Resposta => ({ texto: `${titulo("ℹ️", "Acesso completo")}\nVocê já tem acesso ao portal. Entre com seu e-mail e senha.` });
+
+/* ---------------------------------------------------------------- Lote 4B: PARAR/REATIVAR, mídia e agente de IA */
+
+export const avisosPausados = (): Resposta => ({
+  texto: `${titulo("🔕", "Avisos pausados")}
+Você não vai mais receber lembretes e avisos por aqui. Continuo respondendo se você escrever. Para voltar, envie *REATIVAR*.`,
+});
+export const avisosReativados = (): Resposta => ({ texto: `${titulo("🔔", "Avisos de volta")}
+Pronto, você volta a receber os lembretes e avisos.` });
+export const pedeTexto = (): Resposta => ({ texto: "Por enquanto eu só entendo texto, áudio e foto. Pode escrever o que precisa?" });
+export const fotoGrande = (): Resposta => ({ texto: "Essa foto ficou grande demais para eu abrir. Pode mandar outra menor ou escrever o que precisa?" });
+export const audioLongo = (): Resposta => ({ texto: "Esse áudio ficou longo demais. Pode mandar um mais curto (até 3 minutos) ou escrever?" });
+export const midiaNaoAbriu = (): Resposta => ({ texto: "Não consegui abrir esse arquivo. Pode mandar de novo ou escrever o que precisa?" });
+export const audioNaoEntendido = (): Resposta => ({ texto: "Não consegui entender o áudio. Pode mandar de novo ou escrever?" });
+export const fotoNaoLida = (): Resposta => ({ texto: "Não consegui ler a foto. Pode escrever o que precisa?" });
+export const instabilidade = (): Resposta => ({ texto: "Estou com uma instabilidade agora. Tente de novo daqui a pouco, por favor." });
+export const assistenteIndisponivel = (): Resposta => ({
+  texto: `${titulo("ℹ️", "Assistente indisponível")}
+O assistente de perguntas está indisponível no momento. Você ainda pode responder *tomei*, *estoque* ou *próximas doses*.`,
+});
+export const assistentePausado = (): Resposta => ({
+  texto: `${titulo("⏸️", "Assistente pausado")}
+O assistente de perguntas está pausado neste mês. O administrador já foi avisado. Você ainda pode responder *tomei*, *estoque* ou *próximas doses*.`,
+});
+export const assistenteErro = (): Resposta => ({ texto: "Não consegui responder agora. Tente de novo em instantes, por favor." });
+export const assistenteRecusou = (): Resposta => ({ texto: "Não consigo ajudar com isso por aqui. Para dúvidas sobre remédios, fale com o médico ou o farmacêutico." });
+export const assistenteLonga = (): Resposta => ({ texto: "A resposta ficou longa demais. Pode perguntar de um jeito mais específico?" });

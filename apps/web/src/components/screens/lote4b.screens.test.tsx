@@ -5,115 +5,103 @@ import { axe } from "@/test/axe";
 import { renderApp } from "@/test/render";
 import { WhatsappPanel } from "./settings/WhatsappPanel";
 
+type Status = {
+  provedor: string; configurado: boolean;
+  instancia: { estado: "conectada" | "desconectada" | "aguardando"; desde: string | null; consultadaEm: string | null };
+  worker: { habilitado: boolean; ligado: boolean; ultimoBatimento: string | null };
+  entrada: { pendentes: number; processando: number; erros: number; maisAntigaSeg: number | null; ultimosErros: Array<{ motivo: string; quando: string; tentativas: number }> };
+  saida: { pendentes: number; comErro: number; ultimosErros: Array<{ tipo: string; motivo: string; quando: string }> };
+  ia: { configurada: boolean; modelo: string; midia: boolean; mes: string; usadoUsd: number; limiteUsd: number; chamadas: number; excedeu: boolean };
+};
+
 const wa = vi.hoisted(() => {
-  const n8nVazio = { url: null as string | null, temSegredo: false, estado: "aguardando" as "aguardando" | "conectado", teste: null as null | { em: string; ok: boolean; versao: string | null } };
-  const estado = {
-    eu: { verificado: "(11) 91234-5678", pendente: "", codigoAtivo: false, codigoExpiraEm: null },
-    pessoas: [],
-    admin: true,
-    chaves: [],
-    chavesPlataforma: [] as Array<{ id: string; nome: string; prefixo: string; criadaEm: string; ultimoUso: string; revogada: boolean }> | null,
-    simulador: false,
-    n8n: { ...n8nVazio } as typeof n8nVazio | null,
+  const statusBase: Status = {
+    provedor: "evolution-go", configurado: false,
+    instancia: { estado: "aguardando", desde: null, consultadaEm: null },
+    worker: { habilitado: false, ligado: false, ultimoBatimento: null },
+    entrada: { pendentes: 0, processando: 0, erros: 0, maisAntigaSeg: null, ultimosErros: [] },
+    saida: { pendentes: 0, comErro: 0, ultimosErros: [] },
+    ia: { configurada: false, modelo: "claude-sonnet-5-5", midia: false, mes: "2026-10", usadoUsd: 0, limiteUsd: 5, chamadas: 0, excedeu: false },
   };
+  const estado = { eu: { verificado: "(11) 91234-5678", pendente: "", codigoAtivo: false, codigoExpiraEm: null }, pessoas: [], admin: true, chaves: [], simulador: false, status: { ...statusBase } as Status | null };
   return {
-    estado,
-    n8nVazio,
+    statusBase, estado,
     estadoWhatsappAction: vi.fn(async () => ({ ok: true as const, data: { ...estado } })),
-    criarChaveAction: vi.fn(async (_n: string, _t: string) => ({ ok: true as const, data: { chave: "cpl_SEGREDO-da-plataforma" } })),
-    revogarChaveAction: vi.fn(async () => ({ ok: true as const, data: undefined })),
+    criarChaveAction: vi.fn(),
+    revogarChaveAction: vi.fn(),
     reenviarLinkAcessoAction: vi.fn(),
     iniciarVerificacaoAction: vi.fn(),
     removerMeuNumeroAction: vi.fn(),
-    salvarWebhookN8nAction: vi.fn(async (url: string) => {
-      Object.assign(estado.n8n!, { url });
-      return { ok: true as const, data: estado.n8n! };
-    }),
-    gerarSegredoN8nAction: vi.fn(async () => {
-      Object.assign(estado.n8n!, { temSegredo: true });
-      return { ok: true as const, data: { segredo: "whsec_SEGREDO-do-teste", n8n: estado.n8n! } };
-    }),
-    testarN8nAction: vi.fn(async () => ({ ok: true as const, data: { ok: true, mensagem: "Conectado ao N8N (fluxos versão 1.0.0) em 120 ms.", n8n: estado.n8n! } })),
+    consultarInstanciaAction: vi.fn(async () => ({ ok: true as const, data: { ...statusBase, configurado: true, instancia: { estado: "conectada" as const, desde: "2026-10-22T12:00:00Z", consultadaEm: "2026-10-22T12:01:00Z" } } })),
+    definirLimiteIaAction: vi.fn(async (usd: number) => ({ ok: true as const, data: { ...statusBase, ia: { ...statusBase.ia, limiteUsd: usd } } })),
   };
 });
 
 vi.mock("@/server/wa/actions", () => wa);
 
 beforeEach(() => {
-  wa.estado.n8n = { ...wa.n8nVazio };
-  wa.estado.chavesPlataforma = [];
+  wa.estado.status = { ...wa.statusBase };
   vi.clearAllMocks();
 });
 
-describe("Lote 4B — Configurações › WhatsApp › N8N", () => {
-  it("sem conexão confirmada mostra 'WhatsApp do sistema: aguardando conexão' (ícone + texto) e o teste fica desligado", async () => {
+describe("Lote 4B — Configurações › WhatsApp › WhatsApp do sistema", () => {
+  it("sem número: 'aguardando conexão' (ícone + texto), worker desligado, assistente sem chave; sem nada do N8N", async () => {
     const { container } = renderApp(<WhatsappPanel />);
-    const card = await screen.findByRole("region", { name: "Ligação com o N8N" });
+    const card = await screen.findByRole("region", { name: "WhatsApp do sistema" });
     expect(within(card).getByText("Aguardando conexão")).toBeInTheDocument();
-    expect(within(card).getByText(/WhatsApp do sistema: aguardando conexão/)).toBeInTheDocument();
-    expect(within(card).getByRole("button", { name: "Testar conexão" })).toBeDisabled();
+    expect(within(card).getByText(/Worker desligado/)).toBeInTheDocument();
+    expect(within(card).getByText(/Sem ANTHROPIC_API_KEY/)).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Consultar agora" })).toBeDisabled();
+    expect(container.textContent).not.toMatch(/N8N|Testar conexão|cpl_/);
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it("mostra contagem da fila, motivo resumido dos erros e o uso de IA contra o limite", async () => {
+    wa.estado.status = {
+      ...wa.statusBase, configurado: true,
+      instancia: { estado: "desconectada", desde: "2026-10-22T12:00:00Z", consultadaEm: "2026-10-22T12:05:00Z" },
+      worker: { habilitado: true, ligado: true, ultimoBatimento: "2026-10-22T12:05:00Z" },
+      entrada: { pendentes: 2, processando: 1, erros: 1, maisAntigaSeg: 42, ultimosErros: [{ motivo: "Error: sem resposta", quando: "22/10/2026 09:00", tentativas: 5 }] },
+      saida: { pendentes: 3, comErro: 1, ultimosErros: [{ tipo: "dose_reminder", motivo: "ErroEnvio: Evolution /send/text respondeu 400", quando: "22/10/2026 09:10" }] },
+      ia: { configurada: true, modelo: "claude-sonnet-5-5", midia: true, mes: "2026-10", usadoUsd: 5, limiteUsd: 5, chamadas: 40, excedeu: true },
+    };
+    const { container } = renderApp(<WhatsappPanel />);
+    const card = await screen.findByRole("region", { name: "WhatsApp do sistema" });
+    expect(within(card).getByText("Desconectada")).toBeInTheDocument();
+    expect(within(card).getByText("Worker ligado")).toBeInTheDocument();
+    expect(within(card).getByText(/Erro em 22\/10\/2026 09:00: Error: sem resposta \(5 tentativas\)/)).toBeInTheDocument();
+    expect(within(card).getByText(/Falha em 22\/10\/2026 09:10 \(dose_reminder\)/)).toBeInTheDocument();
+    expect(within(card).getByText("Assistente pausado")).toBeInTheDocument();
+    expect(within(card).getByRole("progressbar", { name: "Uso do limite mensal de IA" })).toHaveAttribute("aria-valuenow", "100");
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it("Consultar agora atualiza o estado; Salvar limite envia o valor com vírgula e recusa texto", async () => {
+    wa.estado.status = { ...wa.statusBase, configurado: true };
+    const user = userEvent.setup();
+    renderApp(<WhatsappPanel />);
+    const card = await screen.findByRole("region", { name: "WhatsApp do sistema" });
+    await user.click(within(card).getByRole("button", { name: "Consultar agora" }));
+    await waitFor(() => expect(wa.consultarInstanciaAction).toHaveBeenCalledTimes(1));
+
+    const campo = within(card).getByLabelText("Limite mensal (US$)");
+    await user.clear(campo);
+    await user.type(campo, "abc");
+    await user.click(within(card).getByRole("button", { name: "Salvar limite" }));
+    expect(await within(card).findByText(/valor em dólares/)).toBeInTheDocument();
+    expect(wa.definirLimiteIaAction).not.toHaveBeenCalled();
+    await user.clear(campo);
+    await user.type(campo, "7,50");
+    await user.click(within(card).getByRole("button", { name: "Salvar limite" }));
+    await waitFor(() => expect(wa.definirLimiteIaAction).toHaveBeenCalledWith(7.5));
+  });
+
   it("não aparece para quem não é Administrador", async () => {
-    wa.estado.n8n = null;
+    wa.estado.status = null;
+    wa.estado.admin = false;
     renderApp(<WhatsappPanel />);
-    await screen.findByText("Meu WhatsApp");
-    expect(screen.queryByRole("region", { name: "Ligação com o N8N" })).not.toBeInTheDocument();
-  });
-
-  it("salva o endereço, gera o segredo (mostrado uma vez, com o passo a passo da credencial) e só então libera o teste", async () => {
-    renderApp(<WhatsappPanel />);
-    const card = await screen.findByRole("region", { name: "Ligação com o N8N" });
-    await userEvent.type(within(card).getByLabelText(/Endereço do webhook/), "https://n8n.exemplo.com.br/webhook/medcuidar-teste-conexao");
-    await userEvent.click(within(card).getByRole("button", { name: "Salvar endereço" }));
-    await waitFor(() => expect(wa.salvarWebhookN8nAction).toHaveBeenCalledWith("https://n8n.exemplo.com.br/webhook/medcuidar-teste-conexao"));
-
-    await userEvent.click(within(card).getByRole("button", { name: "Gerar segredo" }));
-    expect(await screen.findByText("whsec_SEGREDO-do-teste")).toBeInTheDocument();
-    expect(screen.getByText(/não será mostrado de novo/)).toBeInTheDocument();
-    expect(screen.getByText(/MedCuidar Teste de conexão/)).toBeInTheDocument();
-    expect(screen.getByText("X-MedCuidar-Token")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Já copiei" }));
-    expect(screen.queryByText("whsec_SEGREDO-do-teste")).not.toBeInTheDocument();
-    await waitFor(() => expect(within(card).getByRole("button", { name: "Testar conexão" })).toBeEnabled());
-  });
-
-  it("mostra o erro de URL recusada (ex.: rede interna) sem salvar", async () => {
-    wa.salvarWebhookN8nAction.mockImplementationOnce((async () => ({ ok: false as const, message: "Essa URL não é permitida. Use o endereço público do seu N8N." })) as never);
-    renderApp(<WhatsappPanel />);
-    const card = await screen.findByRole("region", { name: "Ligação com o N8N" });
-    await userEvent.type(within(card).getByLabelText(/Endereço do webhook/), "https://10.0.0.5/x");
-    await userEvent.click(within(card).getByRole("button", { name: "Salvar endereço" }));
-    expect(await within(card).findByText(/não é permitida/)).toBeInTheDocument();
-  });
-
-  it("Testar conexão: sucesso vira 'N8N conectado'; falha mostra a mensagem amigável", async () => {
-    Object.assign(wa.estado.n8n!, { url: "https://n8n.exemplo.com.br/webhook/medcuidar-teste-conexao", temSegredo: true });
-    wa.testarN8nAction.mockImplementationOnce((async () => ({ ok: true as const, data: { ok: false, mensagem: "O N8N recusou o segredo. Confira a credencial.", n8n: wa.estado.n8n! } })) as never);
-    renderApp(<WhatsappPanel />);
-    const card = await screen.findByRole("region", { name: "Ligação com o N8N" });
-    await userEvent.click(within(card).getByRole("button", { name: "Testar conexão" }));
-    expect(await within(card).findByRole("status")).toHaveTextContent("recusou o segredo");
-    expect(within(card).getByText("Aguardando conexão")).toBeInTheDocument();
-
-    wa.estado.n8n = { url: wa.estado.n8n!.url, temSegredo: true, estado: "conectado", teste: { em: "22/10/2026 às 10:00", ok: true, versao: "1.0.0" } };
-    await userEvent.click(within(card).getByRole("button", { name: "Testar conexão" }));
-    expect(await within(card).findByRole("status")).toHaveTextContent("Conectado ao N8N");
-    await waitFor(() => expect(within(card).getByText("N8N conectado")).toBeInTheDocument());
-  });
-
-  it("chave da plataforma: aparece uma vez, com a instrução de colar no N8N com o nome 'MedCuidar API'", async () => {
-    wa.estado.chavesPlataforma = [];
-    renderApp(<WhatsappPanel />);
-    const card = await screen.findByRole("region", { name: "Chave da plataforma (N8N)" });
-    await userEvent.type(within(card).getByLabelText("Nome da nova chave"), "N8N do staging");
-    await userEvent.click(within(card).getByRole("button", { name: "Criar chave" }));
-    expect(await screen.findByText("cpl_SEGREDO-da-plataforma")).toBeInTheDocument();
-    expect(wa.criarChaveAction).toHaveBeenCalledWith("N8N do staging", "plataforma");
-    expect(screen.getByText(/MedCuidar API/)).toBeInTheDocument();
-    expect(screen.getByText(/Header Auth/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Já copiei" }));
-    expect(screen.queryByText("cpl_SEGREDO-da-plataforma")).not.toBeInTheDocument();
+    await screen.findByRole("region", { name: "Meu número de WhatsApp" });
+    expect(screen.queryByRole("region", { name: "WhatsApp do sistema" })).not.toBeInTheDocument();
+    wa.estado.admin = true;
   });
 });

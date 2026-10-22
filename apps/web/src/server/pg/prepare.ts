@@ -7,7 +7,7 @@ import { evaluateLowStockForFamily } from "./stock";
 
 /**
  * Deixa o dia da família em dia antes de montar a tela: gera as doses de hoje (idempotente), grava atraso/esquecida e
- * confere o estoque baixo. Chamado ao abrir o portal e na atualização periódica; o agendador/N8N dos próximos lotes
+ * confere o estoque baixo. Chamado ao abrir o portal e na atualização periódica; o agendador do WhatsApp
  * chama as mesmas funções (`ensureDosesForDay` etc.) sem precisar de ninguém com o portal aberto.
  */
 export async function prepareDay(

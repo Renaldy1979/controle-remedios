@@ -108,7 +108,7 @@ export function buildOpenApi(): Record<string, unknown> {
     info: {
       title: "MedCuidar API v1",
       version: API_VERSION,
-      description: "API pública do MedCuidar. As regras de negócio moram aqui; o N8N só roteia e envia. Erros: { erro: { codigo, mensagem, detalhes? } }.",
+      description: "API pública do MedCuidar. As regras de negócio moram aqui; o worker do WhatsApp e as integrações só roteiam e enviam. Erros: { erro: { codigo, mensagem, detalhes? } }.",
     },
     servers: [{ url: "/api/v1" }],
     components: {

@@ -133,7 +133,7 @@ export interface EnsureResult {
 /**
  * Gera as doses de um dia local (`aaaa-mm-dd`) para todos os tratamentos ativos da família, a partir das fases.
  * Idempotente: o índice único (treatment_id, scheduled_at) descarta repetições (`ON CONFLICT DO NOTHING`), então pode
- * ser chamada a cada abertura do portal, por duas pessoas ao mesmo tempo, ou por um agendador/N8N nos próximos lotes.
+ * ser chamada a cada abertura do portal, por duas pessoas ao mesmo tempo, ou pelo agendador do WhatsApp.
  */
 export async function ensureDosesForDay(familyId: string, date: string): Promise<EnsureResult> {
   return withFamilia(familyId, async (tx) => {
