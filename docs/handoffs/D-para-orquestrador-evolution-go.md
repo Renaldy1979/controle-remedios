@@ -1,5 +1,7 @@
 # Integrações (D) → Orquestrador: Evolution Go
 
+> **Atualização (Lote 4B):** o adaptador vive agora em `apps/web/src/server/wa/provider/evolution-go.ts` (sem N8N); as dúvidas abaixo seguem valendo e estão marcadas `TODO verificar com mensagem real`. Roteiro: `docs/lotes/L4B-roteiro.md`, passo B1.
+
 Estado: adaptador `evolution-go` implementado (`packages/channels/src/evolution-go.ts`); o adaptador da Evolution API v2 foi **removido**. Fontes: swagger oficial `EvolutionAPI/evolution-go/docs/swagger.json` e docs.evolutionfoundation.com.br/evolution-go (webhooks, send-a-*).
 
 ## Confirmado na documentação e implementado

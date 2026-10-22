@@ -196,7 +196,7 @@ export function SimulatorPanel() {
             </Button>
           </div>
           <Button size="sm" icon="send" loading={busy} loadingText="Enviando…" onClick={() => void enviarAgora()}>
-            Enviar agora (simulado)
+            Disparar lembretes agora (simulado)
           </Button>
           {fila.length === 0 ? (
             <p className="text-ink2">Nada para enviar agora. Lembretes de dose, estoque baixo e resumo aparecem aqui para quem tem número verificado.</p>

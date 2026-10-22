@@ -48,9 +48,9 @@ O simulador usa **a mesma fila e o mesmo worker** do WhatsApp real, só com um "
 | A3 | Envie **tomei** (com uma dose na hora). | "✅ Anotado". Em **Pacientes**, o estoque caiu 1. Envie **tomei** de novo: "Nenhuma dose pendente" (**não** baixa de novo). |
 | A4 | Envie **estoque** e **próximas doses**. | Respondem sem IA, com o nome do paciente. |
 | A5 | Envie **PARAR**. | "🔕 Avisos pausados". Você **não** recebe mais lembretes na fila, mas o portal e o sino seguem iguais. |
-| A6 | No painel da direita, toque em **Atualizar** e depois em **Enviar agora (simulado)**. | **Nada** é enviado para você (ele PAROU). Se houver outras pessoas com número verificado, os lembretes delas saem. |
+| A6 | No painel da direita, toque em **Atualizar** e depois em **Disparar lembretes agora (simulado)**. | **Nada** é enviado para você (ele PAROU). Se houver outras pessoas com número verificado, os lembretes delas saem. |
 | A7 | Envie **estoque** de novo. | **Responde normalmente** (PARAR só pausa os avisos, não o atendimento). |
-| A8 | Envie **REATIVAR**. | "🔔 Avisos de volta". Agora **Enviar agora (simulado)** manda o lembrete da dose (se ainda estiver aberta). |
+| A8 | Envie **REATIVAR**. | "🔔 Avisos de volta". Agora **Disparar lembretes agora (simulado)** manda o lembrete da dose (se ainda estiver aberta). |
 | A9 | **Só se você já tem `ANTHROPIC_API_KEY`:** envie *"quanto tem de Zypred e quando acaba?"*. | Resposta curta em português, **com os números reais** (dias de estoque). Se perguntar *"posso tomar o dobro?"*: **não dá conselho médico**, manda falar com o médico/farmacêutico. |
 | A10 | **Sem a chave da IA:** envie uma pergunta livre, como *"qual a capital da França?"*. | "ℹ️ Assistente indisponível — O assistente de perguntas está indisponível no momento…". Todo o resto (A3, A4) continua funcionando. |
 | A11 | Envie *"confirma a dose pra mim"* (com a IA ligada). | O assistente **não confirma**: manda escrever **tomei**. O estoque não mexe. |
