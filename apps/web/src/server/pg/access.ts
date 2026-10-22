@@ -2,7 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { eq } from "drizzle-orm";
-import { resolverMembroPorAppwriteUser, withFamilia } from "@medcuidar/pg";
+import { ativarMembroPorEmail, resolverMembroPorAppwriteUser, withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { familySettingsSchema, permissionMapSchema, type FamilySettings } from "@medcuidar/shared";
 import type { Member } from "@/data/types";

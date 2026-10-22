@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import type { FormState } from "@/server/pg/auth-actions";
 import * as auth from "@/server/pg/auth-actions";
+import * as firstAccess from "@/server/wa/first-access-actions";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Controls";
 import { TextField } from "@/components/ui/Field";
@@ -205,5 +206,24 @@ export function AcceptInviteForm({ token, userId, secret, name, familyName, prof
         </Button>
       </form>
     </div>
+  );
+}
+
+/** Primeiro acesso de quem entrou pelo convite de WhatsApp: define e-mail e senha. */
+export function FirstAccessForm({ token, name, familyName, profileName }: { token: string; name: string; familyName: string; profileName: string }) {
+  const [state, action, pending] = useActionState(firstAccess.completeFirstAccess, {} as firstAccess.FirstAccessState);
+  return (
+    <form action={action} className="flex flex-col gap-4">
+      <p className="rounded-lg border border-bd bg-sf p-3">
+        <strong>{name}</strong>, você entrou na família <strong>{familyName}</strong> como <strong>{profileName}</strong>. Seu WhatsApp já está confirmado. Falta definir o e-mail e a senha de acesso ao portal.
+      </p>
+      {state.error ? <FormNotice kind="error">{state.error}</FormNotice> : null}
+      <input type="hidden" name="t" value={token} />
+      <TextField label="Seu e-mail" name="email" type="email" autoComplete="email" inputMode="email" required defaultValue={state.values?.["email"]} hint="Vamos enviar um e-mail para você confirmar que ele é seu." />
+      <Passwords confirm label="Crie uma senha" autoComplete="new-password" />
+      <Button type="submit" size="lg" icon="lock" loading={pending} loadingText="Criando acesso…">
+        Criar meu acesso
+      </Button>
+    </form>
   );
 }

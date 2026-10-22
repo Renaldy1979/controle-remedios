@@ -1,4 +1,4 @@
-import type { PermissionKey } from "@medcuidar/shared";
+import { can, type PermissionKey } from "@medcuidar/shared";
 
 /** As opções de Configurações: cada uma é uma página própria (`/configuracoes/<id>`) e um item do menu em árvore. */
 export const SECTIONS = [
@@ -9,7 +9,13 @@ export const SECTIONS = [
   { id: "pessoas", label: "Pessoas", icon: "group", help: "Convidar, perfis de acesso e desativar", permission: "members.manage" },
   { id: "perfis", label: "Perfis", icon: "admin_panel_settings", help: "O que cada perfil pode fazer", permission: "profiles.manage" },
   { id: "avisos", label: "Avisos", icon: "notifications", help: "Quando e para quem avisar", permission: "settings.manage" },
-] as const satisfies ReadonlyArray<{ id: string; label: string; icon: string; help: string; permission: PermissionKey }>;
+  { id: "whatsapp", label: "WhatsApp", icon: "chat", help: "Número de cada pessoa e chaves de API", permission: "members.manage" },
+  { id: "simulador", label: "Simulador de WhatsApp", icon: "forum", help: "Testar a conversa sem enviar mensagem real", permission: "settings.manage", simulatorOnly: true },
+] as const satisfies ReadonlyArray<{ id: string; label: string; icon: string; help: string; permission: PermissionKey; simulatorOnly?: boolean }>;
+
+/** O simulador só aparece quando o servidor está com SIMULATOR_ENABLED=1 (o servidor também recusa sem isso). */
+export const visibleSections = (member: Parameters<typeof can>[0], simulatorEnabled: boolean | undefined) =>
+  SECTIONS.filter((s) => can(member, s.permission) && (!("simulatorOnly" in s) || simulatorEnabled === true));
 
 export type SectionId = (typeof SECTIONS)[number]["id"];
 

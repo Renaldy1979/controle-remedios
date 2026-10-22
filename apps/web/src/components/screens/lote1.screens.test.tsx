@@ -14,6 +14,21 @@ import { PatientsScreen } from "./PatientsScreen";
 import { AcceptInviteForm, ConfirmEmailForm, CreateFamilyForm, ForgotPasswordForm, ResetPasswordForm, SignInForm, SignUpForm, VerifyPending } from "./auth/AuthForms";
 import { AuthFrame } from "./auth/AuthFrame";
 
+const waMock = vi.hoisted(() => ({
+  iniciarVerificacaoAction: vi.fn(async (_tel: string) => ({ ok: true as const, data: { codigo: "482913", telefone: "(11) 97777-6666", expiraEm: "2026-10-19T20:00:00Z", expiraHora: "17:00" } })),
+}));
+vi.mock("@/server/wa/actions", () => ({
+  estadoWhatsappAction: async () => ({
+    ok: true as const,
+    data: { eu: { verificado: "", pendente: "(11) 91234-5678", codigoAtivo: false, codigoExpiraEm: null }, pessoas: [], admin: true, chaves: [], chavesPlataforma: null, simulador: false },
+  }),
+  iniciarVerificacaoAction: waMock.iniciarVerificacaoAction,
+  removerMeuNumeroAction: async () => ({ ok: true as const, data: undefined }),
+  criarChaveAction: async () => ({ ok: true as const, data: { chave: "cdf_x" } }),
+  revogarChaveAction: async () => ({ ok: true as const, data: undefined }),
+  reenviarLinkAcessoAction: async () => ({ ok: true as const, data: { link: "http://x" } }),
+}));
+
 vi.mock("@/server/pg/auth-actions", () => {
   const act = async () => ({});
   return {
@@ -151,25 +166,24 @@ describe("Lote 1 — portal logado (origem Postgres)", () => {
     expect(screen.getByText(/chegam no Lote 4/)).toBeInTheDocument();
   });
 
-  it("Minha conta: WhatsApp pendente, nunca 'verificado', e explica que a validação é do Lote 4", async () => {
+  it("Minha conta (Lote 4A): número pendente, nunca 'verificado'; código de 6 dígitos só aparece ao gerar; número inválido é recusado", async () => {
     const snap = lote1Snapshot({ account: { email: "ana@exemplo.test", name: "Ana", phonePending: "5511912345678", phoneVerified: "" } });
-    const saveMyPhone = vi.fn(async () => undefined);
-    const { container } = renderApp(shell("/conta", <AccountScreen />), { source: fakePg(snap, { saveMyPhone }) });
-    expect(screen.getByText("Pendente de validação")).toBeInTheDocument();
+    const { container } = renderApp(shell("/conta", <AccountScreen />), { source: fakePg(snap) });
+    expect(await screen.findByText("Pendente de validação")).toBeInTheDocument();
     expect(screen.queryByText("Verificado")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Celular com DDD")).toHaveValue("(11) 91234-5678");
-    expect(screen.getByText(/A validação chega no Lote 4/)).toBeInTheDocument();
+    expect(screen.queryByText("482913")).not.toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
     const campo = screen.getByLabelText("Celular com DDD");
-    await userEvent.clear(campo);
     await userEvent.type(campo, "12");
-    await userEvent.click(screen.getByRole("button", { name: "Salvar número" }));
+    await userEvent.click(screen.getByRole("button", { name: "Gerar novo código" }));
     expect(screen.getByText(/Confira o número com DDD/)).toBeInTheDocument();
-    expect(saveMyPhone).not.toHaveBeenCalled();
+    expect(waMock.iniciarVerificacaoAction).not.toHaveBeenCalled();
     await userEvent.clear(campo);
     await userEvent.type(campo, "(11) 97777-6666");
-    await userEvent.click(screen.getByRole("button", { name: "Salvar número" }));
-    await waitFor(() => expect(saveMyPhone).toHaveBeenCalledWith("(11) 97777-6666"));
+    await userEvent.click(screen.getByRole("button", { name: "Gerar novo código" }));
+    await waitFor(() => expect(waMock.iniciarVerificacaoAction).toHaveBeenCalledWith("(11) 97777-6666"));
+    expect(await screen.findByText("482913")).toBeInTheDocument();
+    expect(screen.getByText(/pelo WhatsApp do número/)).toBeInTheDocument();
   });
 });
 
@@ -217,7 +231,7 @@ describe("Lote 1 — Pessoas (convites e estados)", () => {
     expect(screen.getByRole("button", { name: "Reenviar convite a Sr. Pedro" })).toBeInTheDocument();
   });
 
-  it("convite por WhatsApp: código aparece uma vez, com aviso do Lote 4, e some ao fechar", async () => {
+  it("convite por WhatsApp: código aparece uma vez, com a instrução de envio ao sistema, e some ao fechar", async () => {
     const result: InviteResult = { kind: "whatsapp", memberName: "Seu Zé", code: "482913", expectedPhone: "5511988887777", expiresLabel: "20/10/2026 às 11:00" };
     const inviteMember = vi.fn(async () => result);
     open({ inviteMember });
@@ -232,7 +246,7 @@ describe("Lote 1 — Pessoas (convites e estados)", () => {
     const res = await screen.findByRole("dialog", { name: "Código para Seu Zé" });
     expect(within(res).getByText("482913")).toBeInTheDocument();
     expect(within(res).getByText(/aparece só uma vez/)).toBeInTheDocument();
-    expect(within(res).getByText(/chega no Lote 4/)).toBeInTheDocument();
+    expect(within(res).getByText(/envia este código ao WhatsApp do sistema/)).toBeInTheDocument();
     expect(within(res).getByText("(••) •••••-7777")).toBeInTheDocument(); // número mascarado
     expect(await axe(res)).toHaveNoViolations();
     await userEvent.click(within(res).getByRole("button", { name: "Entendi" }));

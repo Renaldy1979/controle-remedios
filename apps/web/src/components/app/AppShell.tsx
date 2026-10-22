@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { can, type PermissionKey } from "@medcuidar/shared";
 import { cx } from "@/lib/format";
-import { SECTIONS } from "@/lib/settings-sections";
+import { visibleSections } from "@/lib/settings-sections";
 import { useActions, useConnection, useDataKind, useSnapshot } from "@/data";
 import { Button } from "@/components/ui/Button";
 import { logoutAction } from "@/server/auth-actions";
@@ -34,13 +34,13 @@ const inSettings = (pathname: string) => pathname === SETTINGS || pathname.start
 
 /** Configurações como árvore no menu lateral: expande sozinha dentro de qualquer página filha e pode ser recolhida/aberta no botão. */
 function SettingsTree({ pathname, item }: { pathname: string; item: NavItem }) {
-  const { member } = useSnapshot();
+  const { member, simulatorEnabled } = useSnapshot();
   const here = inSettings(pathname);
   const [open, setOpen] = useState(here);
   useEffect(() => {
     if (here) setOpen(true);
   }, [here]);
-  const children = SECTIONS.filter((s) => can(member, s.permission));
+  const children = visibleSections(member, simulatorEnabled);
   const onIndex = pathname === SETTINGS;
   return (
     <li>

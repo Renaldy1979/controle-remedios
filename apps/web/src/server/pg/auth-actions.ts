@@ -2,7 +2,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { consumirLinkPrimeiroAcesso, resolverLinkPrimeiroAcesso, resolverMembroPorAppwriteUser, sha256, withFamilia } from "@medcuidar/pg";
+import { ativarMembroPorEmail, consumirLinkPrimeiroAcesso, resolverLinkPrimeiroAcesso, resolverMembroPorAppwriteUser, sha256, withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import {

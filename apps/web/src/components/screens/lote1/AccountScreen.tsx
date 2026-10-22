@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { useActions, useSnapshot } from "@/data";
+import { useActions, useDataKind, useSnapshot } from "@/data";
+import { WhatsappNumberCard } from "@/components/screens/settings/WhatsappNumberCard";
 import { Button } from "@/components/ui/Button";
 import { StatusChip } from "@/components/ui/Chip";
 import { TextField } from "@/components/ui/Field";
@@ -14,6 +15,7 @@ export function AccountScreen() {
   const snap = useSnapshot();
   const actions = useActions();
   const toast = useToast();
+  const real = useDataKind() === "postgres";
   const account = snap.account;
   const [phone, setPhone] = useState(account?.phonePending ? formatPhone(account.phonePending) : "");
   const [err, setErr] = useState("");
@@ -51,7 +53,8 @@ export function AccountScreen() {
         </dl>
       </section>
 
-      <section aria-label="WhatsApp" className="flex flex-col gap-4 rounded-lg border border-bd bg-sf p-4">
+      {real ? <WhatsappNumberCard /> : null}
+      {!real ? <section aria-label="WhatsApp" className="flex flex-col gap-4 rounded-lg border border-bd bg-sf p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-t2 font-bold">WhatsApp</h2>
           {verified ? (
@@ -96,7 +99,7 @@ export function AccountScreen() {
             </Button>
           </div>
         </form>
-      </section>
+      </section> : null}
 
       <form action={signOut}>
         <Button type="submit" variant="secondary" icon="logout">

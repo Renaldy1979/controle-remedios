@@ -6,7 +6,7 @@ import { Guard } from "@/components/app/Guard";
 import { PageWithAction } from "@/components/app/PageAction";
 import { Icon } from "@/components/ui/Icon";
 import { EmptyState } from "@/components/ui/Layout";
-import { SECTIONS, isSectionId, type SectionId } from "@/lib/settings-sections";
+import { SECTIONS, isSectionId, visibleSections, type SectionId } from "@/lib/settings-sections";
 import { MedicationsPanel } from "./settings/MedicationsPanel";
 import { SchemesPanel } from "./settings/SchemesPanel";
 import { StockPanel } from "./settings/StockPanel";
@@ -15,6 +15,8 @@ import { PatientsPanel } from "./settings/PatientsPanel";
 import { NoticesPanelLive } from "./lote2/NoticesPanelLive";
 import { ProfilesPanel } from "./settings/ProfilesPanel";
 import { NoticesPanel } from "./settings/NoticesPanel";
+import { WhatsappPanel } from "./settings/WhatsappPanel";
+import { SimulatorPanel } from "./settings/SimulatorPanel";
 
 export { SECTIONS, type SectionId };
 
@@ -29,8 +31,8 @@ export function SettingsScreen({ section }: { section?: string }) {
 }
 
 function SettingsIndex() {
-  const { member } = useSnapshot();
-  const allowed = SECTIONS.filter((s) => can(member, s.permission));
+  const { member, simulatorEnabled } = useSnapshot();
+  const allowed = visibleSections(member, simulatorEnabled);
   if (allowed.length === 0) return <p className="text-ink2">Seu perfil não tem ajustes liberados.</p>;
   return (
     <nav aria-label="Opções de Configurações">
@@ -55,8 +57,8 @@ function SettingsIndex() {
 }
 
 function SectionPage({ section }: { section: string }) {
-  const { member } = useSnapshot();
-  const meta = SECTIONS.find((s) => s.id === section);
+  const { member, simulatorEnabled } = useSnapshot();
+  const meta = visibleSections(member, simulatorEnabled).find((s) => s.id === section) ?? SECTIONS.find((s) => s.id === section && !("simulatorOnly" in s));
   if (!meta || !isSectionId(meta.id)) return <EmptyState icon="search_off" title="Esta opção não existe" action={<Link href="/configuracoes" className="inline-flex min-h-touch items-center font-bold text-br underline">Voltar para Configurações</Link>} />;
   if (!can(member, meta.permission)) {
     return <EmptyState icon="lock" title="Esta área não está liberada para o seu perfil" text="Peça a quem administra a família para ajustar as permissões em Configurações › Perfis." action={<Link href="/configuracoes" className="inline-flex min-h-touch items-center font-bold text-br underline">Voltar para Configurações</Link>} />;
@@ -106,5 +108,9 @@ function Panel({ id }: { id: SectionId }) {
       return <ProfilesPanel />;
     case "avisos":
       return real ? <NoticesPanelLive /> : <NoticesPanel />;
+    case "whatsapp":
+      return <WhatsappPanel />;
+    case "simulador":
+      return <SimulatorPanel />;
   }
 }

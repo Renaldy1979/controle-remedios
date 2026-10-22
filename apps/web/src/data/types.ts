@@ -376,6 +376,8 @@ export interface Snapshot {
   recentTaken?: DoseVM[];
   /** origem real (Lote 3): o armazenamento das receitas (bucket do Appwrite) está configurado? */
   rxStorageReady?: boolean;
+  /** SIMULATOR_ENABLED=1 no servidor: mostra o Simulador de WhatsApp em Configurações (só Administrador). */
+  simulatorEnabled?: boolean;
   /** origem real (Lote 3): quem usa o portal e pode (ou não) ver receitas, para "acesso restrito" e "compartilhar"; só para quem vê receitas */
   rxAudience?: PersonVM[];
   /** origem real: dados da própria conta (e-mail e WhatsApp pendente) */

@@ -83,7 +83,7 @@ export function UsersPanel() {
                   {p.phone ? <> · <span className="num">{p.phone}</span></> : null}
                 </p>
                 {p.invite ? <p className="text-cap text-ink2">Convite por {p.invite.kind === "email" ? "e-mail" : "WhatsApp"} · vale até {p.invite.expiresLabel}</p> : null}
-                {real && p.phonePending && !p.whatsappActive ? <p className="text-cap text-ink2">WhatsApp informado, aguardando validação (Lote 4)</p> : null}
+                {real && p.phonePending && !p.whatsappActive ? <p className="text-cap text-ink2">WhatsApp informado, aguardando o código de validação</p> : null}
               </div>
               <AccessChips p={p} />
               <div className="flex flex-wrap">
@@ -237,7 +237,7 @@ function MemberDialog({ person, profiles, real, onClose, onSave }: { person: Per
             onChange={setKind}
             options={[
               { value: "email", label: "Por e-mail", description: "A pessoa recebe um link, confirma o e-mail e cria a senha." },
-              { value: "whatsapp", label: "Por código de WhatsApp", description: "Para quem usa mais o WhatsApp. O uso do código chega no Lote 4." },
+              { value: "whatsapp", label: "Por código de WhatsApp", description: "Para quem usa mais o WhatsApp. A pessoa envia o código ao WhatsApp do sistema." },
             ]}
           />
         ) : null}
@@ -308,7 +308,7 @@ function InviteResultDialog({ result, onClose }: { result: InviteResult; onClose
             <li>Vale só para o número {result.expectedPhone ? <strong className="num text-ink">{maskPhone(result.expectedPhone)}</strong> : null} e por uma vez.</li>
             <li>Vence em {result.expiresLabel} (24 horas).</li>
             <li>
-              <strong>O uso do código pelo WhatsApp chega no Lote 4.</strong> Por enquanto o convite fica &quot;pendente&quot; na lista.
+              <strong>A pessoa envia este código ao WhatsApp do sistema</strong>, pelo número informado. Em seguida recebe o link para definir e-mail e senha.
             </li>
           </ul>
         </div>

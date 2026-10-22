@@ -18,6 +18,8 @@ import { listNotices } from "./notices";
 import { storageConfigured } from "./rx-storage";
 import { buildRxParts } from "./rx-vm";
 import { stampLabel } from "./stamp";
+import { simulatorEnabled } from "../env";
+import { isAdmin as isAdminMember } from "./guard";
 
 const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"] as const;
 const p2 = (n: number) => String(n).padStart(2, "0");
@@ -321,6 +323,7 @@ export async function buildSnapshot(ctx: Ctx, now: Date = new Date()): Promise<S
     notices,
     unreadNotices: unread,
     rxStorageReady: storageConfigured(),
+    simulatorEnabled: simulatorEnabled() && isAdminMember(ctx),
     rxAudience: canDo("prescriptions.view")
       ? L.members
           .filter((m) => m.active && !m.removedAt && m.accessState === "active")
