@@ -105,6 +105,13 @@ O Lote 4A traz **uma migração do banco** e **uma variável opcional que liga o
 | E4 | Toque em **Revogar**. | A chave fica **Revogada**. O mesmo `curl` agora dá `401 nao_autorizado`. |
 | E5 | Abra `…/api/v1/openapi.json`. | Lista todas as rotas (doses, estoque, reposições, receitas, conversa, fila…). |
 
+## Parte G — Ajuste de layout pedido após o Lote 3 (vem junto neste deploy)
+
+| # | Faça | Resultado esperado |
+|---|---|---|
+| G1 | No **computador**, abra **Configurações → Remédios**, **Pessoas** e **Pacientes**. | O botão principal (**Novo remédio**, **Convidar pessoa**, **Cadastrar paciente**) fica **na mesma linha do título** da página. |
+| G2 | Repita no **celular**. | O botão **desce para a linha de baixo** quando não cabe ao lado do título. |
+
 ## Parte F — Segurança e o que **não** deve acontecer
 
 | # | Conferir | Resultado esperado |
