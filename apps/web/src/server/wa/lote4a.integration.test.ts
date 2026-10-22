@@ -9,7 +9,7 @@ import { NextRequest } from "next/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import {
-  criarChavePlataforma, gerarApiKey, gerarCodigoVerificacao, hashConviteCodigo, resolverLinkPrimeiroAcesso, revogarChavePlataforma, sha256,
+  criarChavePlataforma, gerarCodigoVerificacao, hashConviteCodigo, resolverLinkPrimeiroAcesso, revogarChavePlataforma, sha256,
   VALIDADE_CONVITE_MS, withFamilia,
 } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
@@ -112,6 +112,7 @@ describe.skipIf(!up)("Lote 4A — WhatsApp: API, conversa e fila no Postgres", (
   const bearer = (k: string, tel?: string, extra: Record<string, string> = {}) => ({ authorization: `Bearer ${k}`, ...(tel ? { "x-telefone": tel } : {}), ...extra });
   const msg = (tel: string, texto: string, key = cpl, extra: Record<string, string> = {}) =>
     h.conversaMensagem(req("POST", "/conversa/mensagem", bearer(key, tel, extra), { messageId: `m-${randomUUID()}`, texto }), semParams);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const lerJson = async (r: Response) => (await r.json()) as { dados?: any; erro?: { codigo: string; mensagem: string } };
 
   beforeAll(async () => {

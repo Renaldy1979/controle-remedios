@@ -22,7 +22,7 @@ const CONFIRM_EMOJI = /^(?:\s|✅|✔|☑|️|\u{1F44D}|[\u{1F3FB}-\u{1F3FF}])+$
 
 /** Código de 6 dígitos, com ou sem a palavra "código" (ex.: "CÓDIGO 123456", "123 456"). */
 export function parseCode(text: string): string | null {
-  const m = /^\s*(?:c[oó]digo\s*[:\-]?\s*)?(\d{3})[\s-]?(\d{3})\s*\.?\s*$/i.exec(String(text ?? ""));
+  const m = /^\s*(?:c[oó]digo\s*[:-]?\s*)?(\d{3})[\s-]?(\d{3})\s*\.?\s*$/i.exec(String(text ?? ""));
   return m ? `${m[1]}${m[2]}` : null;
 }
 

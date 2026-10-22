@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { criarChavePlataforma, listarChavesPlataforma, revogarChavePlataforma, withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { can } from "@medcuidar/shared";
