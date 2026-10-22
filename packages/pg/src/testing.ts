@@ -45,11 +45,11 @@ export const telefoneAleatorio = (): string => "5599" + String(Math.floor(Math.r
 
 /** Filhos antes dos pais, para limpar por família. */
 const ORDEM_LIMPEZA = [
-  "outbound_messages", "conversation_state", "message_log", "notifications", "replenishment_steps", "stock_movements", "replenishments", "prescription_views",
+  "outbound_messages", "conversation_state", "api_keys", "message_log", "notifications", "replenishment_steps", "stock_movements", "replenishments", "prescription_views",
   "prescription_shares", "prescription_items", "prescription_files", "prescriptions", "dose_events", "stock_items",
   "treatment_phases", "treatments", "care_assignments", "patients", "medications", "first_access_links", "invites",
   "members", "profiles",
-  "api_keys", "idempotency", "audit_log", "families",
+  "idempotency", "audit_log", "families",
 ];
 
 export async function limparFamilias(admin: Admin, ids: string[]): Promise<void> {

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/server/cookies";
 
 /** Telas e rotas que não exigem sessão. Tudo o mais, com DATA_SOURCE=postgres, pede o cookie da sessão. */
-const PUBLIC = ["/login", "/criar-conta", "/verificar-email", "/esqueci-senha", "/redefinir-senha", "/aceitar-convite", "/api/health"];
+const PUBLIC = ["/login", "/criar-conta", "/verificar-email", "/esqueci-senha", "/redefinir-senha", "/aceitar-convite", "/primeiro-acesso", "/api/health", "/api/v1"];
 const isPublic = (path: string) => PUBLIC.some((p) => path === p || path.startsWith(`${p}/`));
 
 /**

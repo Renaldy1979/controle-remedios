@@ -49,3 +49,9 @@ export const memoryStorageForTests = (): boolean => e2eTestMode() && process.env
 export const e2eTestMode = (): boolean => process.env["E2E_TEST_MODE"] === "1" && process.env["APP_ENV"] !== "production";
 
 export const PRESCRIPTION_BUCKET = "prescriptions";
+
+/** Simulador de WhatsApp (/simulador): só existe com SIMULATOR_ENABLED=1. Ligue apenas no staging; em produção deixe sem a variável. */
+export const simulatorEnabled = (): boolean => process.env["SIMULATOR_ENABLED"] === "1";
+
+/** Deixa a chave de plataforma (cpl_) ser criada pelo administrador em Configurações › WhatsApp (staging de um dono só). Padrão: desligado. */
+export const platformKeysFromPortal = (): boolean => process.env["PLATFORM_KEYS_FROM_PORTAL"] === "1";

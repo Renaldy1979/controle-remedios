@@ -210,14 +210,16 @@ export function effectiveStatus(
  * Serve também para "registrar que tomou depois" (dose atrasada ou esquecida). A baixa de estoque, o aviso de
  * estoque baixo e a auditoria acontecem na mesma transação.
  */
-export async function confirmDose(actor: DoseActor, doseId: string, now: Date = new Date()): Promise<{ stockDeducted: boolean; duplicate: boolean }> {
+export async function confirmDose(
+  actor: DoseActor, doseId: string, now: Date = new Date(), opts: { channel?: "panel" | "whatsapp" | "system"; sourceMessageId?: string } = {},
+): Promise<{ stockDeducted: boolean; duplicate: boolean }> {
   requirePermission(actor, "doses.confirm");
   return withFamilia(actor.familyId, async (tx) => {
-    const res = await domainConfirm(repoFor(tx), { doseId, memberId: actor.memberId, channel: "panel", now });
+    const res = await domainConfirm(repoFor(tx), { doseId, memberId: actor.memberId, channel: opts.channel ?? "panel", sourceMessageId: opts.sourceMessageId ?? null, now });
     if (res.result === "not_found") throw new UserError("Dose não encontrada.");
     if (res.result === "not_confirmable") throw new UserError("Esta dose foi pulada e não pode ser confirmada.");
     if (res.result === "duplicate") return { stockDeducted: false, duplicate: true };
-    await audit(tx, actor, "dose.confirm", "dose", doseId, { stock: res.stockDeducted });
+    await audit(tx, actor, "dose.confirm", "dose", doseId, { stock: res.stockDeducted, channel: opts.channel ?? "panel" });
     const [item] = await tx.select({ id: s.stockItems.id }).from(s.stockItems).where(and(eq(s.stockItems.patientId, res.dose.patient_id), eq(s.stockItems.medicationId, res.dose.medication_id)));
     if (item) {
       await refreshBalance(tx, item.id);
