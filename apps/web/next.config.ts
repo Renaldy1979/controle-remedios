@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
   // Imagem Docker enxuta (Dockerfile na raiz, que define NEXT_OUTPUT=standalone): copia só o que o servidor usa.
   // Fora do Docker fica desligado: no Windows o modo standalone exige permissão para criar links simbólicos.
   ...(process.env["NEXT_OUTPUT"] === "standalone" ? { output: "standalone" as const, outputFileTracingRoot: path.resolve(process.cwd(), "../..") } : {}),
-  transpilePackages: ["@medcuidar/shared", "@medcuidar/pg", "@medcuidar/db", "@medcuidar/domain", "@medcuidar/functions", "@medcuidar/channels"],
+  transpilePackages: ["@medcuidar/shared", "@medcuidar/pg", "@medcuidar/domain"],
   serverExternalPackages: ["node-appwrite"],
   experimental: { serverActions: { bodySizeLimit: "30mb" } },
 };

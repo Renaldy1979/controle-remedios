@@ -24,48 +24,11 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.5)(jsdom@30.1.3)
 
-  apps/functions:
-    dependencies:
-      '@medcuidar/channels':
-        specifier: workspace:*
-        version: link:../../packages/channels
-      '@medcuidar/db':
-        specifier: workspace:*
-        version: link:../../packages/db
-      '@medcuidar/domain':
-        specifier: workspace:^
-        version: link:../../packages/domain
-      '@medcuidar/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-      node-appwrite:
-        specifier: 19.1.0
-        version: 19.1.0
-      zod:
-        specifier: ^3.24.1
-        version: 3.25.76
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.2
-        version: 22.20.5
-      tsx:
-        specifier: ^4.19.2
-        version: 4.23.15
-
   apps/web:
     dependencies:
-      '@medcuidar/channels':
-        specifier: workspace:^
-        version: link:../../packages/channels
-      '@medcuidar/db':
-        specifier: workspace:^
-        version: link:../../packages/db
       '@medcuidar/domain':
         specifier: workspace:^
         version: link:../../packages/domain
-      '@medcuidar/functions':
-        specifier: workspace:^
-        version: link:../functions
       '@medcuidar/pg':
         specifier: workspace:*
         version: link:../../packages/pg
@@ -173,31 +136,6 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@20.19.43)(jsdom@30.1.3)
 
-  packages/channels:
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.2
-        version: 22.20.5
-      tsx:
-        specifier: ^4.19.2
-        version: 4.23.15
-
-  packages/db:
-    dependencies:
-      '@medcuidar/shared':
-        specifier: workspace:*
-        version: link:../shared
-      node-appwrite:
-        specifier: 19.1.0
-        version: 19.1.0
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.2
-        version: 22.20.5
-      tsx:
-        specifier: ^4.19.2
-        version: 4.23.15
-
   packages/domain:
     dependencies:
       '@medcuidar/shared':
@@ -231,25 +169,6 @@ importers:
       zod:
         specifier: ^3.24.1
         version: 3.25.76
-
-  scripts/appwrite:
-    dependencies:
-      '@medcuidar/db':
-        specifier: workspace:*
-        version: link:../../packages/db
-      '@medcuidar/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-      node-appwrite:
-        specifier: 19.1.0
-        version: 19.1.0
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.2
-        version: 22.20.5
-      tsx:
-        specifier: ^4.19.2
-        version: 4.23.15
 
 packages:
 

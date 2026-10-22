@@ -1,6 +1,6 @@
 # Lote 4B — Limpeza do legado (escopo v1)
 
-**Estado: PREPARADA, NÃO EXECUTADA.** A remoção de pastas foi bloqueada pelo classificador de permissões da sessão (“destruição local irreversível”). Tudo está no git (nada se perde). Falta autorização para rodar a remoção; os passos abaixo são exatamente o que será feito, em commit separado, só com tudo verde.
+**Estado: EXECUTADA** (autorizada pelo dono), em commit separado, com lint, tipos, `pnpm n8n:validar` e todos os testes verdes (24+1 arquivos do portal, 406 testes). Tudo continua no histórico do git. Também saíram do `.env.example` as variáveis só do legado e `APPWRITE_DATABASE_ID`.
 
 ## Já feito (sem apagar nada)
 - `apps/web/src/components/screens/LoginScreen.tsx`: tela simulada (só `DATA_SOURCE=mock`) não chama mais `auth-actions` legado.

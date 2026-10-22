@@ -62,6 +62,8 @@ WhatsApp ◄► Evolution Go ◄► N8N (um fluxo por gatilho) ──► chama a
 `/doses` (listar próximas/do dia, confirmar, desfazer, registrar depois), `/estoque` (visão, compra, ajuste), `/reposicoes` (listar, assumir, avançar), `/receitas` (listar, anexar, compartilhar, URL assinada), `/pacientes`, `/remedios`, `/esquemas`, `/membros`, `/perfis`, `/lembretes/pendentes`, `/avisos/estoque`, `/avisos/resumo`, `/telefone/verificar` (rota "pré-membro": código enviado pelo remetente), `/openapi.json`, `/sistema/*` (rotas de plataforma). Todas aplicam as permissões do ator.
 
 ## 7. O que reaproveitar do que já foi construído
+> **Atualização (Lote 4B):** `packages/db`, `scripts/appwrite`, `apps/functions`, `packages/channels` e os JSON antigos de `integrations/n8n` foram **removidos** (ver `docs/handoffs/L4B-limpeza.md`).
+
 | Parte | Destino |
 |---|---|
 | `packages/domain` (doses, estoque, previsão, escala, reposição, receitas) | **Mantém** (puro e testado), pequenos ajustes |

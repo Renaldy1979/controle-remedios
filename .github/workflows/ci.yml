@@ -19,5 +19,5 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
-# Os testes de integração (pnpm --filter @medcuidar/db test:integration) usam o Appwrite real
-# e a chave de API; ficam fora da CI até existir um projeto Appwrite de testes separado.
+# Os testes de integração com Postgres (packages/pg, apps/web) ficam fora da CI até existir um serviço de banco no pipeline;
+# sem o banco eles são pulados com aviso.

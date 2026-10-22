@@ -30,10 +30,9 @@ Padrão de referência: projeto `controle-financeiro` do dono (`withFamilia`, `r
 
 ## Entrega por lotes (`docs/08-lotes.md`)
 - Cada lote termina com algo **testável pelo dono** em staging, com roteiro em `docs/lotes/L<n>-roteiro.md`. O lote só está pronto com testes verdes, conferência do orquestrador **e validação do dono** registrada em `docs/lotes/L<n>-validacao.md`. Não comece o lote seguinte sem o "validado".
-- A pasta do pacote Postgres é `packages/pg` (`@medcuidar/pg`) enquanto o `packages/db` antigo (Appwrite) existir.
 
 ## Convenções
-- Monorepo: `apps/web` (portal + API `/api/v1`), `packages/domain`, `packages/shared`, `packages/db` (Postgres + Drizzle), `integrations/n8n`, `docs`, `design`. (`apps/functions`, `packages/channels` e `scripts/appwrite` são do escopo v1 e serão removidos conforme `docs/06` seção 7.)
+- Monorepo: `apps/web` (portal + API `/api/v1`), `packages/domain`, `packages/shared`, `packages/pg` (`@medcuidar/pg`: Postgres + Drizzle + RLS), `integrations/n8n` (fluxos gerados por `pnpm n8n:build`, lib testada, `pnpm n8n:validar`), `docs`, `design`. O legado do escopo v1 (`apps/functions`, `packages/channels`, `packages/db`, `scripts/appwrite`) foi removido no Lote 4B (`docs/handoffs/L4B-limpeza.md`).
 - Cada agente só edita as pastas que o plano lhe atribui. Mudou fora da sua pasta? Abra uma nota em `docs/handoffs/` em vez de editar.
 - Commits pequenos e em português, formato `tipo(escopo): descrição`.
 - Nenhuma tarefa termina sem testes do que mudou e sem atualizar o doc afetado.

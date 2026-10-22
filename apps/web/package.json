@@ -12,10 +12,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
-    "@medcuidar/channels": "workspace:^",
-    "@medcuidar/db": "workspace:^",
     "@medcuidar/domain": "workspace:^",
-    "@medcuidar/functions": "workspace:^",
     "@medcuidar/pg": "workspace:*",
     "@medcuidar/shared": "workspace:*",
     "drizzle-orm": "^0.36.4",
