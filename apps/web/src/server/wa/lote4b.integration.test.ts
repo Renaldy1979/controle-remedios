@@ -1190,7 +1190,7 @@ describe.skipIf(!up)("Lote 4B — WhatsApp direto no portal", () => {
       expect(depois).toBe(antes);
       expect(depois).toBe(0);
       // o agendador (reivindicar) é quem gera
-      await pendentesDeTodas({ reivindicar: true, agora: T0610, limite: 200 });
+      await pendentes(f.familyId, { reivindicar: true, agora: T0610, limite: 200 });
       expect((await admin`select count(*)::int as n from outbound_messages where family_id = ${f.familyId}`)[0]!["n"]).toBeGreaterThan(0);
     });
 
@@ -1211,6 +1211,87 @@ describe.skipIf(!up)("Lote 4B — WhatsApp direto no portal", () => {
       await limparFamilias(admin, [f.familyId]);
       expect((await admin`select count(*)::int as n from families where id = ${f.familyId}`)[0]!["n"]).toBe(0);
       criadas.splice(criadas.indexOf(f.familyId), 1);
+    });
+  });
+
+
+  /* ------------------------------------------------------------ chave recusada (401) e backlog de avisos */
+  describe("chave recusada pela Evolution e backlog de doses", () => {
+    const ritmoRapido = () => criarRitmo({ relogio: relogioFalso(), maxPorMinuto: 1000, maxPorHora: 10000 });
+    const limparAuth = () => admin`delete from whatsapp_runtime where key = 'auth'`;
+
+    it("401 repetido: não gasta tentativas da mensagem, pausa o envio, avisa o administrador UMA vez e só volta depois de 10 min", async () => {
+      await limparAuth();
+      const f = await novaFamilia("Chave401");
+      const fake = criarFake();
+      fake.recusarChave = true;
+      // o fake nunca conta como "provedor real" para a pausa: usa um id diferente
+      Object.defineProperty(fake, "id", { value: "evolution-go" });
+      const ritmo = ritmoRapido();
+      let agora = T0610;
+      const rodar = () => enviarPendentes(fake, ritmo, { agora: () => agora, somenteFamilia: f.familyId });
+      const r1 = await rodar();
+      expect(r1.falhas).toBeGreaterThan(0);
+      expect(r1.erroDefinitivo).toBe(0);
+      const linhas = await admin`select send_attempts, claim_count, failed_at, sent_at, error_summary from outbound_messages where family_id = ${f.familyId}`;
+      for (const l of linhas) {
+        expect(l["send_attempts"]).toBe(0); // erro de chave não é tentativa da mensagem
+        expect(l["failed_at"]).toBeNull();
+        expect(l["sent_at"]).toBeNull();
+        expect(String(l["error_summary"])).toContain("EVOLUTION_INSTANCE_TOKEN"); // motivo claro no painel, sem segredo
+      }
+      // acumula falhas de chave até a pausa (3 seguidas)
+      for (let i = 0; i < 3; i++) {
+        agora = new Date(agora.getTime() + 2 * 60_000);
+        await rodar();
+      }
+      const est = await lerRuntime<{ pausadoAte: string | null; alertada: boolean }>("auth");
+      expect(est?.pausadoAte).toBeTruthy();
+      expect(est?.alertada).toBe(true);
+      const avisos = await admin`select body from notifications where family_id = ${f.familyId} and payload->>'alerta' = 'wa_chave_recusada'`;
+      expect(avisos).toHaveLength(1);
+      expect(String(avisos[0]!["body"])).toContain("EVOLUTION_INSTANCE_TOKEN");
+      // em pausa: nada é reivindicado nem enviado
+      const antes = fake.enviados.length;
+      agora = new Date(agora.getTime() + 60_000);
+      const pausado = await rodar();
+      expect(pausado).toEqual({ enviadas: 0, falhas: 0, erroDefinitivo: 0, ambiguas: 0 });
+      expect(fake.enviados).toHaveLength(antes);
+      // passados 10 min, volta a tentar; com a chave certa, as mensagens SAEM (nada se perdeu)
+      fake.recusarChave = false;
+      agora = new Date(agora.getTime() + 11 * 60_000);
+      const depois = await rodar();
+      expect(depois.enviadas).toBeGreaterThan(0);
+      expect((await lerRuntime<{ pausadoAte: string | null; alertada: boolean }>("auth"))).toMatchObject({ pausadoAte: null, alertada: false });
+      await limparAuth();
+    });
+
+    it("o motivo resumido de uma falha de chave é claro e sem segredo (e erro comum continua contando tentativa)", async () => {
+      const f = await novaFamilia("Motivo401");
+      const fake = criarFake();
+      fake.falharProximos(1, true);
+      const ritmo = ritmoRapido();
+      await enviarPendentes(fake, ritmo, { agora: () => T0610, somenteFamilia: f.familyId });
+      const [m] = await admin`select send_attempts, error_summary from outbound_messages where family_id = ${f.familyId} and error_summary is not null limit 1`;
+      expect(m!["send_attempts"]).toBe(1);
+      expect(String(m!["error_summary"])).toBe("falha programada");
+    });
+
+    it("dose ESQUECIDA só avisa a família se o horário foi nas últimas 6 h; as mais antigas ficam só no portal", async () => {
+      const f = await novaFamilia("Backlog");
+      const tipos = async (agora: Date) => {
+        await gerarMensagens(f.familyId, agora);
+        return (await admin`select kind, context from outbound_messages where family_id = ${f.familyId} and kind = 'dose_missed'`);
+      };
+      // dose das 06:00 (09:00Z). 09:30 local = 2 h 30 depois: já esquecida e dentro das 6 h
+      expect((await tipos(new Date("2026-10-19T12:30:00Z"))).length).toBeGreaterThan(0);
+      const g = await novaFamilia("BacklogVelho");
+      // 13:30 local (7 h 30 depois da das 06:00): as 06:00 passou de 6 h e NÃO gera; a das 14:00 ainda nem chegou
+      await gerarMensagens(g.familyId, new Date("2026-10-19T16:30:00Z"));
+      const velhas = await admin`select context from outbound_messages where family_id = ${g.familyId} and kind = 'dose_missed'`;
+      expect(velhas.filter((x) => (x["context"] as { doseId?: string }).doseId === g.doses[0])).toHaveLength(0);
+      const lemb = await admin`select context from outbound_messages where family_id = ${g.familyId} and kind = 'dose_reminder'`;
+      expect(lemb.filter((x) => (x["context"] as { doseId?: string }).doseId === g.doses[0])).toHaveLength(0); // sem lembrete para quem já passou do prazo
     });
   });
 

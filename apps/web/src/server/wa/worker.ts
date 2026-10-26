@@ -1,9 +1,9 @@
 import "server-only";
-import { registrarResultadoEnvio } from "./alertas";
+import { registrarFalhaDeChave, registrarResultadoEnvio } from "./alertas";
 import { concluir, desfazerEnvio, falhar, guardarResposta, limparEntrada, type FiltroReivindicar, marcarEnviando, reivindicar, renovarTrava, type ItemEntrada } from "./inbound";
 import { logWa } from "./log";
 import { processarEntrada, type DepsNucleo } from "./nucleo";
-import type { ProvedorWhatsapp } from "./provider/types";
+import { ErroEnvio, type ProvedorWhatsapp } from "./provider/types";
 import { recusaClara, relogioReal, type Relogio, type Ritmo } from "./ritmo";
 import * as T from "./texts";
 
@@ -53,6 +53,7 @@ export async function processarItem(item: ItemEntrada, d: DepsWorker): Promise<v
       if (d.provedor.id !== "fake") await registrarResultadoEnvio(true, d.agora?.() ?? new Date());
     } catch (e) {
       if (d.provedor.id !== "fake") await registrarResultadoEnvio(false, d.agora?.() ?? new Date()).catch(() => {});
+      if (e instanceof ErroEnvio && e.autenticacao) await registrarFalhaDeChave(d.agora?.() ?? new Date()).catch(() => {});
       if (enviadas === 0 && recusaClara(e)) {
         await desfazerEnvio(item.id); // nada saiu: a retentativa pode reenviar sem duplicar
         throw e;

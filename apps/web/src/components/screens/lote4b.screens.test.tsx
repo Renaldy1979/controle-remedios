@@ -8,6 +8,7 @@ import { WhatsappPanel } from "./settings/WhatsappPanel";
 type Status = {
   provedor: string; configurado: boolean;
   instancia: { estado: "conectada" | "desconectada" | "aguardando"; desde: string | null; consultadaEm: string | null };
+  chave: { recusada: boolean; pausadoAte: string | null; motivo: string };
   worker: { habilitado: boolean; ligado: boolean; ultimoBatimento: string | null };
   entrada: { pendentes: number; processando: number; erros: number; maisAntigaSeg: number | null; ultimosErros: Array<{ motivo: string; quando: string; tentativas: number }> };
   saida: { pendentes: number; comErro: number; ultimosErros: Array<{ tipo: string; motivo: string; quando: string }> };
@@ -18,6 +19,7 @@ const wa = vi.hoisted(() => {
   const statusBase: Status = {
     provedor: "evolution-go", configurado: false,
     instancia: { estado: "aguardando", desde: null, consultadaEm: null },
+    chave: { recusada: false, pausadoAte: null, motivo: "Evolution recusou a chave (401): use o token da instância em EVOLUTION_INSTANCE_TOKEN" },
     worker: { habilitado: false, ligado: false, ultimoBatimento: null },
     entrada: { pendentes: 0, processando: 0, erros: 0, maisAntigaSeg: null, ultimosErros: [] },
     saida: { pendentes: 0, comErro: 0, ultimosErros: [] },
@@ -73,6 +75,16 @@ describe("Lote 4B — Configurações › WhatsApp › WhatsApp do sistema", () 
     expect(within(card).getByText(/Falha em 22\/10\/2026 09:10 \(dose_reminder\)/)).toBeInTheDocument();
     expect(within(card).getByText("Assistente pausado")).toBeInTheDocument();
     expect(within(card).getByRole("progressbar", { name: "Uso do limite mensal de IA" })).toHaveAttribute("aria-valuenow", "100");
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it("chave recusada: alerta com a orientação e até quando o envio fica pausado", async () => {
+    wa.estado.status = { ...wa.statusBase, configurado: true, chave: { recusada: true, pausadoAte: "26/10/2026 10:10", motivo: "Evolution recusou a chave (401): use o token da instância em EVOLUTION_INSTANCE_TOKEN" } };
+    const { container } = renderApp(<WhatsappPanel />);
+    const card = await screen.findByRole("region", { name: "WhatsApp do sistema" });
+    const alerta = within(card).getByRole("alert");
+    expect(alerta).toHaveTextContent("EVOLUTION_INSTANCE_TOKEN");
+    expect(alerta).toHaveTextContent("Envio pausado até 26/10/2026 10:10");
     expect(await axe(container)).toHaveNoViolations();
   });
 

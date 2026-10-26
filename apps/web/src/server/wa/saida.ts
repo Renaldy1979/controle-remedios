@@ -1,7 +1,7 @@
 import "server-only";
 import { listarFamiliasComWhatsapp } from "@medcuidar/pg";
-import { registrarResultadoEnvio } from "./alertas";
-import { marcarEnviada, pendentes, registrarFalhaEnvio, separarId } from "./fila";
+import { envioPausadoPorChave, registrarChaveBoa, registrarFalhaDeChave, registrarResultadoEnvio } from "./alertas";
+import { adiarEnvio, marcarEnviada, pendentes, registrarFalhaEnvio, separarId } from "./fila";
 import { logWa } from "./log";
 import { enviarAoMembro } from "./destino";
 import { ErroEnvio, type ProvedorWhatsapp } from "./provider/types";
@@ -31,8 +31,11 @@ export async function enviarPendentes(
   /** forma do número que funcionou nesta rodada, por membro (evita consultar de novo antes de o banco refletir) */
   const formas = new Map<string, string>();
   const out: ResultadoSaida = { enviadas: 0, falhas: 0, erroDefinitivo: 0, ambiguas: 0 };
+  // chave recusada antes: envio pausado até a hora marcada (10 min); nem reivindica mensagens, nada se perde
+  if (provedor.id !== "fake" && (await envioPausadoPorChave(agoraFn()))) return out;
+  let pausa: Date | null = null;
   for (const f of await listarFamiliasComWhatsapp()) {
-    if (opts.parar?.()) break;
+    if (opts.parar?.() || pausa) break;
     if (opts.somenteFamilia && f.familiaId !== opts.somenteFamilia) continue;
     let lista;
     try {
@@ -43,6 +46,11 @@ export async function enviarPendentes(
     }
     for (const m of lista) {
       if (opts.parar?.()) break;
+      if (pausa) { // depois de uma chave recusada, o resto da lista volta sem contar tentativa
+        const i = separarId(m.id, f.familiaId);
+        if (i) await adiarEnvio(i.familyId, i.id, pausa);
+        continue;
+      }
       const ids = separarId(m.id, f.familiaId);
       if (!ids) continue;
       const marcou = await marcarEnviada(ids.familyId, ids.id, { agora: agoraFn() });
@@ -51,10 +59,22 @@ export async function enviarPendentes(
         await ritmo.escalonar(m.telefone);
         formas.set(m.membroId, await enviarAoMembro(provedor, ritmo, { familiaId: ids.familyId, membroId: m.membroId, telefone: m.telefone, numeroEnvio: formas.get(m.membroId) ?? m.numeroEnvio }, m.texto));
         out.enviadas++;
-        if (provedor.id !== "fake") await registrarResultadoEnvio(true, agoraFn());
+        if (provedor.id !== "fake") {
+          await registrarResultadoEnvio(true, agoraFn());
+          await registrarChaveBoa(agoraFn());
+        }
         logWa({ etapa: "saida", tipo: m.tipo, id: ids.id });
       } catch (e) {
-        const motivo = e instanceof Error ? `${e.name}: ${e.message}` : "falha desconhecida";
+        const motivo = e instanceof ErroEnvio ? e.message : e instanceof Error ? `${e.name}: ${e.message}` : "falha desconhecida";
+        if (e instanceof ErroEnvio && e.autenticacao) {
+          // erro de CHAVE não é da mensagem: não gasta tentativa; conta, pausa e avisa o administrador
+          out.falhas++;
+          logWa({ etapa: "saida_chave_recusada", tipo: m.tipo, id: ids.id, erro: motivo });
+          const p = await registrarFalhaDeChave(agoraFn()); // só devolve pausa depois de 3 recusas seguidas
+          if (p) pausa = p;
+          await adiarEnvio(ids.familyId, ids.id, p ?? new Date(agoraFn().getTime() + 60_000), motivo);
+          continue;
+        }
         if (e instanceof ErroEnvio && e.recusaClara) {
           const destino = await registrarFalhaEnvio(ids.familyId, ids.id, motivo, agoraFn());
           out.falhas++;

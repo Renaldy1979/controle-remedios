@@ -29,7 +29,8 @@ No serviço **`medcuidar-web` → Environment**. Depois de criar ou mudar uma va
 |---|---|---|---|
 | `WHATSAPP_WEBHOOK_SECRET` | `k3Jd9sLq2VxP7mT4wNb8Zc5H` (24+ letras e números sorteados) | **sim** | **sim, sem valor padrão** (sem ela a rota do webhook responde "não encontrado") |
 | `EVOLUTION_BASE_URL` | `https://evolution.seu-dominio.com.br` (sem `/` no fim) | não | **sim, sem valor padrão**, para o WhatsApp real |
-| `EVOLUTION_API_KEY` | a chave global (`GLOBAL_API_KEY`) da Evolution Go | **sim** | **sim, sem valor padrão**, para o WhatsApp real |
+| `EVOLUTION_INSTANCE_TOKEN` | o **token da instância** (veja abaixo onde achar) | **sim** | **sim para o WhatsApp real** (sem valor padrão). É ele que a Evolution Go exige para enviar mensagens. Sem ele o portal usa `EVOLUTION_API_KEY`, o que pode dar erro 401 |
+| `EVOLUTION_API_KEY` | a chave global (`GLOBAL_API_KEY`) da Evolution Go | **sim** | não, se você tem o token da instância. É o plano B (fallback) quando `EVOLUTION_INSTANCE_TOKEN` não existe |
 | `EVOLUTION_INSTANCE_ID` | `0b6e8a1c-…` (o UUID da instância criada) | não | **sim, sem valor padrão**, para o WhatsApp real |
 | `WHATSAPP_WORKER_ENABLED` | `1` | não | não (padrão **desligado**). Ligue **só quando houver número conectado** |
 | `ANTHROPIC_API_KEY` | `sk-ant-…` | **sim** | não. Sem ela, perguntas livres respondem *"o assistente de perguntas está indisponível"* e **todo o resto funciona** |
@@ -51,7 +52,7 @@ No serviço **`medcuidar-web` → Environment**. Depois de criar ou mudar uma va
 
 > **Antes de tudo — o número.** Use um **chip dedicado ao sistema** (um número que **só** o MedCuidar usa). **Nunca o seu número pessoal** nem o de um familiar: se o WhatsApp bloquear, você não perde seus contatos nem suas conversas.
 
-1. Abra o painel da Evolution Go (o endereço do `EVOLUTION_BASE_URL`; o EasyPanel mostra o serviço) e **crie uma instância** (nome sugerido: `medcuidar`). Copie o **ID (UUID)** da instância: ele vai em `EVOLUTION_INSTANCE_ID`. A **chave global** (`GLOBAL_API_KEY`) fica nas variáveis do próprio serviço da Evolution: ela vai em `EVOLUTION_API_KEY`.
+1. Abra o painel da Evolution Go (o endereço do `EVOLUTION_BASE_URL`; o EasyPanel mostra o serviço) e **crie uma instância** (nome sugerido: `medcuidar`). Copie o **ID (UUID)** da instância: ele vai em `EVOLUTION_INSTANCE_ID`. Copie também o **token da instância** (na tela da instância no painel da Evolution Go, campo "token"): ele vai em **`EVOLUTION_INSTANCE_TOKEN`**. **Nunca cole o token no chat, em e-mail ou em print**; só no EasyPanel. A **chave global** (`GLOBAL_API_KEY`) fica nas variáveis do próprio serviço da Evolution: ela vai em `EVOLUTION_API_KEY`.
 2. Na instância, escolha **Conectar** e leia o **QR Code** com o celular do chip: WhatsApp → **Aparelhos conectados → Conectar um aparelho**. Espere ficar **conectado**.
 3. **Aponte o webhook para o portal.** O endereço é:
 
@@ -104,6 +105,7 @@ O WhatsApp bloqueia números que parecem "robôs de spam". O sistema ajuda (paus
 |---|---|---|
 | Mando "oi" e **ninguém responde**; "Mensagens recebidas" **zerado** | O webhook da Evolution não chega ao portal, o segredo do endereço está errado ou o formato da mensagem é diferente | Confira o endereço do webhook (o segredo no fim do endereço tem que ser igual ao `WHATSAPP_WEBHOOK_SECRET`, sem espaço) e se a variável existe no EasyPanel. Com segredo errado o portal responde "não encontrado" de propósito. Veja a seção 3 sobre o formato |
 | Mensagens ficam em **"pendentes"** e não andam | O worker está desligado ou sem batimento | Veja o selo **Worker**: se estiver "desligado", ponha `WHATSAPP_WORKER_ENABLED=1` e faça Deploy. "Sem batimento recente": o servidor reiniciou ou há dois portais; espere 1 minuto |
+| **"Evolution recusou a chave (401)"** no painel, ou aviso no sino "WhatsApp do sistema: chave recusada" | A Evolution Go exige o **token da instância** para enviar mensagens e o portal está usando a chave global (ou uma chave errada) | Crie/ajuste `EVOLUTION_INSTANCE_TOKEN` com o token da instância e faça Deploy. O sistema **pausa o envio por 10 minutos** depois de 3 recusas seguidas, avisa uma vez no sino e depois tenta de novo sozinho; as mensagens **não se perdem** |
 | **Mensagens com erro** no quadro | O envio falhou 5 vezes (instância desconectada, Evolution fora do ar, chave errada) | Leia o motivo resumido, corrija (reconectar o número, conferir `EVOLUTION_*`). As novas mensagens voltam a fluir; as que deram erro **não** são reenviadas sozinhas |
 | Estado da instância **Desconectada** (e aviso no sino) | O celular do chip perdeu a conexão ou o WhatsApp derrubou o aparelho | Na Evolution Go, leia o QR Code de novo. Depois toque em **Consultar agora** |
 | Estado **"Aguardando conexão"** | Faltam as variáveis `EVOLUTION_*` ou ainda não houve consulta | Preencha as três variáveis, faça Deploy e toque em **Consultar agora** |
@@ -119,6 +121,7 @@ O WhatsApp bloqueia números que parecem "robôs de spam". O sistema ajuda (paus
 ## 8. Limitações conhecidas
 - O formato real do webhook da Evolution Go ainda **não foi conferido com mensagens reais** (por isso a Parte B do roteiro começa com um teste de captura).
 - **Nono dígito:** o portal reconhece o celular brasileiro **com ou sem o 9** (cadastre como a pessoa usa). Se duas pessoas tiverem as duas formas do mesmo número, nenhuma é atendida (por segurança). Para os lembretes, o sistema pergunta à Evolution Go qual forma existe no WhatsApp e guarda a que funcionou; se o número não existir numa forma, tenta a outra **uma vez**. Detalhes em `docs/handoffs/L4B-limpeza.md`. A consulta `/user/check` e o texto do erro **ainda não foram conferidos com número real**.
+- **Avisos antigos não viram mensagem:** o aviso de dose esquecida só é enviado se o horário foi nas últimas 6 horas; doses mais antigas aparecem só no portal. Ao ligar o worker não chega uma enxurrada de avisos de ontem.
 - Os tetos de mensagens por minuto/hora valem **por servidor**. Com um único portal (o normal), valem para o número inteiro.
 - Se o processo cair no meio de **enviar** uma resposta, ela **não é reenviada** (preferimos perder uma resposta a responder em dobro). O mesmo vale para lembretes cujo envio não teve resposta clara do provedor.
 - O sistema só trata texto, áudio e foto. Figurinha, vídeo, documento e localização recebem *"só entendo texto, áudio e foto"*. Grupos são ignorados.

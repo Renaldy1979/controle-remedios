@@ -401,6 +401,8 @@ describe.skipIf(!up)("Lote 3 — receitas e reposição no Postgres", () => {
       store = new FakeStorage();
       const f = await novaFamilia("Abre");
       const otc = await meds.createMedication(f.admin, { patientId: f.patientId, name: "Vitamina", alternatives: [], route: "tablet", controlUnit: "unit", requiresPrescription: false, initialStock: 60 });
+      // o cadastro usa o dia REAL como início do tratamento; o teste avalia em NOON (fixo): alinha o início para o teste não depender do dia em que roda
+      await admin`update treatments set start_date = '2026-10-01' where family_id = ${f.familyId}`;
       expect(await openRepl(f)).toHaveLength(0);
       await lowStock(f);
       await adjustStock(f.admin, otc, 2, "conferi", NOON);

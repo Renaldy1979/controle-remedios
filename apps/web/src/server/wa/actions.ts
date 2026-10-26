@@ -69,6 +69,8 @@ export interface StatusWa {
   worker: { habilitado: boolean; ligado: boolean; ultimoBatimento: string | null };
   entrada: { pendentes: number; processando: number; erros: number; maisAntigaSeg: number | null; ultimosErros: Array<{ motivo: string; quando: string; tentativas: number }> };
   saida: { pendentes: number; comErro: number; ultimosErros: Array<{ tipo: string; motivo: string; quando: string }> };
+  /** a Evolution recusou a chave (401/403): o envio está pausado até `pausadoAte` */
+  chave: { recusada: boolean; pausadoAte: string | null; motivo: string };
   ia: { configurada: boolean; modelo: string; midia: boolean; mes: string; usadoUsd: number; limiteUsd: number; chamadas: number; excedeu: boolean };
 }
 export interface EstadoWa {
@@ -300,9 +302,9 @@ export async function statusWhatsapp(familyId: string, tz: string): Promise<Stat
   const [{ resumoEntrada }, { resumoSaida }, { lerRuntime }, { resumoDeUso }, prov, { modeloConfigurado }] = await Promise.all([
     import("./inbound"), import("./fila"), import("./runtime"), import("./ia/uso"), import("./provider"), import("./ia/modelo"),
   ]);
-  const [entrada, saida, inst, worker, uso] = await Promise.all([
+  const [entrada, saida, inst, worker, uso, auth] = await Promise.all([
     resumoEntrada(), resumoSaida(familyId), lerRuntime<{ conectada: boolean | null; desde: string; consultadaEm: string }>("instancia"),
-    lerRuntime<{ em: string }>("worker"), resumoDeUso(familyId, tz),
+    lerRuntime<{ em: string }>("worker"), resumoDeUso(familyId, tz), lerRuntime<{ falhas: number; pausadoAte: string | null; alertada: boolean }>("auth"),
   ]);
   const provedor = prov.provedorConfigurado();
   const configurado = provedor === "fake" ? true : provedor === "meta" ? false : prov.evolutionConfigurada();
@@ -313,6 +315,11 @@ export async function statusWhatsapp(familyId: string, tz: string): Promise<Stat
     instancia: {
       estado: !configurado || !inst || inst.conectada === null ? "aguardando" : inst.conectada ? "conectada" : "desconectada",
       desde: inst?.desde ?? null, consultadaEm: inst?.consultadaEm ?? null,
+    },
+    chave: {
+      recusada: !!auth && (auth.falhas > 0 || auth.alertada || (!!auth.pausadoAte && Date.parse(auth.pausadoAte) > Date.now())),
+      pausadoAte: auth?.pausadoAte && Date.parse(auth.pausadoAte) > Date.now() ? stampLabel(new Date(auth.pausadoAte), tz) : null,
+      motivo: "Evolution recusou a chave (401): use o token da instância em EVOLUTION_INSTANCE_TOKEN",
     },
     worker: { habilitado: process.env["WHATSAPP_WORKER_ENABLED"] === "1", ligado, ultimoBatimento: batimento },
     entrada: {

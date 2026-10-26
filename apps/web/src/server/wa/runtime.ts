@@ -14,12 +14,12 @@ export interface EstadoWorker { em: string; lider: boolean; provedor: string }
 export interface EstadoInstancia { conectada: boolean | null; desde: string; consultadaEm: string; alertada: boolean }
 export interface EstadoEnvio { falhasSeguidas: number; alertada: boolean; desde: string | null }
 
-export async function lerRuntime<T>(chave: "worker" | "instancia" | "envio"): Promise<T | null> {
+export async function lerRuntime<T>(chave: "worker" | "instancia" | "envio" | "auth"): Promise<T | null> {
   const [r] = await withPlataforma((tx) => tx.select().from(s.whatsappRuntime).where(eq(s.whatsappRuntime.key, chave)));
   return (r?.value as T | undefined) ?? null;
 }
 
-export async function gravarRuntime(chave: "worker" | "instancia" | "envio", valor: object, agora = new Date()): Promise<void> {
+export async function gravarRuntime(chave: "worker" | "instancia" | "envio" | "auth", valor: object, agora = new Date()): Promise<void> {
   await withPlataforma((tx) =>
     tx.insert(s.whatsappRuntime).values({ key: chave, value: valor as Record<string, unknown>, updatedAt: agora })
       .onConflictDoUpdate({ target: s.whatsappRuntime.key, set: { value: valor as Record<string, unknown>, updatedAt: agora } }));

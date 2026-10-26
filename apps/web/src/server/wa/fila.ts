@@ -24,6 +24,7 @@ import * as T from "./texts";
 const LEASE_MS = 2 * 60_000;
 const MAX_ENTREGAS = 5;
 const JANELA_RESUMO_MS = 3 * 3600_000;
+export const JANELA_ESQUECIDA_MS = 6 * 3600_000;
 
 export interface MensagemPendente {
   /** Opaco: `<familyId>.<messageId>`. Use como está em POST /lembretes/{id}/enviado. */
@@ -135,6 +136,8 @@ async function gerarDoses(tx: Tx, familyId: string, tz: string, settings: Family
     const base = { dose: d.dose, paciente: d.paciente, remedio: d.remedio, hora: d.hora };
 
     if (d.status === "missed") {
+      // só avisa a família de dose esquecida das últimas 6 h; as mais antigas ficam só no portal (sem mensagem, nem em backlog)
+      if (agora.getTime() - d.scheduledAt.getTime() > JANELA_ESQUECIDA_MS) continue;
       // dose esquecida: avisa a família (quem recebe alertas da família; se ninguém marcou, todos os verificados)
       const familia = dest.filter((x) => x.receivesFamilyAlerts && x.can("dashboard.view"));
       const alvo = familia.length ? familia : dest.filter((x) => x.can("dashboard.view"));
@@ -393,4 +396,13 @@ export async function resumoSaida(familyId: string): Promise<{ pendentes: number
     const [c] = await tx.select({ n: sql<number>`count(*)::int` }).from(s.outboundMessages).where(sql`${s.outboundMessages.failedAt} is not null`);
     return { pendentes: p?.n ?? 0, comErro: c?.n ?? 0, ultimosErros: erros.map((e) => ({ tipo: e.tipo, motivo: e.motivo ?? "sem detalhe", quando: e.quando ?? new Date() })) };
   });
+}
+
+/**
+ * Devolve a mensagem à fila SEM contar como tentativa (chave recusada: o problema não é da mensagem). Fica retida até `ate`,
+ * e a entrega que o lease contou é desfeita (para não esgotar as 5 entregas por causa de uma pausa de envio).
+ */
+export async function adiarEnvio(familyId: string, id: string, ate: Date, motivo?: string): Promise<void> {
+  await withFamilia(familyId, (tx) =>
+    tx.update(s.outboundMessages).set({ sentAt: null, claimedUntil: null, notBefore: ate, ...(motivo ? { errorSummary: motivo.slice(0, 200) } : {}), claimCount: sql`greatest(${s.outboundMessages.claimCount} - 1, 0)` }).where(eq(s.outboundMessages.id, id)));
 }

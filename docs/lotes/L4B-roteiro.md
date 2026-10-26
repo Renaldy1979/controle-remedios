@@ -28,7 +28,7 @@
    | `ANTHROPIC_API_KEY` | **sim** | não | agora, **se já tiver a chave** (para testar perguntas livres na Parte A) |
    | `GEMINI_API_KEY` | **sim** | não | quando quiser testar áudio/foto (Parte B) |
    | `AI_MONTHLY_LIMIT_USD` (ex.: `5`) | não | não (padrão 5) | opcional |
-   | `EVOLUTION_BASE_URL`, `EVOLUTION_API_KEY` (**segredo**), `EVOLUTION_INSTANCE_ID` | `EVOLUTION_API_KEY` **sim** | **sim, sem valor padrão** (para o WhatsApp real) | **só na Parte B**, quando houver número |
+   | `EVOLUTION_BASE_URL`, `EVOLUTION_INSTANCE_TOKEN` (**segredo**, token da instância), `EVOLUTION_API_KEY` (segredo, fallback), `EVOLUTION_INSTANCE_ID` | os dois tokens **sim** | **sim, sem valor padrão** (para o WhatsApp real) | **só na Parte B**, quando houver número |
    | `WHATSAPP_WORKER_ENABLED` = `1` | não | não (padrão desligado) | **só na Parte B**. Deixe **desligado** enquanto não houver número |
    | `SIMULATOR_ENABLED` = `1` | não | só no staging | já deve estar ligada (Lote 4A) |
    | `APP_URL`, `DATABASE_URL`, `APPWRITE_*`, `FILE_URL_SECRET` | alguns | sim | já configuradas |
@@ -73,7 +73,7 @@ O simulador usa **a mesma fila e o mesmo worker** do WhatsApp real, só com um "
 
 | # | Faça | Resultado esperado |
 |---|---|---|
-| B0 | **Conectar.** Crie a instância na Evolution Go, leia o **QR Code** com o celular do chip, preencha `EVOLUTION_BASE_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE_ID`, ponha o webhook em `https://…/api/whatsapp/evolution/<WHATSAPP_WEBHOOK_SECRET>`, ligue `WHATSAPP_WORKER_ENABLED=1` e faça **Deploy**. Em **Configurações → WhatsApp** toque em **Consultar agora**. | Etiqueta **Conectada** e **Worker ligado**. |
+| B0 | **Conectar.** Crie a instância na Evolution Go, leia o **QR Code** com o celular do chip, preencha `EVOLUTION_BASE_URL`, `EVOLUTION_INSTANCE_TOKEN`, `EVOLUTION_INSTANCE_ID`, ponha o webhook em `https://…/api/whatsapp/evolution/<WHATSAPP_WEBHOOK_SECRET>`, ligue `WHATSAPP_WORKER_ENABLED=1` e faça **Deploy**. Em **Configurações → WhatsApp** toque em **Consultar agora**. | Etiqueta **Conectada** e **Worker ligado**. |
 | B1 | **Captura do formato real.** Do **seu** celular, mande "oi" para o número do sistema. | Como seu número ainda não foi verificado, você recebe a **resposta genérica** ("Não consegui te identificar por aqui…"). **Se nada chegar:** veja **Mensagens recebidas** (erro?) e a seção 3 do `docs/11` ("Se o formato real for diferente") e **pare aqui** avisando o que viu. |
 | B1b | **Nono dígito (use o número real do dono e o de um familiar, em DDD de Minas).** Cadastre cada um como a pessoa usa. Em **Configurações → WhatsApp** veja o número e depois mande "oi" de cada celular. Depois do passo B2 de cada um, aguarde um lembrete. | Cada pessoa é reconhecida **mesmo que o WhatsApp entregue o número com o 9 e o cadastro esteja sem (ou o contrário)**. Se alguém não for reconhecido, **anote o que o painel mostra** (contagem em "Mensagens recebidas") e se a conta é antiga. Os lembretes chegam **uma vez só**. Anote (sem copiar o número inteiro): o WhatsApp dessa pessoa usa a forma **com** ou **sem** o 9? |
 | B2 | **Validar o próprio número.** Em **Configurações → WhatsApp** gere o código (como no 4A) e **envie o código** pelo seu WhatsApp para o número do sistema. | "✅ Número verificado". A etiqueta no portal vira **Verificado**. **Anote:** a resposta demorou entre 2 e 6 segundos? Apareceu "digitando…"? |

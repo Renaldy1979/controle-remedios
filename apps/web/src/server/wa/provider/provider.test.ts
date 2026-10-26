@@ -4,7 +4,7 @@ import fx from "./fixtures/eventos.json";
 import { conectadaDe, erroNumeroInexistente, respostaUserCheck, criarEvolutionGo, envioOk, idDaMensagemEnviada, midiaBaixada, remetenteDoInfo, respostaDeBotao, telefoneDoJid } from "./evolution-go";
 import { criarFake } from "./fake";
 import { criarMeta } from "./meta";
-import { criarProvedor } from "./index";
+import { criarProvedor, evolutionConfigurada } from "./index";
 import { ErroEnvio, type MensagemRecebida } from "./types";
 import { telefoneBr } from "./telefone";
 
@@ -218,5 +218,65 @@ describe("Evolution Go — consulta 'está no WhatsApp?' e número inexistente (
   it("envio recusado por número inexistente marca a falha para a retentativa na outra forma", async () => {
     const prov = criarEvolutionGo({ baseUrl: "https://e", apiKey: "k", instanceId: INSTANCIA, fetchFn: (async () => new Response(JSON.stringify({ error: "number not on whatsapp" }), { status: 400 })) as unknown as typeof fetch });
     await expect(prov.enviarTexto("5599988887777", "x")).rejects.toMatchObject({ recusaClara: true, numeroInexistente: true });
+  });
+});
+
+describe("Evolution Go — credencial por rota (token da instância) e diagnóstico de 401", () => {
+  const ok = () => new Response(JSON.stringify({ data: { Connected: true, LoggedIn: true } }), { status: 200 });
+  const rotas = async (cfg: { apiKey: string; instanceToken?: string }) => {
+    const f = vi.fn(async (_u: string, _i?: RequestInit) => ok());
+    const prov = criarEvolutionGo({ baseUrl: "https://e", ...cfg, instanceId: INSTANCIA, fetchFn: f as unknown as typeof fetch });
+    await prov.enviarTexto("5599988887777", "x").catch(() => {});
+    await prov.presenca("5599988887777");
+    await prov.statusInstancia();
+    await prov.numeroNoWhatsapp("5599988887777");
+    await prov.baixarMidia({ audioMessage: {} });
+    return f.mock.calls.map(([u, i]) => ({ rota: new URL(u).pathname, apikey: (i!.headers as Record<string, string>)["apikey"], instanceId: (i!.headers as Record<string, string>)["instanceId"] }));
+  };
+  it("com EVOLUTION_INSTANCE_TOKEN: TODAS as rotas da instância levam o token da instância (a chave global não vai)", async () => {
+    const r = await rotas({ apiKey: "GLOBAL", instanceToken: "TOKEN-INST" });
+    expect(r.map((x) => x.rota)).toEqual(["/send/text", "/message/presence", "/instance/status", "/user/check", "/message/downloadmedia"]);
+    for (const x of r) {
+      expect(x.apikey, x.rota).toBe("TOKEN-INST");
+      expect(x.instanceId, x.rota).toBe(INSTANCIA);
+    }
+  });
+  it("sem o token da instância: cai para EVOLUTION_API_KEY (compatível com o que já estava configurado)", async () => {
+    for (const r of await rotas({ apiKey: "GLOBAL" })) expect(r.apikey).toBe("GLOBAL");
+    for (const r of await rotas({ apiKey: "GLOBAL", instanceToken: "  " })) expect(r.apikey).toBe("GLOBAL");
+  });
+  it("401 e 403 no envio viram ErroEnvio de autenticação com a orientação clara (sem segredo)", async () => {
+    for (const status of [401, 403]) {
+      const prov = criarEvolutionGo({ baseUrl: "https://e", apiKey: "SEGREDO-GLOBAL", instanceToken: "SEGREDO-INST", instanceId: INSTANCIA, fetchFn: (async () => new Response("{}", { status })) as unknown as typeof fetch });
+      const e = await prov.enviarTexto("5599988887777", "x").catch((x) => x);
+      expect(e).toMatchObject({ recusaClara: true, autenticacao: true, numeroInexistente: false });
+      expect(e.message).toContain(`Evolution recusou a chave (${status})`);
+      expect(e.message).toContain("EVOLUTION_INSTANCE_TOKEN");
+      expect(e.message).not.toMatch(/SEGREDO/);
+    }
+  });
+  it("status com chave recusada não vira 'desconectada' (estado desconhecido)", async () => {
+    const prov = criarEvolutionGo({ baseUrl: "https://e", apiKey: "k", instanceId: INSTANCIA, fetchFn: (async () => new Response("{}", { status: 401 })) as unknown as typeof fetch });
+    expect(await prov.statusInstancia()).toEqual({ conectada: null });
+  });
+  it("evolutionConfigurada: o token da instância sozinho basta (com base e id)", () => {
+    const antes = { ...process.env };
+    try {
+      process.env["EVOLUTION_BASE_URL"] = "https://e";
+      process.env["EVOLUTION_INSTANCE_ID"] = INSTANCIA;
+      delete process.env["EVOLUTION_API_KEY"];
+      delete process.env["EVOLUTION_INSTANCE_TOKEN"];
+      expect(evolutionConfigurada()).toBe(false);
+      process.env["EVOLUTION_INSTANCE_TOKEN"] = "t";
+      expect(evolutionConfigurada()).toBe(true);
+      delete process.env["EVOLUTION_INSTANCE_TOKEN"];
+      process.env["EVOLUTION_API_KEY"] = "k";
+      expect(evolutionConfigurada()).toBe(true);
+    } finally {
+      for (const k of ["EVOLUTION_BASE_URL", "EVOLUTION_INSTANCE_ID", "EVOLUTION_API_KEY", "EVOLUTION_INSTANCE_TOKEN"]) {
+        if (antes[k] === undefined) delete process.env[k];
+        else process.env[k] = antes[k];
+      }
+    }
   });
 });

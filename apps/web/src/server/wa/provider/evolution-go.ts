@@ -6,12 +6,15 @@ import { soDigitos, telefoneBr } from "./telefone";
  * payload do webhook (Info/Message), envio (`POST /send/text`), presença (`POST /message/presence`), estado (`GET /instance/status`)
  * e download de mídia (`POST /message/downloadmedia`). Referência: docs/handoffs/D-para-orquestrador-evolution-go.md.
  * Onde o formato real ainda é dúvida, a função é pequena e marcada `TODO verificar com mensagem real`, com teste por fixture
- * (`fixtures/eventos.json`). Autenticação: cabeçalhos `apikey` (chave global) e `instanceId`.
+ * (`fixtures/eventos.json`). Autenticação (TODO verificar com mensagem real: a doc oficial só diz que o `apikey` pode ser a chave global OU a da instância, e que 401 = chave inválida/ausente): as rotas da INSTÂNCIA (/send, /message, /user, /instance/status) levam no `apikey` o TOKEN DA INSTÂNCIA (`instanceToken`, com fallback para a chave global `apiKey`); a chave global fica para rotas administrativas. O cabeçalho `instanceId` segue sendo enviado (inofensivo se não for usado).
  */
 export interface ConfigEvolutionGo {
   /** endereço da Evolution Go, sem barra final */
   baseUrl: string;
+  /** chave GLOBAL da Evolution Go (rotas administrativas; fallback das rotas da instância) */
   apiKey: string;
+  /** token da INSTÂNCIA (rotas /send, /message, /user, /instance/status). Sem ele, usa `apiKey`. */
+  instanceToken?: string;
   instanceId: string;
   fetchFn?: typeof fetch;
 }
@@ -135,10 +138,15 @@ export function erroNumeroInexistente(status: number, corpo: unknown): boolean {
   return /not (on|in|registered)|n[uú]mero.{0,20}(inexist|n[aã]o)|invalid (number|jid)|no account|not exist|exists/.test(t) && /whatsapp|number|jid|n[uú]mero/.test(t);
 }
 
+/** Texto que aparece no painel e no log (sem segredo) quando a Evolution recusa a chave. */
+export const MSG_CHAVE_RECUSADA = (status: number): string =>
+  `Evolution recusou a chave (${status}): use o token da instância em EVOLUTION_INSTANCE_TOKEN (Evolution Go › instância › token)`;
+
 export function criarEvolutionGo(cfg: ConfigEvolutionGo): ProvedorWhatsapp {
   const f = cfg.fetchFn ?? fetch;
   const base = cfg.baseUrl.replace(/\/+$/, "");
-  const cabecalhos = { "content-type": "application/json", apikey: cfg.apiKey, instanceId: cfg.instanceId };
+  const chaveDaInstancia = (cfg.instanceToken ?? "").trim() || cfg.apiKey;
+  const cabecalhos = { "content-type": "application/json", apikey: chaveDaInstancia, instanceId: cfg.instanceId };
   const chamar = (caminho: string, init: RequestInit, timeoutMs: number) =>
     f(base + caminho, { ...init, headers: cabecalhos, redirect: "manual", signal: AbortSignal.timeout(timeoutMs) });
 
@@ -215,6 +223,7 @@ export function criarEvolutionGo(cfg: ConfigEvolutionGo): ProvedorWhatsapp {
         throw new ErroEnvio(`rede: ${e instanceof Error ? e.name : "erro"}`, false);
       }
       const corpo = await r.json().catch(() => null);
+      if (r.status === 401 || r.status === 403) throw new ErroEnvio(MSG_CHAVE_RECUSADA(r.status), true, false, true);
       if (!envioOk(r.status, corpo)) throw new ErroEnvio(`Evolution /send/text respondeu ${r.status}`, r.status >= 400 && r.status < 500, erroNumeroInexistente(r.status, corpo));
       return { messageId: idDaMensagemEnviada(corpo) || `sint-${Date.now()}` };
     },
@@ -226,6 +235,7 @@ export function criarEvolutionGo(cfg: ConfigEvolutionGo): ProvedorWhatsapp {
 
     async statusInstancia() {
       const r = await chamar("/instance/status", { method: "GET" }, 10000);
+      if (r.status === 401 || r.status === 403) return { conectada: null }; // chave recusada: não sabemos o estado (não é "desconectada")
       if (r.status !== 200) return { conectada: false };
       return { conectada: conectadaDe(await r.json().catch(() => null)) };
     },

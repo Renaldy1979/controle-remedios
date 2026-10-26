@@ -255,6 +255,12 @@ function StatusCard({ status, onChange }: { status: StatusWa; onChange: () => Pr
           {status.instancia.consultadaEm ? ` · consultado em ${new Date(status.instancia.consultadaEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : " · ainda não consultado"}
         </p>
       )}
+      {status.chave.recusada ? (
+        <p role="alert" className="flex items-start gap-2 rounded-lg border-2 border-ms-bd bg-ms-bg p-3 font-bold">
+          <Icon name="key_off" size={22} />
+          <span>{status.chave.motivo}.{status.chave.pausadoAte ? ` Envio pausado até ${status.chave.pausadoAte}; depois tenta de novo sozinho.` : ""}</span>
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="secondary" icon="network_check" onClick={() => void consultar()} loading={busy === "consultar"} loadingText="Consultando…" disabled={!status.configurado}>
           Consultar agora

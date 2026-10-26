@@ -97,3 +97,52 @@ export async function registrarResultadoEnvio(ok: boolean, agora: Date = new Dat
   await gravarRuntime("envio", novo, agora);
   return novo;
 }
+
+/* ------------------------------------------------------------------ chave recusada (401/403) */
+
+export const FALHAS_DE_CHAVE_PARA_PAUSAR = 3;
+export const PAUSA_POR_CHAVE_MS = 10 * 60_000;
+
+export interface EstadoAuth { falhas: number; pausadoAte: string | null; alertada: boolean; desde: string | null }
+
+/** O envio está pausado por chave recusada? Devolve até quando (ou null). */
+export async function envioPausadoPorChave(agora: Date = new Date()): Promise<Date | null> {
+  const e = await lerRuntime<EstadoAuth>("auth");
+  return e?.pausadoAte && Date.parse(e.pausadoAte) > agora.getTime() ? new Date(e.pausadoAte) : null;
+}
+
+/**
+ * A Evolution recusou a chave (401/403). Depois de FALHAS_DE_CHAVE_PARA_PAUSAR seguidas, PAUSA o envio por 10 min (depois tenta de novo)
+ * e avisa os administradores no sino, UMA vez por sequência. Devolve a pausa, se houver.
+ */
+export async function registrarFalhaDeChave(agora: Date = new Date()): Promise<Date | null> {
+  const antes = (await lerRuntime<EstadoAuth>("auth")) ?? { falhas: 0, pausadoAte: null, alertada: false, desde: null };
+  const emPausa = antes.pausadoAte && Date.parse(antes.pausadoAte) > agora.getTime();
+  const falhas = emPausa ? antes.falhas : antes.falhas + 1;
+  const desde = antes.desde ?? agora.toISOString();
+  let pausadoAte = emPausa ? antes.pausadoAte : null;
+  let alertada = antes.alertada;
+  if (!emPausa && falhas >= FALHAS_DE_CHAVE_PARA_PAUSAR) {
+    pausadoAte = new Date(agora.getTime() + PAUSA_POR_CHAVE_MS).toISOString();
+    if (!alertada) {
+      await alertarAdministradores(
+        `wa-auth:${desde}`, "WhatsApp do sistema: chave recusada",
+        "A Evolution Go recusou a chave (401): use o token da instância em EVOLUTION_INSTANCE_TOKEN (Evolution Go › instância › token), no EasyPanel, e faça Deploy. O envio ficou pausado e tenta de novo em 10 minutos.",
+        "wa_chave_recusada", agora,
+      );
+      alertada = true;
+    }
+    // zera a contagem para a próxima rodada (depois da pausa): mais 3 falhas pausam de novo, sem novo aviso
+    await gravarRuntime("auth", { falhas: 0, pausadoAte, alertada, desde }, agora);
+    return new Date(pausadoAte);
+  }
+  await gravarRuntime("auth", { falhas, pausadoAte, alertada, desde }, agora);
+  return pausadoAte ? new Date(pausadoAte) : null;
+}
+
+/** Um envio deu certo: a chave está boa. Zera a contagem, a pausa e o aviso. */
+export async function registrarChaveBoa(agora: Date = new Date()): Promise<void> {
+  const e = await lerRuntime<EstadoAuth>("auth");
+  if (!e || (e.falhas === 0 && !e.pausadoAte && !e.alertada)) return;
+  await gravarRuntime("auth", { falhas: 0, pausadoAte: null, alertada: false, desde: null }, agora);
+}

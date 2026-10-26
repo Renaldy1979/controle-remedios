@@ -55,7 +55,7 @@ export interface ProvedorWhatsapp {
 
 /** Erro de envio com a informação que importa para o worker: se foi recusa clara (pode tentar de novo sem risco) ou ambíguo. */
 export class ErroEnvio extends Error {
-  constructor(message: string, readonly recusaClara: boolean, readonly numeroInexistente = false) {
+  constructor(message: string, readonly recusaClara: boolean, readonly numeroInexistente = false, readonly autenticacao = false) {
     super(message);
     this.name = "ErroEnvio";
   }
