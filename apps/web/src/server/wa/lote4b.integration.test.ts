@@ -1390,7 +1390,6 @@ describe.skipIf(!up)("Lote 4B — WhatsApp direto no portal", () => {
       return { f, omep, losa, zyp: f.medId, doseZyp: await dose(f.medId), doseOmep: await dose(omep), doseLosa: losa ? await dose(losa) : "", saldoDe, nome, portal: actorDe(f.familyId, f.adminId, "Administrador", "Admin") };
     }
     const entrega = async (f: Fam, agora = T0610) => pendentes(f.familyId, { reivindicar: true, agora });
-    const doGrupo = (lista: Awaited<ReturnType<typeof pendentes>>, familyId: string, texto: string) => lista.find((m) => m.tipo === "dose_reminder" && m.texto.includes(texto));
 
     it("mesmo paciente e horário = UMA mensagem com a lista; paciente diferente fica separado; uma dose só usa o lembrete simples", async () => {
       const g = await comGrupo("Agrupa");
