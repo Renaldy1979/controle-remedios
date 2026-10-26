@@ -1295,6 +1295,25 @@ describe.skipIf(!up)("Lote 4B — WhatsApp direto no portal", () => {
     });
   });
 
+  it("falha de mídia grava o motivo para o painel (e o log traz origem e tamanho, sem conteúdo); o sucesso seguinte limpa", async () => {
+    const f = await novaFamilia("MotivoMidia");
+    const falha: LeitorMidia = { transcreverAudio: async () => ({ texto: null, uso: null, motivo: "Gemini recusou a chave (403 PERMISSION_DENIED): confira GEMINI_API_KEY" }), lerImagem: async () => ({ texto: null, uso: null }) };
+    const espiao = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { d } = deps({ midia: falha });
+    const r = await processarEntrada(msgMidia(f.adminPhone, "audio"), d.nucleo);
+    const linhas = espiao.mock.calls.map((x) => String(x[0])).join(" ");
+    espiao.mockRestore();
+    expect(r.respostas[0]).toContain("Não consegui entender o áudio");
+    expect(await lerRuntime<{ motivo: string | null }>("midia")).toMatchObject({ motivo: expect.stringContaining("403") });
+    expect(linhas).toContain('"origem":"webhook"');
+    expect(linhas).toMatch(/"kb":\d/);
+    expect(linhas).not.toContain("QUJD");
+    const { d: d2 } = deps({ midia: leitor("estoque") });
+    await processarEntrada(msgMidia(f.adminPhone, "audio"), d2.nucleo);
+    expect(await lerRuntime<{ motivo: string | null }>("midia")).toMatchObject({ motivo: null });
+    await admin`delete from whatsapp_runtime where key = 'midia'`;
+  });
+
   it("(sanidade) loadWaActor de uma família inexistente devolve null", async () => {
     expect(await loadWaActor(randomUUID(), randomUUID(), "active", "5511")).toBeNull();
     void ({} as WaActor);

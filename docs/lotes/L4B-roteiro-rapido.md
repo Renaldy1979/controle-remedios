@@ -5,7 +5,7 @@
 
 ## O que você precisa ter (já está pronto)
 - Chip dedicado conectado na instância `medcuidar` da Evolution Go.
-- Variáveis no `medcuidar-web`: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `EVOLUTION_BASE_URL`, `EVOLUTION_INSTANCE_TOKEN` (token da instância, segredo), `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE_ID`, `WHATSAPP_WEBHOOK_SECRET` (+ as de antes: `APP_URL`, `DATABASE_URL`, `APPWRITE_*`, `FILE_URL_SECRET`, `APPWRITE_PRESCRIPTIONS_BUCKET_ID`).
+- Variáveis no `medcuidar-web`: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (e, se existir, `GEMINI_MODEL` deve ser `gemini-3.5-flash-lite`; o `gemini-2.5-flash` foi aposentado e dá 404), `EVOLUTION_BASE_URL`, `EVOLUTION_INSTANCE_TOKEN` (token da instância, segredo), `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE_ID`, `WHATSAPP_WEBHOOK_SECRET` (+ as de antes: `APP_URL`, `DATABASE_URL`, `APPWRITE_*`, `FILE_URL_SECRET`, `APPWRITE_PRESCRIPTIONS_BUCKET_ID`).
 
 ## Parte 1 — Subir a versão nova (≈ 15 min)
 1. **Variáveis (EasyPanel → `medcuidar-web` → Environment):**

@@ -10,6 +10,7 @@ import { logWa } from "./log";
 import { responderLivre, type DepsAgente } from "./ia/agente";
 import { geminiModelo, type LeitorMidia } from "./ia/midia";
 import { registrarUso } from "./ia/uso";
+import { gravarRuntime, lerRuntime } from "./runtime";
 import type { MensagemRecebida } from "./provider/types";
 import { mesmoCelular } from "./provider/telefone";
 import * as T from "./texts";
@@ -74,24 +75,46 @@ const ESCRITAS: ReadonlySet<Intent> = new Set<Intent>(["dose_tomada", "lembrar_d
 
 const um = (r: T.Resposta, origem: OrigemResposta, intent: string): RespostaNucleo => ({ respostas: [r.texto], origem, intent });
 
+/** Guarda (ou limpa) o último motivo de falha de mídia para o painel. Nunca atrapalha a conversa. */
+async function registrarMotivoMidia(motivo: string | null, tipo: string, agora: Date): Promise<void> {
+  try {
+    if (motivo) await gravarRuntime("midia", { motivo, tipo, em: agora.toISOString() }, agora);
+    else if ((await lerRuntime<{ motivo: string | null }>("midia"))?.motivo) await gravarRuntime("midia", { motivo: null, tipo, em: agora.toISOString() }, agora);
+  } catch {
+    /* só diagnóstico */
+  }
+}
+
 async function lerMidia(actor: WaActor, m: MensagemRecebida, d: DepsNucleo, agora: Date): Promise<{ texto: string | null; aviso?: T.Resposta }> {
   let base64 = m.base64, mime = m.mime;
+  let origem: "webhook" | "download" = "webhook";
+  const avisoFalha = m.tipo === "audio" ? T.audioNaoEntendido() : T.fotoNaoLida();
   if (!base64 && m.midiaRef && d.baixarMidia) {
+    origem = "download";
     const baixada = await d.baixarMidia(m.midiaRef).catch(() => null);
     if (baixada) { base64 = baixada.base64; mime = baixada.mimetype || mime; }
   }
-  if (!base64) return { texto: null, aviso: T.midiaNaoAbriu() };
-  if (!d.midia) return { texto: null, aviso: m.tipo === "audio" ? T.audioNaoEntendido() : T.fotoNaoLida() };
+  const kb = Math.round((base64.length * 3) / 4 / 1024);
+  if (!base64) {
+    logWa({ etapa: m.tipo, msgId: m.msgId, ok: false, origem, kb: 0, motivo: "sem_conteudo" });
+    await registrarMotivoMidia(`não consegui obter o ${m.tipo === "audio" ? "áudio" : "arquivo"} da Evolution (${origem === "download" ? "download falhou: confira WEBHOOK_FILES ou /message/downloadmedia" : "webhook sem o conteúdo"})`, m.tipo, agora);
+    return { texto: null, aviso: T.midiaNaoAbriu() };
+  }
+  if (!d.midia) {
+    await registrarMotivoMidia("GEMINI_API_KEY não configurada", m.tipo, agora);
+    return { texto: null, aviso: avisoFalha };
+  }
   const t0 = Date.now();
   const lido = m.tipo === "audio" ? await d.midia.transcreverAudio(base64, mime, m.segundos) : await d.midia.lerImagem(base64, mime);
-  logWa({ etapa: m.tipo, msgId: m.msgId, ms: Date.now() - t0, ok: !!lido.texto });
+  logWa({ etapa: m.tipo, msgId: m.msgId, ms: Date.now() - t0, ok: !!lido.texto, origem, kb, mime: mime.split(";")[0] ?? "", ...(lido.motivo ? { motivo: lido.motivo } : {}) });
   if (lido.uso) {
     await registrarUso({
       familyId: actor.familyId, memberId: actor.memberId, operacao: m.tipo === "audio" ? "audio" : "imagem", provedor: "google", modelo: geminiModelo(), msgId: m.msgId,
       tokens: { entrada: lido.uso.entrada, saida: lido.uso.saida, midia: lido.uso.midia }, idem: `uso:${m.msgId}:${m.tipo}`, agora,
     });
   }
-  return lido.texto ? { texto: lido.texto } : { texto: null, aviso: m.tipo === "audio" ? T.audioNaoEntendido() : T.fotoNaoLida() };
+  await registrarMotivoMidia(lido.texto ? null : (lido.motivo ?? "a Gemini não devolveu texto"), m.tipo, agora);
+  return lido.texto ? { texto: lido.texto } : { texto: null, aviso: avisoFalha };
 }
 
 /* ------------------------------------------------------------------ uma mensagem */

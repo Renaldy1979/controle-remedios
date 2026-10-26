@@ -71,6 +71,8 @@ export interface StatusWa {
   saida: { pendentes: number; comErro: number; ultimosErros: Array<{ tipo: string; motivo: string; quando: string }> };
   /** a Evolution recusou a chave (401/403): o envio está pausado até `pausadoAte` */
   chave: { recusada: boolean; pausadoAte: string | null; motivo: string };
+  /** último motivo de falha ao ler áudio/foto (Gemini ou download); null = a última leitura deu certo */
+  midia: { ultimaFalha: { motivo: string; quando: string } | null; modelo: string };
   ia: { configurada: boolean; modelo: string; midia: boolean; mes: string; usadoUsd: number; limiteUsd: number; chamadas: number; excedeu: boolean };
 }
 export interface EstadoWa {
@@ -299,12 +301,12 @@ async function sessaoAdmin() {
 
 /** Monta o painel do administrador: instância, worker, fila de entrada/saída, uso e custo de IA no mês. */
 export async function statusWhatsapp(familyId: string, tz: string): Promise<StatusWa> {
-  const [{ resumoEntrada }, { resumoSaida }, { lerRuntime }, { resumoDeUso }, prov, { modeloConfigurado }] = await Promise.all([
-    import("./inbound"), import("./fila"), import("./runtime"), import("./ia/uso"), import("./provider"), import("./ia/modelo"),
+  const [{ resumoEntrada }, { resumoSaida }, { lerRuntime }, { resumoDeUso }, prov, { modeloConfigurado }, { geminiModelo }] = await Promise.all([
+    import("./inbound"), import("./fila"), import("./runtime"), import("./ia/uso"), import("./provider"), import("./ia/modelo"), import("./ia/midia"),
   ]);
-  const [entrada, saida, inst, worker, uso, auth] = await Promise.all([
+  const [entrada, saida, inst, worker, uso, auth, midia] = await Promise.all([
     resumoEntrada(), resumoSaida(familyId), lerRuntime<{ conectada: boolean | null; desde: string; consultadaEm: string }>("instancia"),
-    lerRuntime<{ em: string }>("worker"), resumoDeUso(familyId, tz), lerRuntime<{ falhas: number; pausadoAte: string | null; alertada: boolean }>("auth"),
+    lerRuntime<{ em: string }>("worker"), resumoDeUso(familyId, tz), lerRuntime<{ falhas: number; pausadoAte: string | null; alertada: boolean }>("auth"), lerRuntime<{ motivo: string | null; em: string }>("midia"),
   ]);
   const provedor = prov.provedorConfigurado();
   const configurado = provedor === "fake" ? true : provedor === "meta" ? false : prov.evolutionConfigurada();
@@ -321,6 +323,7 @@ export async function statusWhatsapp(familyId: string, tz: string): Promise<Stat
       pausadoAte: auth?.pausadoAte && Date.parse(auth.pausadoAte) > Date.now() ? stampLabel(new Date(auth.pausadoAte), tz) : null,
       motivo: "Evolution recusou a chave (401): use o token da instância em EVOLUTION_INSTANCE_TOKEN",
     },
+    midia: { ultimaFalha: midia?.motivo ? { motivo: midia.motivo, quando: stampLabel(new Date(midia.em), tz) } : null, modelo: geminiModelo() },
     worker: { habilitado: process.env["WHATSAPP_WORKER_ENABLED"] === "1", ligado, ultimoBatimento: batimento },
     entrada: {
       pendentes: entrada.pendentes, processando: entrada.processando, erros: entrada.erros, maisAntigaSeg: entrada.maisAntigaSeg,

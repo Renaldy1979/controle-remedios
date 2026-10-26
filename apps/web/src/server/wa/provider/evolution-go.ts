@@ -1,3 +1,4 @@
+import { logWa } from "../log";
 import { ErroEnvio, type MensagemRecebida, type ProvedorWhatsapp, type ResultadoParse } from "./types";
 import { soDigitos, telefoneBr } from "./telefone";
 
@@ -255,9 +256,12 @@ export function criarEvolutionGo(cfg: ConfigEvolutionGo): ProvedorWhatsapp {
       // TODO verificar com mensagem real: a doc mostra `{message:{conversation}}`; enviamos o objeto Message recebido.
       try {
         const r = await chamar("/message/downloadmedia", { method: "POST", body: JSON.stringify({ message: ref }) }, 30000);
-        if (r.status !== 200) return null;
-        return midiaBaixada(await r.json().catch(() => null));
+        const corpo = await r.json().catch(() => null);
+        const m = r.status === 200 ? midiaBaixada(corpo) : null;
+        logWa({ etapa: "downloadmedia", status: r.status, ok: !!m, kb: m ? Math.round((m.base64.length * 3) / 4 / 1024) : 0 });
+        return m;
       } catch {
+        logWa({ etapa: "downloadmedia", status: 0, ok: false });
         return null;
       }
     },

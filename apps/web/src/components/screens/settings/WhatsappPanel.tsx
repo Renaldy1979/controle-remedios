@@ -303,6 +303,15 @@ function StatusCard({ status, onChange }: { status: StatusWa; onChange: () => Pr
         ) : (
           <p className="text-ink2">Modelo: <strong>{status.ia.modelo}</strong>{status.ia.midia ? " · áudio e foto: ligados" : " · áudio e foto: desligados (sem GEMINI_API_KEY)"}</p>
         )}
+        {status.ia.midia ? (
+          <p className="text-cap text-ink2">Áudio e foto lidos pelo modelo <strong>{status.midia.modelo}</strong>.</p>
+        ) : null}
+        {status.midia.ultimaFalha ? (
+          <p role="alert" className="flex items-start gap-2 rounded-lg border-2 border-ms-bd bg-ms-bg p-3 font-bold">
+            <Icon name="mic_off" size={22} />
+            <span>Última falha de áudio/foto ({status.midia.ultimaFalha.quando}): {status.midia.ultimaFalha.motivo}</span>
+          </p>
+        ) : null}
         <p>
           Gasto no mês: <strong className="num">{usd(status.ia.usadoUsd)}</strong> de <strong className="num">{usd(status.ia.limiteUsd)}</strong> ({status.ia.chamadas} chamadas)
           {status.ia.excedeu ? <StatusChip compact tone="ms" icon="pause_circle" label="Assistente pausado" /> : null}

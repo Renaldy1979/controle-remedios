@@ -36,7 +36,7 @@ No serviço **`medcuidar-web` → Environment**. Depois de criar ou mudar uma va
 | `ANTHROPIC_API_KEY` | `sk-ant-…` | **sim** | não. Sem ela, perguntas livres respondem *"o assistente de perguntas está indisponível"* e **todo o resto funciona** |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | não | não (padrão `claude-sonnet-5-5`) |
 | `GEMINI_API_KEY` | `AIza…` | **sim** | não. Sem ela, áudio e foto respondem *"não consegui entender"* e pedem texto |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | não | não (padrão `gemini-2.5-flash`) |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | não | não (padrão `gemini-3.5-flash-lite`). **Não use o `gemini-2.5-flash`: foi aposentado pelo Google (desligamento anunciado em 16/10/2026) e responde erro 404.** Se o modelo configurado der 404, o sistema tenta **uma vez** o `gemini-3.5-flash` antes de desistir |
 | `AI_MONTHLY_LIMIT_USD` | `5` | não | não (padrão **5** dólares por família por mês) |
 | `WHATSAPP_WORKER_CONCURRENCY` | `2` | não | não (padrão 2 respostas ao mesmo tempo; máximo 8) |
 | `WHATSAPP_MAX_PER_MINUTE` / `WHATSAPP_MAX_PER_HOUR` | `12` / `150` | não | não (padrões 12 e 150) |
@@ -86,7 +86,7 @@ O WhatsApp bloqueia números que parecem "robôs de spam". O sistema ajuda (paus
 ## 5. Custos estimados da IA e como ajustar o limite
 
 - **Claude** (`claude-sonnet-5-5`): US$ 2 por milhão de palavras-pedaço (tokens) de entrada e US$ 10 por milhão de saída. Uma pergunta típica usa cerca de 1.500 tokens de entrada e 200 de saída, com o texto fixo do assistente guardado em cache (mais barato nas próximas perguntas). **Ordem de grandeza: de US$ 0,003 a US$ 0,01 por pergunta** (menos de 6 centavos de real). Com 10 perguntas por dia o custo mensal fica em **poucos dólares**.
-- **Gemini** (áudio e foto): frações de centavo por áudio ou foto.
+- **Gemini** (áudio e foto, `gemini-3.5-flash-lite`): US$ 0,30 por milhão de tokens de texto/imagem e US$ 2,50 por milhão de áudio e de saída (tabela do Google conferida em 05/10/2026). Um áudio de 10 segundos custa uma fração de centavo.
 - **Limite mensal:** o padrão é **US$ 5 por família por mês**. Para mudar, **Configurações › WhatsApp → "Assistente de perguntas" → Limite mensal (US$) → Salvar limite**. O valor **0** pausa o assistente. Ao chegar no limite, o assistente de perguntas **pausa**, você recebe um **aviso no sino do portal** (uma vez por mês) e as pessoas recebem *"o assistente de perguntas está pausado neste mês"*. **Confirmar dose, estoque e próximas doses continuam funcionando.** O áudio e a foto continuam sendo lidos (custam muito pouco) e contam no gasto.
 - O quadro mostra **gasto do mês, limite e nº de chamadas**. Os preços ficam em `apps/web/src/server/wa/ia/precos.ts`; se a Anthropic ou o Google mudarem os preços, o gasto mostrado pode divergir um pouco da fatura (a fatura de cada empresa é a que vale).
 
@@ -113,7 +113,7 @@ O WhatsApp bloqueia números que parecem "robôs de spam". O sistema ajuda (paus
 | **"Não consegui te identificar por aqui"** para alguém que devia ser atendido | Número não verificado, desativado ou escrito diferente (ou duas pessoas com as duas formas, com e sem o 9, do mesmo número) | Confira o número da pessoa; refaça a verificação. O nono dígito é tratado sozinho; se duas pessoas tiverem as duas formas do mesmo número, nenhuma é reconhecida (seção 8) |
 | *"O assistente de perguntas está indisponível"* | `ANTHROPIC_API_KEY` ausente ou inválida | Cadastre a chave no EasyPanel e faça Deploy. O resto funciona sem ela |
 | *"O assistente de perguntas está pausado neste mês"* | Limite mensal de IA atingido | Aumente o limite em Configurações › WhatsApp, ou espere o mês virar |
-| Áudio: *"não consegui entender o áudio"* | `GEMINI_API_KEY` ausente, áudio longo (> 3 min) ou ruim | Cadastre a chave, ou peça para escrever |
+| Áudio ou foto: *"não consegui entender"* / *"não consegui ler a foto"* | Veja o motivo em **Configurações › WhatsApp** ("Última falha de áudio/foto"): **modelo aposentado/404** → troque `GEMINI_MODEL` para `gemini-3.5-flash-lite` (ou apague a variável); **chave recusada (401/403)** → confira `GEMINI_API_KEY`; **formato não aceito** (a Gemini aceita ogg, mp3, wav, aac, flac, aiff, m4a, opus, webm); **vazia** (áudio sem fala); **sem conteúdo** (o webhook da Evolution não trouxe o áudio e o download falhou: ligue `WEBHOOK_FILES` na Evolution Go) | Corrija a causa mostrada e mande outro áudio. O log (`etapa: gemini`) traz o status HTTP, o `error.status`, o tipo e o tamanho em KB, sem conteúdo |
 | **"Mensagens do WhatsApp não estão saindo"** no sino | 5 falhas de envio seguidas | Confira se o número está conectado e as variáveis `EVOLUTION_*` |
 | Dois lembretes iguais | Não deveria acontecer (há trava contra duplicidade) | Anote a hora e avise: é um defeito |
 | A tela do simulador não aparece | `SIMULATOR_ENABLED` não está `1` (ou você não é Administrador) | Só no staging; produção fica sem simulador |

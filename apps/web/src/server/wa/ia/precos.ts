@@ -15,9 +15,12 @@ export interface Preco {
 export const PRECOS: Record<string, Preco> = {
   "claude-sonnet-5-5": { entrada: 2, saida: 10, cacheLeitura: 0.2, cacheEscrita: 2.5 },
   "claude-sonnet-5": { entrada: 2, saida: 10, cacheLeitura: 0.2, cacheEscrita: 2.5 },
-  "claude-opus-5-5": { entrada: 4, saida: 20, cacheLeitura: 0.4, cacheEscrita: 5 },
+  "claude-opus-5-5": { entrada: 4, saida: 20, cacheLeitura: 0.2, cacheEscrita: 5 },
   "claude-haiku-5-5": { entrada: 0.1, saida: 0.5, cacheLeitura: 0.01, cacheEscrita: 0.125 },
-  "gemini-2.5-flash": { entrada: 0.3, saida: 2.5, cacheLeitura: 0.03, cacheEscrita: 0.3, midia: 1 },
+  // Google (ai.google.dev/gemini-api/docs/pricing, conferido em 2026-10-05 no projeto financeiro: packages/db/drizzle/0007_custos_ia.sql):
+  // texto/imagem 0,30; áudio 2,50; saída (com thinking) 2,50. O 2.5-flash foi aposentado (404) e saiu da tabela.
+  "gemini-3.5-flash-lite": { entrada: 0.3, saida: 2.5, cacheLeitura: 0, cacheEscrita: 0, midia: 2.5 },
+  // "gemini-3.5-flash" (reserva em 404) não tem preço conferido: custo 0 marcado como estimado
 };
 
 export interface TokensUso {

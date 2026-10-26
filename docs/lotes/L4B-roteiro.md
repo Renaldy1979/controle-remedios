@@ -26,7 +26,7 @@
    |---|---|---|---|
    | `WHATSAPP_WEBHOOK_SECRET` (24+ letras e números sorteados) | **sim** | **sim, sem valor padrão** | agora |
    | `ANTHROPIC_API_KEY` | **sim** | não | agora, **se já tiver a chave** (para testar perguntas livres na Parte A) |
-   | `GEMINI_API_KEY` | **sim** | não | quando quiser testar áudio/foto (Parte B) |
+   | `GEMINI_API_KEY` | **sim** | não | quando quiser testar áudio/foto (Parte B). Modelo padrão `gemini-3.5-flash-lite`; **apague `GEMINI_MODEL` se estiver como `gemini-2.5-flash`** (aposentado, dá 404) |
    | `AI_MONTHLY_LIMIT_USD` (ex.: `5`) | não | não (padrão 5) | opcional |
    | `EVOLUTION_BASE_URL`, `EVOLUTION_INSTANCE_TOKEN` (**segredo**, token da instância), `EVOLUTION_API_KEY` (segredo, fallback), `EVOLUTION_INSTANCE_ID` | os dois tokens **sim** | **sim, sem valor padrão** (para o WhatsApp real) | **só na Parte B**, quando houver número |
    | `WHATSAPP_WORKER_ENABLED` = `1` | não | não (padrão desligado) | **só na Parte B**. Deixe **desligado** enquanto não houver número |

@@ -9,6 +9,7 @@ type Status = {
   provedor: string; configurado: boolean;
   instancia: { estado: "conectada" | "desconectada" | "aguardando"; desde: string | null; consultadaEm: string | null };
   chave: { recusada: boolean; pausadoAte: string | null; motivo: string };
+  midia: { ultimaFalha: { motivo: string; quando: string } | null; modelo: string };
   worker: { habilitado: boolean; ligado: boolean; ultimoBatimento: string | null };
   entrada: { pendentes: number; processando: number; erros: number; maisAntigaSeg: number | null; ultimosErros: Array<{ motivo: string; quando: string; tentativas: number }> };
   saida: { pendentes: number; comErro: number; ultimosErros: Array<{ tipo: string; motivo: string; quando: string }> };
@@ -19,6 +20,7 @@ const wa = vi.hoisted(() => {
   const statusBase: Status = {
     provedor: "evolution-go", configurado: false,
     instancia: { estado: "aguardando", desde: null, consultadaEm: null },
+    midia: { ultimaFalha: null, modelo: "gemini-3.5-flash-lite" },
     chave: { recusada: false, pausadoAte: null, motivo: "Evolution recusou a chave (401): use o token da instância em EVOLUTION_INSTANCE_TOKEN" },
     worker: { habilitado: false, ligado: false, ultimoBatimento: null },
     entrada: { pendentes: 0, processando: 0, erros: 0, maisAntigaSeg: null, ultimosErros: [] },
@@ -86,6 +88,14 @@ describe("Lote 4B — Configurações › WhatsApp › WhatsApp do sistema", () 
     expect(alerta).toHaveTextContent("EVOLUTION_INSTANCE_TOKEN");
     expect(alerta).toHaveTextContent("Envio pausado até 26/10/2026 10:10");
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it("mostra o último motivo de falha de áudio/foto", async () => {
+    wa.estado.status = { ...wa.statusBase, configurado: true, ia: { ...wa.statusBase.ia, configurada: true, midia: true }, midia: { modelo: "gemini-3.5-flash-lite", ultimaFalha: { motivo: "modelo da Gemini não encontrado (404): troque GEMINI_MODEL", quando: "26/10/2026 10:00" } } };
+    renderApp(<WhatsappPanel />);
+    const card = await screen.findByRole("region", { name: "WhatsApp do sistema" });
+    expect(within(card).getByText(/Última falha de áudio\/foto \(26\/10\/2026 10:00\): modelo da Gemini não encontrado \(404\)/)).toBeInTheDocument();
+    expect(within(card).getByText("gemini-3.5-flash-lite")).toBeInTheDocument();
   });
 
   it("Consultar agora atualiza o estado; Salvar limite envia o valor com vírgula e recusa texto", async () => {
