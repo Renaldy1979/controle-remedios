@@ -1,3 +1,5 @@
+﻿> **Atalho (26/10/2026):** o dono usa sozinho o sistema e escolheu o caminho curto: veja `docs/lotes/L4B-roteiro-rapido.md`. Este roteiro completo fica como referência.
+
 # Lote 4B — Roteiro de teste: WhatsApp direto no portal (sem N8N)
 
 **Para quem testa:** o dono do projeto. A **Parte A** é no computador, no portal de staging, **sem número de WhatsApp do sistema**. A **Parte B** só vale quando o chip dedicado existir e estiver conectado.
