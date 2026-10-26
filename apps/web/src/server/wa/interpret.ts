@@ -15,6 +15,9 @@ export type Intent =
   | "dose_status"
   | "link_acesso"
   | "ajuda"
+  | "tomei_todos"
+  | "um_por_um"
+  | "pular"
   | "livre";
 
 /** Só ✅/👍/✔ (com ou sem tom de pele): confirmação sem palavras. */
@@ -54,6 +57,10 @@ export function interpretText(text: string): Intent {
   if (/^(ok|okay|feito|pronto|certo)$/.test(t)) return "dose_tomada";
   const isQuestion = t.includes("?") || /^(como|quando|qual|quais|quanto|quantos|que horas|tem|o que)\b/.test(t);
 
+  // vários remédios do mesmo horário (lembrete agrupado): "todos", "tomei todos", "um por um", "não vou tomar"
+  if (/^(todos|todas|tomei todos|tomei todas|tomaram todos|tomou todos|dei todos|ja tomou todos|ja tomaram todos)$/.test(t)) return "tomei_todos";
+  if (has(t, /\b(um por um|uma por uma|um a um|confirmar um|confirmo um)\b/)) return "um_por_um";
+  if (has(t, /\b(nao vou tomar|nao vai tomar|nao quer tomar|nao vou dar|vou pular|pular)\b/)) return "pular";
   if (has(t, /\b(nao|ainda nao|esqueci|nem)\b.*\b(tomei|tomou|tomaram|dei|dado)\b/)) return "nao_tomou";
   if (has(t, /\b(eu cuido|cuido disso|eu compro|eu resolvo|eu assumo|assumo)\b/)) return "eu_cuido";
   if (has(t, /\b(lembr\w*|avis\w*)\b.*\b(de novo|depois|mais tarde|em \d+ ?(min|minutos))\b|^(depois|mais tarde|adiar|soneca)$/)) return "lembrar_depois";

@@ -141,13 +141,14 @@ export async function resumoDoDia(tx: Tx, tz: string, settings: Settings, now: D
     .innerJoin(s.treatments, eq(s.treatments.id, s.doseEvents.treatmentId))
     .innerJoin(s.patients, eq(s.patients.id, s.doseEvents.patientId))
     .where(and(gte(s.doseEvents.scheduledAt, ini), lt(s.doseEvents.scheduledAt, fim), isNull(s.treatments.deletedAt), isNull(s.patients.deletedAt)));
-  const by = new Map<string, { nome: string; tomadas: number; esquecidas: number; pendentes: number }>();
+  const by = new Map<string, { nome: string; tomadas: number; esquecidas: number; pendentes: number; puladas: number }>();
   for (const { d, patient } of rows) {
-    const e = by.get(d.patientId) ?? { nome: primeiroNome(patient), tomadas: 0, esquecidas: 0, pendentes: 0 };
+    const e = by.get(d.patientId) ?? { nome: primeiroNome(patient), tomadas: 0, esquecidas: 0, pendentes: 0, puladas: 0 };
     const st = effectiveStatus(d.status, d.scheduledAt, now, settings);
     if (st === "taken") e.tomadas++;
     else if (st === "missed") e.esquecidas++;
     else if (st === "pending" || st === "late") e.pendentes++;
+    else if (st === "skipped") e.puladas++;
     by.set(d.patientId, e);
   }
   return { data: `${date.slice(8, 10)}/${date.slice(5, 7)}/${date.slice(0, 4)}`, pacientes: [...by.values()] };

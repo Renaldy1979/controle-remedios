@@ -52,3 +52,20 @@
 - Simulador e Parte A completa: dispensados (você testa direto no WhatsApp).
 - Convite por WhatsApp para familiares e o teste de números não verificados: voltam quando entrar a 2ª pessoa (os testes automáticos já cobrem).
 - Teste de queda da Evolution: opcional, depois.
+
+## Vários remédios no mesmo horário (lembrete agrupado)
+Doses do **mesmo paciente e horário** (janela de 10 min, `WHATSAPP_GRUPO_JANELA_MIN`) saem numa mensagem só. Pacientes diferentes seguem separados; uma dose sozinha usa o lembrete de sempre.
+
+```
+⏰ *Hora dos remédios — Adelino (08:00)*
+• Losartana, 1 comprimido
+• Omeprazol, 1 comprimido
+*1* — Tomei todos
+*2* — Vou confirmar um por um
+*3* — Lembrar daqui a 15 min
+```
+- **1** (ou "tomei todos", "todos"): `✅ Anotado — Losartana e Omeprazol (Adelino, 08:00). Obrigado!` (uma confirmação por dose; repetir a mesma mensagem não baixa o estoque de novo).
+- **2** (ou "um por um"): pergunta dose por dose, com *1 — Tomei · 2 — Lembrar daqui a 15 min · 3 — Não vou tomar*, e no fim resume: `Pronto — Adelino (08:00): Losartana ✅, Omeprazol 🔁 lembrar às 08:15.` "Não vou tomar" registra a dose como **pulada** (sem baixa de estoque, aparece no histórico e no resumo do dia, e **não** gera aviso de "esquecida").
+- **3**: lembra de novo todas daqui a 15 min.
+- "tomei" digitado com 2 ou mais remédios do mesmo horário não adivinha: reenvia este menu; "tomei Losartana" confirma só aquele. Se as doses já foram anotadas no portal, a resposta é "Essas doses já foram anotadas". O menu vale 2 horas.
+- Aviso de **dose esquecida** à família também sai agrupado por paciente e horário: `🔴 Remédios esquecidos — Adelino (08:00)` com a lista e *1 — Já tomou todos*.

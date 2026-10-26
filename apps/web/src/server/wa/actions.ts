@@ -15,7 +15,7 @@ import { resolveSender } from "./actor";
 import { issueFirstAccessLink } from "./first-access";
 import { criarChaveFamilia, listarChavesFamilia, revogarChaveFamilia } from "./keys";
 import { meuWhatsapp, startPhoneVerification } from "./phone-verify";
-import { lembrarNoContexto } from "./state";
+import { adicaoDeMensagem, lembrarNoContexto } from "./state";
 import { saveMyPhone } from "../pg/members";
 
 /** Server Actions de Configurações › WhatsApp e do simulador. A família e a pessoa vêm SEMPRE da sessão. */
@@ -281,12 +281,7 @@ export async function simMarcarEnviadaAction(id: string): Promise<R<FilaSim | nu
       { params: Promise.resolve({ id }) },
     );
     if (!resp.ok) throw new UserError("Não foi possível marcar como enviada.");
-    const doseId = msg.o.context["doseId"];
-    const medicationId = msg.o.context["medicationId"];
-    await lembrarNoContexto(ctx.familyId, msg.o.memberId, {
-      ...(typeof doseId === "string" && msg.o.kind === "dose_reminder" ? { doseId } : {}),
-      ...(typeof medicationId === "string" && msg.o.options.length ? { medicationId } : {}),
-    }, new Date());
+    await lembrarNoContexto(ctx.familyId, msg.o.memberId, adicaoDeMensagem(msg.o.kind, msg.o.context, msg.o.options.length > 0), new Date());
     return { id, para: "", telefone: msg.phone ?? "", tipo: msg.o.kind, texto: msg.o.body, quando: msg.o.notBefore.toISOString() };
   });
 }

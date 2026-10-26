@@ -93,6 +93,9 @@ O WhatsApp bloqueia números que parecem "robôs de spam". O sistema ajuda (paus
 ## 6. Estoque pelo WhatsApp
 A resposta de **estoque** mostra a **quantidade restante** (mesma regra do portal: "11 comprimidos", "≈ 120 ml", "200 g", colírio como "≈ 1,8 ml · 36 gotas" com a nota de estimativa) e os dias. Perguntas como *"quantos comprimidos de losartana eu tenho?"* ou *"quanto resta do Zypred"* respondem só o remédio citado; sem citar, lista até 10 por urgência; remédio sem estoque cadastrado diz isso. O aviso de **estoque baixo** e o **resumo diário** também trazem "Restam 11 comprimidos (3 dias)".
 
+## 6.0 Vários remédios no mesmo horário
+Doses do mesmo paciente e horário (janela de 10 minutos, ajustável em `WHATSAPP_GRUPO_JANELA_MIN`) chegam em **uma mensagem** com a lista e o menu *1 — Tomei todos · 2 — Vou confirmar um por um · 3 — Lembrar daqui a 15 min*. No "um por um" cada dose tem *1 — Tomei · 2 — Lembrar daqui a 15 min · 3 — Não vou tomar*; "Não vou tomar" registra a dose como **pulada** (sem baixa de estoque, visível no histórico e no resumo do dia, sem aviso de esquecida). Exemplos reais das mensagens em `docs/lotes/L4B-roteiro-rapido.md`.
+
 ## 6.1 O que o assistente de IA pode e não pode
 
 - **Pode consultar:** estoque (**quantidade restante** e previsão em dias), próximas doses, doses do dia, se uma dose já foi tomada (e por quem), reposições em andamento e receitas vigentes.

@@ -265,6 +265,27 @@ export async function snoozeDose(actor: DoseActor, doseId: string, minutes: numb
   });
 }
 
+/**
+ * "Não vou tomar": registra a dose como PULADA (`skipped`) com o motivo, sem baixar estoque. Quem informou fica registrado (e o canal).
+ * Dose pulada não gera aviso de "esquecida". Idempotente: pular de novo não faz nada; dose já tomada não pode ser pulada.
+ */
+export async function skipDose(
+  actor: DoseActor, doseId: string, now: Date = new Date(), opts: { channel?: "panel" | "whatsapp" | "system"; reason?: string } = {},
+): Promise<{ skipped: boolean }> {
+  requirePermission(actor, "doses.confirm");
+  return withFamilia(actor.familyId, async (tx) => {
+    const [cur] = await tx.select().from(s.doseEvents).where(eq(s.doseEvents.id, doseId)).for("update");
+    if (!cur) throw new UserError("Dose não encontrada.");
+    if (cur.status === "skipped") return { skipped: false };
+    if (cur.status === "taken") throw new UserError("Esta dose já foi tomada.");
+    await tx.update(s.doseEvents).set({
+      status: "skipped", skippedReason: opts.reason ?? "informado pela própria pessoa", confirmedByMemberId: actor.memberId, confirmedAt: now, channel: opts.channel ?? "panel", remindAgainAt: null,
+    }).where(eq(s.doseEvents.id, doseId));
+    await audit(tx, actor, "dose.skip", "dose", doseId, { channel: opts.channel ?? "panel" });
+    return { skipped: true };
+  });
+}
+
 /* ------------------------------------------------------------------ histórico */
 
 const HISTORY_LIMIT = 300;

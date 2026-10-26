@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { listarFamiliasAtivas, listarFamiliasComWhatsapp, withFamilia, type Tx } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { effectiveRecipientsMode, localParts, resolveResponsible } from "@medcuidar/domain";
@@ -7,8 +8,8 @@ import { can, familySettingsSchema, permissionMapSchema, type FamilySettings } f
 import { prepareDay } from "../pg/prepare";
 import { DEFAULT_LOW_STOCK_DAYS } from "../pg/calc";
 import { effectivePermissions } from "./actor";
-import { dosesAbertas, estoqueDaFamilia, resumoDoDia } from "./queries";
-import { lembrarNoContexto } from "./state";
+import { dosesAbertas, estoqueDaFamilia, resumoDoDia, type DoseAberta } from "./queries";
+import { adicaoDeMensagem, lembrarNoContexto } from "./state";
 import * as T from "./texts";
 
 /**
@@ -111,19 +112,62 @@ export async function gerarMensagens(familyId: string, agora: Date = new Date())
   });
 }
 
+/** Doses abertas do mesmo paciente e destinatário dentro desta janela saem numa mensagem só. `WHATSAPP_GRUPO_JANELA_MIN` (padrão 10). */
+export const janelaGrupoMs = (): number => {
+  const v = Number(process.env["WHATSAPP_GRUPO_JANELA_MIN"]);
+  return (Number.isFinite(v) && v >= 0 ? v : 10) * 60_000;
+};
+
+interface Alvo {
+  m: Destinatario;
+  d: DoseAberta;
+}
+
+/** Agrupa por paciente (e `chave`) e, dentro de cada um, por janela a partir da primeira dose do grupo. */
+function agrupar(itens: Alvo[], chave: (a: Alvo) => string = () => "", janela = janelaGrupoMs()): Alvo[][] {
+  const ordenados = [...itens].sort((x, y) => x.d.scheduledAt.getTime() - y.d.scheduledAt.getTime() || x.d.remedio.localeCompare(y.d.remedio, "pt-BR") || x.d.id.localeCompare(y.d.id));
+  const grupos: Alvo[][] = [];
+  for (const a of ordenados) {
+    const g = grupos.find((x) => x[0]!.d.patientId === a.d.patientId && chave(x[0]!) === chave(a) && a.d.scheduledAt.getTime() - x[0]!.d.scheduledAt.getTime() <= janela);
+    if (g) g.push(a);
+    else grupos.push([a]);
+  }
+  return grupos;
+}
+
+const hashIds = (ids: string[]): string => createHash("sha1").update([...ids].sort().join(",")).digest("hex").slice(0, 16);
+
+const itemDe = (d: DoseAberta) => ({ doseId: d.id, remedio: d.remedio, dose: d.dose, paciente: d.paciente, hora: d.hora });
+const idsDoContexto = (c: Record<string, unknown>): string[] => [
+  ...(Array.isArray(c["doseIds"]) ? (c["doseIds"] as unknown[]).filter((x): x is string => typeof x === "string") : []),
+  ...(typeof c["doseId"] === "string" ? [c["doseId"] as string] : []),
+];
+
 async function gerarDoses(tx: Tx, familyId: string, tz: string, settings: FamilySettings, dest: Destinatario[], agora: Date): Promise<number> {
   const janela = { de: new Date(agora.getTime() - 24 * 3600_000), ate: agora };
   const doses = await dosesAbertas(tx, tz, settings, agora, janela);
   if (doses.length === 0) return 0;
-  const [pacientes, assignments, doseRows] = await Promise.all([
+  const [pacientes, assignments, doseRows, antigas] = await Promise.all([
     tx.select().from(s.patients),
     tx.select().from(s.careAssignments),
     tx.select({ id: s.doseEvents.id, remindAgainAt: s.doseEvents.remindAgainAt }).from(s.doseEvents).where(inArray(s.doseEvents.id, doses.map((d) => d.id))),
+    tx.select({ kind: s.outboundMessages.kind, memberId: s.outboundMessages.memberId, dedupeKey: s.outboundMessages.dedupeKey, context: s.outboundMessages.context })
+      .from(s.outboundMessages).where(and(inArray(s.outboundMessages.kind, ["dose_reminder", "dose_missed"]), gte(s.outboundMessages.createdAt, new Date(agora.getTime() - 48 * 3600_000)))),
   ]);
   const again = new Map(doseRows.map((d) => [d.id, d.remindAgainAt]));
+  // doses que o destinatário JÁ recebeu (lembrete base ou aviso de esquecida): um grupo novo nunca repete o que já foi lembrado
+  const jaBase = new Set<string>();
+  const jaEsquecida = new Set<string>();
+  for (const o of antigas) {
+    for (const id of idsDoContexto(o.context)) {
+      if (o.kind === "dose_missed") jaEsquecida.add(`${o.memberId}:${id}`);
+      else if (!o.dedupeKey.includes(":again:")) jaBase.add(`${o.memberId}:${id}`);
+    }
+  }
   const domainMembers = dest.map((d) => ({ id: d.id, name: d.name, active: true, receives_family_alerts: d.receivesFamilyAlerts }));
   const rows: Novo[] = [];
   const reagendadas: string[] = [];
+  const base: Alvo[] = [], repetir: Alvo[] = [], esquecidas: Alvo[] = [];
 
   for (const d of doses) {
     const paciente = pacientes.find((p) => p.id === d.patientId);
@@ -133,7 +177,6 @@ async function gerarDoses(tx: Tx, familyId: string, tz: string, settings: Family
       members: domainMembers, mode: modo, datetime: d.scheduledAt, tz,
     });
     const confirmam = quem.recipients.map((m) => dest.find((x) => x.id === m.id)!).filter((x) => x && x.can("doses.confirm"));
-    const base = { dose: d.dose, paciente: d.paciente, remedio: d.remedio, hora: d.hora };
 
     if (d.status === "missed") {
       // só avisa a família de dose esquecida das últimas 6 h; as mais antigas ficam só no portal (sem mensagem, nem em backlog)
@@ -141,25 +184,71 @@ async function gerarDoses(tx: Tx, familyId: string, tz: string, settings: Family
       // dose esquecida: avisa a família (quem recebe alertas da família; se ninguém marcou, todos os verificados)
       const familia = dest.filter((x) => x.receivesFamilyAlerts && x.can("dashboard.view"));
       const alvo = familia.length ? familia : dest.filter((x) => x.can("dashboard.view"));
-      const r = T.doseEsquecidaFamilia(base);
-      for (const m of alvo) {
-        rows.push({ familyId, memberId: m.id, kind: "dose_missed", dedupeKey: `dose:${d.id}:missed:${m.id}`, body: r.texto, options: opcoesDe(r), context: { doseId: d.id }, notBefore: agora });
-      }
+      for (const m of alvo) if (!jaEsquecida.has(`${m.id}:${d.id}`)) esquecidas.push({ m, d });
       continue;
     }
-
-    const r = T.lembreteDose({ ...base, atrasada: d.status === "late" });
-    for (const m of confirmam) {
-      rows.push({ familyId, memberId: m.id, kind: "dose_reminder", dedupeKey: `dose:${d.id}:remind:${m.id}`, body: r.texto, options: opcoesDe(r), context: { doseId: d.id }, notBefore: d.scheduledAt });
-    }
+    for (const m of confirmam) if (!jaBase.has(`${m.id}:${d.id}`)) base.push({ m, d });
     // "lembrar de novo": pedido registrado no portal ou pelo WhatsApp
     const ra = again.get(d.id);
     if (ra && ra <= agora) {
-      const r2 = T.lembreteDose({ ...base, atrasada: d.status === "late" });
-      for (const m of confirmam) {
-        rows.push({ familyId, memberId: m.id, kind: "dose_reminder", dedupeKey: `dose:${d.id}:again:${ra.getTime()}:${m.id}`, body: r2.texto, options: opcoesDe(r2), context: { doseId: d.id }, notBefore: ra });
-      }
+      for (const m of confirmam) repetir.push({ m, d });
       reagendadas.push(d.id);
+    }
+  }
+
+  const porMembro = (alvos: Alvo[]) => {
+    const mapa = new Map<string, Alvo[]>();
+    for (const a of alvos) mapa.set(a.m.id, [...(mapa.get(a.m.id) ?? []), a]);
+    return [...mapa.entries()];
+  };
+
+  // lembretes: uma dose = mensagem de sempre; várias do mesmo paciente e horário = UMA mensagem com a lista
+  for (const [membroId, alvos] of porMembro(base)) {
+    for (const g of agrupar(alvos)) {
+      const d0 = g[0]!.d;
+      if (g.length === 1) {
+        const r = T.lembreteDose({ dose: d0.dose, paciente: d0.paciente, remedio: d0.remedio, hora: d0.hora, atrasada: d0.status === "late" });
+        rows.push({ familyId, memberId: membroId, kind: "dose_reminder", dedupeKey: `dose:${d0.id}:remind:${membroId}`, body: r.texto, options: opcoesDe(r), context: { doseId: d0.id, tipo: "base", atrasada: d0.status === "late" }, notBefore: d0.scheduledAt });
+        continue;
+      }
+      const atrasada = g.some((x) => x.d.status === "late");
+      const r = T.lembreteGrupo({ paciente: d0.paciente, hora: d0.hora, doses: g.map((x) => ({ remedio: x.d.remedio, dose: x.d.dose })), atrasada });
+      rows.push({
+        familyId, memberId: membroId, kind: "dose_reminder", dedupeKey: `grp:remind:${membroId}:${hashIds(g.map((x) => x.d.id))}`, body: r.texto, options: opcoesDe(r),
+        context: { doseIds: g.map((x) => x.d.id), grupo: true, tipo: "base", atrasada, itens: g.map((x) => itemDe(x.d)) }, notBefore: d0.scheduledAt,
+      });
+    }
+  }
+  for (const [membroId, alvos] of porMembro(repetir)) {
+    for (const g of agrupar(alvos, (a) => String(again.get(a.d.id)?.getTime() ?? 0), Number.MAX_SAFE_INTEGER)) {
+      const d0 = g[0]!.d;
+      const ra = again.get(d0.id)!;
+      if (g.length === 1) {
+        const r2 = T.lembreteDose({ dose: d0.dose, paciente: d0.paciente, remedio: d0.remedio, hora: d0.hora, atrasada: d0.status === "late" });
+        rows.push({ familyId, memberId: membroId, kind: "dose_reminder", dedupeKey: `dose:${d0.id}:again:${ra.getTime()}:${membroId}`, body: r2.texto, options: opcoesDe(r2), context: { doseId: d0.id, tipo: "again", atrasada: d0.status === "late" }, notBefore: ra });
+        continue;
+      }
+      const r2 = T.lembreteGrupo({ paciente: d0.paciente, hora: d0.hora, doses: g.map((x) => ({ remedio: x.d.remedio, dose: x.d.dose })), atrasada: g.some((x) => x.d.status === "late") });
+      rows.push({
+        familyId, memberId: membroId, kind: "dose_reminder", dedupeKey: `grp:again:${membroId}:${hashIds(g.map((x) => x.d.id))}:${ra.getTime()}`, body: r2.texto, options: opcoesDe(r2),
+        context: { doseIds: g.map((x) => x.d.id), grupo: true, tipo: "again", atrasada: g.some((x) => x.d.status === "late"), itens: g.map((x) => itemDe(x.d)) }, notBefore: ra,
+      });
+    }
+  }
+  // dose esquecida à família: uma mensagem por paciente e horário, com a lista
+  for (const [membroId, alvos] of porMembro(esquecidas)) {
+    for (const g of agrupar(alvos)) {
+      const d0 = g[0]!.d;
+      if (g.length === 1) {
+        const r = T.doseEsquecidaFamilia({ dose: d0.dose, paciente: d0.paciente, remedio: d0.remedio, hora: d0.hora });
+        rows.push({ familyId, memberId: membroId, kind: "dose_missed", dedupeKey: `dose:${d0.id}:missed:${membroId}`, body: r.texto, options: opcoesDe(r), context: { doseId: d0.id }, notBefore: agora });
+        continue;
+      }
+      const r = T.doseEsquecidaGrupo({ paciente: d0.paciente, hora: d0.hora, doses: g.map((x) => ({ remedio: x.d.remedio, dose: x.d.dose })) });
+      rows.push({
+        familyId, memberId: membroId, kind: "dose_missed", dedupeKey: `grp:missed:${membroId}:${hashIds(g.map((x) => x.d.id))}`, body: r.texto, options: opcoesDe(r),
+        context: { doseIds: g.map((x) => x.d.id), grupo: true, itens: g.map((x) => itemDe(x.d)) }, notBefore: agora,
+      });
     }
   }
   const n = await inserir(tx, rows);
@@ -270,18 +359,41 @@ export async function pendentes(
     const rows = await (opts.reivindicar ? q.for("update", { of: s.outboundMessages, skipLocked: true }) : q);
 
     // obsoletas: dose já resolvida, número perdido, pessoa desativada, entregas demais
-    const doseIds = rows.map((r) => r.o.context["doseId"]).filter((x): x is string => typeof x === "string");
+    const doseIds = rows.flatMap((r) => idsDoContexto(r.o.context));
     const abertas = doseIds.length ? new Set((await tx.select({ id: s.doseEvents.id }).from(s.doseEvents).where(and(inArray(s.doseEvents.id, doseIds), inArray(s.doseEvents.status, ["pending", "late", "missed"])))).map((d) => d.id)) : new Set<string>();
     const descartar: typeof rows = [];
+    const reescrever: Array<{ r: (typeof rows)[number]; abertos: string[] }> = [];
     const boas: typeof rows = [];
     for (const r of rows) {
       const doseId = r.o.context["doseId"];
+      const idsGrupo = r.o.context["grupo"] === true ? idsDoContexto(r.o.context) : [];
       const obsoleta =
         !r.phone || !r.active || r.removed || (r.state !== "active" && r.state !== "whatsapp_verified") ||
         // quem PAROU não recebe avisos agendados (o link de primeiro acesso, pedido por um administrador, é a exceção)
         (r.optOut !== null && r.o.kind !== "first_access_link") ||
-        r.o.claimCount >= MAX_ENTREGAS || (typeof doseId === "string" && !abertas.has(doseId));
+        r.o.claimCount >= MAX_ENTREGAS || (typeof doseId === "string" && !abertas.has(doseId)) ||
+        // grupo: se TODAS as doses já foram resolvidas (portal ou WhatsApp), não há o que lembrar
+        (idsGrupo.length > 0 && !idsGrupo.some((id) => abertas.has(id)));
+      if (!obsoleta && idsGrupo.length > 0) {
+        const abertos = idsGrupo.filter((id) => abertas.has(id));
+        if (abertos.length < idsGrupo.length) reescrever.push({ r, abertos });
+      }
       (obsoleta ? descartar : boas).push(r);
+    }
+    // grupo com doses já resolvidas antes do envio: a mensagem sai só com as que continuam abertas (uma só = lembrete simples)
+    for (const { r, abertos } of reescrever) {
+      const itens = (Array.isArray(r.o.context["itens"]) ? (r.o.context["itens"] as Array<Record<string, string>>) : []).filter((i) => abertos.includes(String(i["doseId"])));
+      if (itens.length === 0) continue;
+      const i0 = itens[0]!;
+      const atrasada = r.o.context["atrasada"] === true;
+      const msg = itens.length === 1
+        ? (r.o.kind === "dose_missed" ? T.doseEsquecidaFamilia({ paciente: i0["paciente"]!, remedio: i0["remedio"]!, hora: i0["hora"]!, dose: i0["dose"]! }) : T.lembreteDose({ paciente: i0["paciente"]!, remedio: i0["remedio"]!, hora: i0["hora"]!, dose: i0["dose"]!, atrasada }))
+        : (r.o.kind === "dose_missed" ? T.doseEsquecidaGrupo({ paciente: i0["paciente"]!, hora: i0["hora"]!, doses: itens.map((i) => ({ remedio: i["remedio"]!, dose: i["dose"]! })) }) : T.lembreteGrupo({ paciente: i0["paciente"]!, hora: i0["hora"]!, atrasada, doses: itens.map((i) => ({ remedio: i["remedio"]!, dose: i["dose"]! })) }));
+      const context = itens.length === 1
+        ? { doseId: i0["doseId"]!, tipo: r.o.context["tipo"] ?? "base", atrasada }
+        : { ...r.o.context, doseIds: itens.map((i) => i["doseId"]!), itens };
+      r.o = { ...r.o, body: msg.texto, options: opcoesDe(msg), context };
+      if (opts.reivindicar) await tx.update(s.outboundMessages).set({ body: r.o.body, options: r.o.options, context }).where(eq(s.outboundMessages.id, r.o.id));
     }
     if (opts.reivindicar && descartar.length) await tx.update(s.outboundMessages).set({ discardedAt: agora }).where(inArray(s.outboundMessages.id, descartar.map((r) => r.o.id)));
     if (opts.reivindicar && boas.length) {
@@ -294,16 +406,10 @@ export async function pendentes(
   });
 
   if (opts.reivindicar) {
-    // o "1" e o "2" da resposta passam a significar esta dose/este remédio
+    // o "1", "2" e "3" da resposta passam a significar esta dose, este grupo de doses ou este remédio
     for (const r of entregues) {
-      const doseId = r.o.context["doseId"];
-      const medicationId = r.o.context["medicationId"];
-      if (typeof doseId === "string" || typeof medicationId === "string") {
-        await lembrarNoContexto(familyId, r.o.memberId, {
-          ...(typeof doseId === "string" && r.o.kind === "dose_reminder" ? { doseId } : {}),
-          ...(typeof medicationId === "string" && r.o.options.length ? { medicationId } : {}),
-        }, agora);
-      }
+      const add = adicaoDeMensagem(r.o.kind, r.o.context, r.o.options.length > 0);
+      if (add.doseId || add.medicationId || add.grupo) await lembrarNoContexto(familyId, r.o.memberId, add, agora);
     }
   }
   return entregues.map((r): MensagemPendente => ({

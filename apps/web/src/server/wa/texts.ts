@@ -126,12 +126,12 @@ export const avisoReposicao = (p: { titulo: string; corpo: string }): Resposta =
 
 export function resumoDiario(p: {
   data: string;
-  pacientes: Array<{ nome: string; tomadas: number; esquecidas: number; pendentes: number }>;
+  pacientes: Array<{ nome: string; tomadas: number; esquecidas: number; pendentes: number; puladas?: number }>;
   estoqueCritico: EstoqueLinha[];
 }): Resposta {
   const partes = [titulo("🌙", `Resumo do dia — ${p.data}`)];
   for (const pt of p.pacientes) {
-    partes.push(`• ${pt.nome}: ${pt.tomadas} ${plural(pt.tomadas, "tomada", "tomadas")}, ${pt.esquecidas} ${plural(pt.esquecidas, "esquecida", "esquecidas")}${pt.pendentes > 0 ? `, ${pt.pendentes} ${plural(pt.pendentes, "pendente", "pendentes")}` : ""}`);
+    partes.push(`• ${pt.nome}: ${pt.tomadas} ${plural(pt.tomadas, "tomada", "tomadas")}, ${pt.esquecidas} ${plural(pt.esquecidas, "esquecida", "esquecidas")}${pt.pendentes > 0 ? `, ${pt.pendentes} ${plural(pt.pendentes, "pendente", "pendentes")}` : ""}${(pt.puladas ?? 0) > 0 ? `, ${pt.puladas} ${plural(pt.puladas!, "pulada", "puladas")}` : ""}`);
   }
   if (p.estoqueCritico.length > 0) {
     partes.push("", "🔴 Estoque crítico:");
@@ -214,3 +214,66 @@ O assistente de perguntas está pausado neste mês. O administrador já foi avis
 export const assistenteErro = (): Resposta => ({ texto: "Não consegui responder agora. Tente de novo em instantes, por favor." });
 export const assistenteRecusou = (): Resposta => ({ texto: "Não consigo ajudar com isso por aqui. Para dúvidas sobre remédios, fale com o médico ou o farmacêutico." });
 export const assistenteLonga = (): Resposta => ({ texto: "A resposta ficou longa demais. Pode perguntar de um jeito mais específico?" });
+
+/* ---------------------------------------------------------------- vários remédios juntos (grupo) e "um por um" */
+
+export interface DoseItem {
+  remedio: string;
+  /** quantidade da dose já formatada ("1 comprimido") */
+  dose?: string;
+}
+
+/** "Losartana e Omeprazol" / "A, B e C". */
+export const listaDeNomes = (nomes: string[]): string => (nomes.length <= 1 ? (nomes[0] ?? "") : `${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]}`);
+
+const itensDe = (doses: DoseItem[]) => doses.map((d) => `• ${d.remedio}${d.dose ? `, ${d.dose}` : ""}`).join("\n");
+
+/** Lembrete de VÁRIAS doses do mesmo paciente e horário numa mensagem só. */
+export function lembreteGrupo(p: { paciente: string; hora: string; doses: DoseItem[]; atrasada?: boolean; minutos?: number }): Resposta {
+  const cab = p.atrasada ? titulo("⏰", `Remédios atrasados — ${p.paciente} (${p.hora})`) : titulo("⏰", `Hora dos remédios — ${p.paciente} (${p.hora})`);
+  return comOpcoes(`${cab}\n${itensDe(p.doses)}`, ["Tomei todos", "Vou confirmar um por um", `Lembrar daqui a ${p.minutos ?? 15} min`]);
+}
+
+/** Aviso à família: várias doses do mesmo paciente e horário não foram confirmadas. */
+export function doseEsquecidaGrupo(p: { paciente: string; hora: string; doses: DoseItem[] }): Resposta {
+  return comOpcoes(
+    `${titulo("🔴", `Remédios esquecidos — ${p.paciente} (${p.hora})`)}\n${itensDe(p.doses)}\nNão foram confirmados. Se ${p.paciente} já tomou, responda:`,
+    ["Já tomou todos"],
+  );
+}
+
+export const grupoAnotado = (p: { paciente: string; hora: string; remedios: string[] }): Resposta => ({
+  texto: `${titulo("✅", "Anotado")}\n${listaDeNomes(p.remedios)} (${p.paciente}, ${p.hora}). Obrigado!`,
+});
+
+export const dosesJaAnotadas = (): Resposta => ({ texto: `${titulo("ℹ️", "Já anotado")}\nEssas doses já foram anotadas. Nada foi feito de novo.` });
+
+export const lembrarGrupo = (p: { paciente: string; hora: string; minutos: number; horaLembrete: string }): Resposta => ({
+  texto: `${titulo("⏳", "Combinado")}\nLembro de novo em ${p.minutos} min (às ${p.horaLembrete}): ${p.paciente}, remédios das ${p.hora}.`,
+});
+
+/** Menu repetido quando "tomei" vale para vários remédios do mesmo horário: nunca adivinha. */
+export function menuGrupo(p: { paciente: string; hora: string; doses: DoseItem[] }): Resposta {
+  return comOpcoes(`${titulo("❓", `Qual você quer anotar — ${p.paciente} (${p.hora})?`)}\n${itensDe(p.doses)}`, ["Tomei todos", "Vou confirmar um por um", "Lembrar daqui a 15 min"]);
+}
+
+/** Pergunta do fluxo "um por um" (dose por dose). */
+export function perguntaUm(p: { paciente: string; hora: string; remedio: string; dose?: string; n: number; total: number }): Resposta {
+  return comOpcoes(
+    `${titulo("💊", `${p.remedio} — ${p.paciente} (${p.hora})`)}${p.total > 1 ? ` · ${p.n} de ${p.total}` : ""}${p.dose ? `\n${p.dose}.` : ""}`,
+    ["Tomei", "Lembrar daqui a 15 min", "Não vou tomar"],
+  );
+}
+
+export const respostaUm = (r: "tomou" | "lembrar" | "pulou", remedio: string, horaLembrete?: string): string =>
+  r === "tomou" ? `✅ ${remedio} anotado.` : r === "lembrar" ? `🔁 ${remedio}: lembro às ${horaLembrete ?? "daqui a pouco"}.` : `⏭️ ${remedio}: anotei que não vai tomar.`;
+
+/** Fim do "um por um": uma linha de resumo ("Losartana ✅, Omeprazol 🔁 lembrar às 08:15"). */
+export function resumoUmPorUm(p: { paciente: string; hora: string; feitos: Array<{ remedio: string; r: "tomou" | "lembrar" | "pulou"; hora?: string }> }): Resposta {
+  const linha = p.feitos.map((f) => `${f.remedio} ${f.r === "tomou" ? "✅" : f.r === "lembrar" ? `🔁 lembrar às ${f.hora ?? "daqui a pouco"}` : "⏭️ não vai tomar"}`).join(", ");
+  return { texto: `${titulo("✅", `Pronto — ${p.paciente} (${p.hora})`)}\n${linha}.` };
+}
+
+export const dosePulada = (p: { paciente: string; remedio: string }): Resposta => ({
+  texto: `${titulo("⏭️", "Anotado")}\n${p.paciente}: ${p.remedio} não será tomado. Fica no histórico do portal.`,
+});

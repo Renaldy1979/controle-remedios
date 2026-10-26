@@ -6,14 +6,15 @@ import {
 import * as s from "@medcuidar/pg/schema";
 import { can } from "@medcuidar/shared";
 import { ForbiddenError, UserError, isUniqueViolation } from "../pg/errors";
-import { confirmDose, snoozeDose } from "../pg/doses";
+import { confirmDose, skipDose, snoozeDose } from "../pg/doses";
 import { claim } from "../pg/replenishment";
 import { membrosPorVariantes, resolveSender, type WaActor } from "./actor";
 import { variantesBr } from "./provider/telefone";
 import { issueFirstAccessLink } from "./first-access";
 import { findMentions, interpretText, parseCode, parseOption, type Intent } from "./interpret";
+import { janelaGrupoMs } from "./fila";
 import {
-  candidatasConfirmacao, horaLocal, proximasDosesHoje, visaoEstoque, type DoseAberta,
+  candidatasConfirmacao, dosesAbertas, horaLocal, proximasDosesHoje, visaoEstoque, type DoseAberta,
 } from "./queries";
 import { apagarContexto, gravarContexto, lerContexto, type ConvCtx } from "./state";
 import * as T from "./texts";
@@ -176,7 +177,9 @@ async function responderEscolha(actor: WaActor, ctx: ConvCtx, n: number, message
 }
 
 async function responderOpcao(actor: WaActor, ctx: ConvCtx, n: number, messageId: string, now: Date): Promise<T.Resposta> {
+  if (ctx.um) return passoUm(actor, ctx, n, messageId, now);
   if (ctx.choose) return responderEscolha(actor, ctx, n, messageId, now);
+  if (ctx.grupo) return responderGrupo(actor, ctx, n, messageId, now);
   const abertas = ctx.doseIds.length ? (await candidatasConfirmacao(actor, now)).filter((d) => ctx.doseIds.includes(d.id)) : [];
   if (abertas.length > 0) {
     if (n === 1) return agirSobreDoses(actor, ctx, "tomei", abertas, messageId, now);
@@ -186,6 +189,136 @@ async function responderOpcao(actor: WaActor, ctx: ConvCtx, n: number, messageId
   if (ctx.medIds.length > 0 && n === 1) return intentEuCuido(actor, ctx, now);
   // "1" sem nenhuma pergunta recente não é adivinhado
   return T.ajuda();
+}
+
+
+/* ------------------------------------------------------------------ vários remédios juntos: "Tomei todos", "um por um", "lembrar" */
+
+const itensTexto = (ds: DoseAberta[]) => ds.map((d) => ({ remedio: d.remedio, dose: d.dose }));
+
+/** Doses do mesmo paciente e horário (janela de `WHATSAPP_GRUPO_JANELA_MIN`, padrão 10 min a partir da primeira) formam um grupo. */
+function agruparDoses(doses: DoseAberta[]): DoseAberta[][] {
+  const janela = janelaGrupoMs();
+  const grupos: DoseAberta[][] = [];
+  for (const d of [...doses].sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime() || a.remedio.localeCompare(b.remedio, "pt-BR") || a.id.localeCompare(b.id))) {
+    const g = grupos.find((x) => x[0]!.patientId === d.patientId && d.scheduledAt.getTime() - x[0]!.scheduledAt.getTime() <= janela);
+    if (g) g.push(d);
+    else grupos.push([d]);
+  }
+  return grupos;
+}
+
+/** As doses pedidas que CONTINUAM abertas (resolvidas no portal ou antes pelo WhatsApp ficam de fora), na ordem pedida. */
+async function dosesAindaAbertas(actor: WaActor, ids: string[], now: Date): Promise<DoseAberta[]> {
+  const lista = await withFamilia(actor.familyId, (tx) =>
+    dosesAbertas(tx, actor.timezone, actor.settings, now, { de: new Date(now.getTime() - 48 * 3600_000), ate: new Date(now.getTime() + 3600_000) }));
+  return ids.map((id) => lista.find((d) => d.id === id)).filter((d): d is DoseAberta => !!d);
+}
+
+async function salvarCtx(actor: WaActor, ctx: ConvCtx, now: Date): Promise<void> {
+  await withFamilia(actor.familyId, async (tx) => {
+    if (ctx.doseIds.length || ctx.medIds.length || ctx.choose || ctx.grupo || ctx.um) await gravarContexto(tx, actor.familyId, actor.memberId, ctx, now);
+    else await apagarContexto(tx, actor.memberId);
+  });
+}
+
+/** Resolvidas as doses: tira-as do contexto e apaga os menus (grupo, um por um, escolha). */
+async function limparDoses(actor: WaActor, ctx: ConvCtx, now: Date, ids: string[]): Promise<void> {
+  await salvarCtx(actor, { doseIds: ctx.doseIds.filter((d) => !ids.includes(d)), medIds: ctx.medIds }, now);
+}
+
+/** O menu do grupo (1 Tomei todos · 2 Um por um · 3 Lembrar daqui a 15 min). Reenviado quando "tomei" é ambíguo: nunca adivinha. */
+async function mostrarMenuGrupo(actor: WaActor, ctx: ConvCtx, grupo: DoseAberta[], now: Date): Promise<T.Resposta> {
+  await salvarCtx(actor, { doseIds: ctx.doseIds, medIds: ctx.medIds, grupo: { ids: grupo.map((d) => d.id) } }, now);
+  return T.menuGrupo({ paciente: grupo[0]!.paciente, hora: grupo[0]!.hora, doses: itensTexto(grupo) });
+}
+
+async function confirmarTodas(actor: WaActor, ctx: ConvCtx, ids: string[], messageId: string, now: Date): Promise<T.Resposta> {
+  const abertas = await dosesAindaAbertas(actor, ids, now);
+  if (abertas.length === 0) {
+    await limparDoses(actor, ctx, now, ids);
+    return T.dosesJaAnotadas();
+  }
+  // uma confirmação por dose, cada uma idempotente pela MESMA mensagem + id da dose (repetir não baixa o estoque de novo)
+  for (const d of abertas) await confirmDose(actor, d.id, now, { channel: "whatsapp", sourceMessageId: `wa:${actor.familyId}:${messageId}:${d.id}` });
+  await limparDoses(actor, ctx, now, ids);
+  return T.grupoAnotado({ paciente: abertas[0]!.paciente, hora: abertas[0]!.hora, remedios: abertas.map((d) => d.remedio) });
+}
+
+async function adiarTodas(actor: WaActor, ctx: ConvCtx, ids: string[], now: Date): Promise<T.Resposta> {
+  const abertas = (await dosesAindaAbertas(actor, ids, now)).filter((d) => d.status !== "missed");
+  if (abertas.length === 0) {
+    await limparDoses(actor, ctx, now, ids);
+    return T.dosesJaAnotadas();
+  }
+  for (const d of abertas) await snoozeDose(actor, d.id, SNOOZE_PADRAO, now);
+  await limparDoses(actor, ctx, now, ids);
+  return T.lembrarGrupo({ paciente: abertas[0]!.paciente, hora: abertas[0]!.hora, minutos: SNOOZE_PADRAO, horaLembrete: horaLocal(new Date(now.getTime() + SNOOZE_PADRAO * 60_000), actor.timezone) });
+}
+
+const resp = (texto: string, r: T.Resposta): T.Resposta => ({ texto, ...(r.opcoes ? { opcoes: r.opcoes } : {}) });
+
+/** "Um por um": pergunta dose por dose (1 Tomei · 2 Lembrar daqui a 15 min · 3 Não vou tomar). */
+async function iniciarUm(actor: WaActor, ctx: ConvCtx, ids: string[], now: Date): Promise<T.Resposta> {
+  const abertas = await dosesAindaAbertas(actor, ids, now);
+  if (abertas.length === 0) {
+    await limparDoses(actor, ctx, now, ids);
+    return T.dosesJaAnotadas();
+  }
+  const d0 = abertas[0]!;
+  await salvarCtx(actor, { doseIds: ctx.doseIds, medIds: ctx.medIds, um: { fila: abertas.map((d) => d.id), feitos: [], paciente: d0.paciente, hora: d0.hora } }, now);
+  return T.perguntaUm({ paciente: d0.paciente, hora: d0.hora, remedio: d0.remedio, dose: d0.dose, n: 1, total: abertas.length });
+}
+
+async function passoUm(actor: WaActor, ctx: ConvCtx, n: number, messageId: string, now: Date): Promise<T.Resposta> {
+  const um = ctx.um!;
+  if (n < 1 || n > 3) return T.respostaLivre();
+  const [d] = await dosesAindaAbertas(actor, [um.fila[0]!], now);
+  const feitos = [...um.feitos];
+  let linha = "";
+  if (d) {
+    if (n === 1) {
+      await confirmDose(actor, d.id, now, { channel: "whatsapp", sourceMessageId: `wa:${actor.familyId}:${messageId}:${d.id}` });
+      feitos.push({ id: d.id, remedio: d.remedio, r: "tomou" });
+      linha = T.respostaUm("tomou", d.remedio);
+    } else if (n === 2) {
+      await snoozeDose(actor, d.id, SNOOZE_PADRAO, now);
+      const hora = horaLocal(new Date(now.getTime() + SNOOZE_PADRAO * 60_000), actor.timezone);
+      feitos.push({ id: d.id, remedio: d.remedio, r: "lembrar", hora });
+      linha = T.respostaUm("lembrar", d.remedio, hora);
+    } else {
+      await skipDose(actor, d.id, now, { channel: "whatsapp", reason: "informado pelo WhatsApp pela própria pessoa" });
+      feitos.push({ id: d.id, remedio: d.remedio, r: "pulou" });
+      linha = T.respostaUm("pulou", d.remedio);
+    }
+  }
+  const proximas = await dosesAindaAbertas(actor, um.fila.slice(1), now);
+  if (proximas.length === 0) {
+    await limparDoses(actor, ctx, now, [...um.feitos.map((f) => f.id), um.fila[0]!]);
+    return feitos.length ? T.resumoUmPorUm({ paciente: um.paciente, hora: um.hora, feitos }) : T.dosesJaAnotadas();
+  }
+  await salvarCtx(actor, { doseIds: ctx.doseIds, medIds: ctx.medIds, um: { ...um, fila: proximas.map((x) => x.id), feitos } }, now);
+  const p = proximas[0]!;
+  const total = feitos.length + proximas.length;
+  const pergunta = T.perguntaUm({ paciente: p.paciente, hora: p.hora, remedio: p.remedio, dose: p.dose, n: feitos.length + 1, total });
+  return resp(linha ? `${linha}\n\n${pergunta.texto}` : pergunta.texto, pergunta);
+}
+
+/** Resposta numérica ao menu do GRUPO: 1 todos · 2 um por um · 3 lembrar (esquecida à família: só 1 vale). */
+async function responderGrupo(actor: WaActor, ctx: ConvCtx, n: number, messageId: string, now: Date): Promise<T.Resposta> {
+  const g = ctx.grupo!;
+  if (n === 1) return confirmarTodas(actor, ctx, g.ids, messageId, now);
+  if (g.esquecida) return T.respostaLivre();
+  if (n === 2) return iniciarUm(actor, ctx, g.ids, now);
+  if (n === 3) return adiarTodas(actor, ctx, g.ids, now);
+  return T.respostaLivre();
+}
+
+/** Alvo de "tomei todos" / "um por um" digitados: o grupo do menu em aberto ou, sem ele, o ÚNICO grupo de doses abertas. null = ambíguo. */
+async function alvoDoGrupo(actor: WaActor, ctx: ConvCtx, now: Date): Promise<string[] | null> {
+  if (ctx.grupo) return ctx.grupo.ids;
+  const grupos = agruparDoses(await candidatasConfirmacao(actor, now));
+  return grupos.length === 1 ? grupos[0]!.map((d) => d.id) : null;
 }
 
 /** Doses abertas filtradas pelo que a pessoa citou (remédio/paciente), se citou algo que existe. */
@@ -256,6 +389,11 @@ async function rotear(actor: WaActor, intent: Intent, texto: string, messageId: 
   const ctx = await withFamilia(actor.familyId, (tx) => lerContexto(tx, actor.memberId, now));
   const ok = (r: T.Resposta, i: ConversaResultado["intent"] = intent): ConversaResultado => ({ respostas: [r], intent: i });
 
+  // no "um por um" as palavras também respondem à pergunta em aberto (tomei = 1, depois = 2, não vou tomar = 3)
+  if (ctx.um && (intent === "dose_tomada" || intent === "lembrar_depois" || intent === "pular" || intent === "nao_tomou")) {
+    return ok(await passoUm(actor, ctx, intent === "dose_tomada" ? 1 : intent === "lembrar_depois" ? 2 : 3, messageId, now));
+  }
+
   switch (intent) {
     case "codigo":
       return ok({ texto: `${T.titulo("✅", "Número já verificado")}\nSeu número já está ligado ao MedCuidar.` });
@@ -263,11 +401,31 @@ async function rotear(actor: WaActor, intent: Intent, texto: string, messageId: 
       return ok(await responderOpcao(actor, ctx, parseOption(texto)!, messageId, now));
     case "dose_tomada": {
       const doses = await filtrarPorMencao(actor, texto, await candidatasConfirmacao(actor, now));
+      // 2+ doses do MESMO paciente e horário: nunca adivinha, reenvia o menu (todos / um por um / lembrar)
+      if (doses.length >= 2) {
+        const grupos = agruparDoses(doses);
+        if (grupos.length === 1) return ok(await mostrarMenuGrupo(actor, ctx, grupos[0]!, now));
+      }
       return ok(await agirSobreDoses(actor, ctx, "tomei", doses, messageId, now));
     }
+    case "tomei_todos": {
+      const alvo = await alvoDoGrupo(actor, ctx, now);
+      if (alvo) return ok(await confirmarTodas(actor, ctx, alvo, messageId, now), "tomei_todos");
+      return ok(await agirSobreDoses(actor, ctx, "tomei", await candidatasConfirmacao(actor, now), messageId, now), "tomei_todos");
+    }
+    case "um_por_um": {
+      const alvo = await alvoDoGrupo(actor, ctx, now);
+      if (alvo) return ok(await iniciarUm(actor, ctx, alvo, now), "um_por_um");
+      return ok(await agirSobreDoses(actor, ctx, "tomei", await candidatasConfirmacao(actor, now), messageId, now), "um_por_um");
+    }
+    case "pular":
+      return ok(T.semRegistro(), "pular");
     case "lembrar_depois": {
       const todas = await candidatasConfirmacao(actor, now);
       const doses = await filtrarPorMencao(actor, texto, todas);
+      // várias doses do mesmo paciente e horário: "lembrar depois" vale para todas
+      const abertas = doses.filter((d) => d.status !== "missed");
+      if (abertas.length >= 2 && agruparDoses(abertas).length === 1) return ok(await adiarTodas(actor, ctx, abertas.map((d) => d.id), now));
       return ok(await agirSobreDoses(actor, ctx, "lembrar", doses, messageId, now));
     }
     case "nao_tomou":

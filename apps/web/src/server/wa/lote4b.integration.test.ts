@@ -11,7 +11,7 @@ import { listarFamiliasComWhatsapp, tentarTravaConsultiva, withFamilia } from "@
 import * as s from "@medcuidar/pg/schema";
 import { bancoDisponivel, conectarAdmin, encerrar, limparFamilias, limparFamiliasAntigasDeTeste, prepararBanco, telefoneAleatorio, type Admin } from "@medcuidar/pg-testing";
 import { SYSTEM_PROFILES, familySettingsSchema, type PermissionMap } from "@medcuidar/shared";
-import { ensureDosesForDay } from "../pg/doses";
+import { confirmDose, ensureDosesForDay } from "../pg/doses";
 import { createFamilyWithAdmin } from "../pg/families";
 import * as meds from "../pg/medications";
 import * as patients from "../pg/patients";
@@ -1365,6 +1365,218 @@ describe.skipIf(!up)("Lote 4B — WhatsApp direto no portal", () => {
       const item = (JSON.parse(x.conteudo) as { itens: Array<Record<string, unknown>> }).itens[0]!;
       expect(item).toMatchObject({ remedio: f.medName, quantidade: 10, quantidadeTexto: "10 comprimidos", unidade: "unit", via: "tablet", nivel: expect.any(String) });
       expect(typeof item["diasRestantes"]).toBe("number");
+    });
+  });
+
+
+  /* ------------------------------------------------------------ vários remédios lembrados juntos */
+  describe("lembrete agrupado: vários remédios do mesmo paciente e horário", () => {
+    /** Família com 2 remédios do Adelino às 06:00 (Zypred e Omeprazol) e 1 da Maria no mesmo horário. */
+    async function comGrupo(nome: string, comMaria = true) {
+      const f = await novaFamilia(nome);
+      const omep = await meds.createMedication(f.admin, { patientId: f.patientId, name: `Omeprazol${nome}`, alternatives: [], route: "tablet", controlUnit: "unit" });
+      await meds.saveScheme(f.admin, omep, { startDate: DAY, firstTime: "06:00", phases: [{ everyHours: 8, fromDay: 1, toDay: null, perDose: 1 }] });
+      await registerPurchase(f.admin, omep, 10, "Saldo inicial");
+      let losa = "";
+      if (comMaria) {
+        const maria = await patients.savePatient(f.admin, { name: `Maria${nome}`, birthDate: "", notes: "", usesPhone: false, selfMemberId: null });
+        losa = await meds.createMedication(f.admin, { patientId: maria, name: `Losartana${nome}`, alternatives: [], route: "tablet", controlUnit: "unit" });
+        await meds.saveScheme(f.admin, losa, { startDate: DAY, firstTime: "06:00", phases: [{ everyHours: 8, fromDay: 1, toDay: null, perDose: 1 }] });
+        await registerPurchase(f.admin, losa, 10, "Saldo inicial");
+      }
+      await ensureDosesForDay(f.familyId, DAY);
+      const dose = async (medId: string) => ((await admin`select id from dose_events where family_id = ${f.familyId} and medication_id = ${medId} order by scheduled_at limit 1`)[0]!["id"]) as string;
+      const saldoDe = async (medId: string) => ((await admin`select coalesce(sum(m.quantity), 0)::float8 as total from stock_movements m join stock_items i on i.id = m.stock_item_id where i.family_id = ${f.familyId} and i.medication_id = ${medId}`)[0]!["total"]) as number;
+      return { f, omep, losa, zyp: f.medId, doseZyp: await dose(f.medId), doseOmep: await dose(omep), doseLosa: losa ? await dose(losa) : "", saldoDe, nome, portal: actorDe(f.familyId, f.adminId, "Administrador", "Admin") };
+    }
+    const entrega = async (f: Fam, agora = T0610) => pendentes(f.familyId, { reivindicar: true, agora });
+    const doGrupo = (lista: Awaited<ReturnType<typeof pendentes>>, familyId: string, texto: string) => lista.find((m) => m.tipo === "dose_reminder" && m.texto.includes(texto));
+
+    it("mesmo paciente e horário = UMA mensagem com a lista; paciente diferente fica separado; uma dose só usa o lembrete simples", async () => {
+      const g = await comGrupo("Agrupa");
+      const lista = (await entrega(g.f)).filter((m) => m.membroId === g.f.adminId && m.tipo === "dose_reminder");
+      expect(lista).toHaveLength(2);
+      const adelino = lista.find((m) => m.texto.includes(`Adelino${g.nome}`))!;
+      expect(adelino.texto).toContain("Hora dos remédios");
+      expect(adelino.texto).toContain(g.f.medName);
+      expect(adelino.texto).toContain(`Omeprazol${g.nome}`);
+      expect(adelino.opcoes.map((o) => o.rotulo)).toEqual(["Tomei todos", "Vou confirmar um por um", "Lembrar daqui a 15 min"]);
+      const maria = lista.find((m) => m.texto.includes(`Maria${g.nome}`))!;
+      expect(maria.texto).toContain("Hora do remédio"); // uma dose só: lembrete simples de sempre
+      expect(maria.texto).not.toContain(g.f.medName);
+      // gerar de novo não repete (dedupe por grupo)
+      await gerarMensagens(g.f.familyId, T0610);
+      expect((await admin`select count(*)::int as n from outbound_messages where family_id = ${g.f.familyId} and member_id = ${g.f.adminId} and kind = 'dose_reminder'`)[0]!["n"]).toBe(2);
+      const [ctx] = await admin`select context from outbound_messages where family_id = ${g.f.familyId} and body like '%Hora dos remédios%'`;
+      expect((ctx!["context"] as { doseIds: string[] }).doseIds.sort()).toEqual([g.doseZyp, g.doseOmep].sort()); // rastreabilidade por dose
+    });
+
+    it("dose já confirmada no portal ANTES do envio sai do grupo (sobrando uma, vira o lembrete simples; nenhuma, descarta)", async () => {
+      const g = await comGrupo("SaiGrupo");
+      await gerarMensagens(g.f.familyId, T0610);
+      await confirmDose(g.portal, g.doseOmep, T0610, { channel: "panel" });
+      const lista = (await entrega(g.f)).filter((m) => m.membroId === g.f.adminId && m.tipo === "dose_reminder" && m.texto.includes(`Adelino${g.nome}`));
+      expect(lista).toHaveLength(1);
+      expect(lista[0]!.texto).toContain("Hora do remédio");
+      expect(lista[0]!.texto).toContain(g.f.medName);
+      expect(lista[0]!.texto).not.toContain(`Omeprazol${g.nome}`);
+      const g2 = await comGrupo("SaiTodos");
+      await gerarMensagens(g2.f.familyId, T0610);
+      await confirmDose(g2.portal, g2.doseZyp, T0610, { channel: "panel" });
+      await confirmDose(g2.portal, g2.doseOmep, T0610, { channel: "panel" });
+      const l2 = (await entrega(g2.f)).filter((m) => m.tipo === "dose_reminder" && m.texto.includes(`Adelino${g2.nome}`));
+      expect(l2).toHaveLength(0);
+    });
+
+    it("'1' confirma TODAS as doses do grupo, uma só resposta, e a MESMA mensagem repetida não baixa o estoque de novo", async () => {
+      const g = await comGrupo("Todos");
+      await entrega(g.f);
+      const { d } = deps();
+      const mm = msgTexto(g.f.adminPhone, "1");
+      const r = await processarEntrada(mm, d.nucleo);
+      expect(r.respostas).toHaveLength(1);
+      expect(r.respostas[0]).toContain("Anotado");
+      expect(r.respostas[0]).toContain(`Omeprazol${g.nome} e ${g.f.medName}`);
+      expect(r.respostas[0]).toContain(`Adelino${g.nome}, 06:00`);
+      expect(await g.saldoDe(g.zyp)).toBe(9);
+      expect(await g.saldoDe(g.omep)).toBe(9);
+      const rep = await processarEntrada(mm, d.nucleo);
+      expect(rep.intent).toBe("repetida");
+      expect(await g.saldoDe(g.zyp)).toBe(9);
+      expect(await g.saldoDe(g.omep)).toBe(9);
+      expect(await g.saldoDe(g.losa)).toBe(10); // a Maria é outra mensagem
+    });
+
+    it("'tomei todos' e 'todos' também confirmam o grupo (sem menu em aberto, se há um grupo só)", async () => {
+      const g = await comGrupo("TomeiTodos", false); // só o grupo do Adelino
+      const { d } = deps();
+      const r = await processarEntrada(msgTexto(g.f.adminPhone, "tomei todos"), d.nucleo);
+      expect(r.intent).toBe("tomei_todos");
+      expect(r.respostas[0]).toContain("Anotado");
+      expect(await g.saldoDe(g.zyp)).toBe(9);
+      expect(await g.saldoDe(g.omep)).toBe(9);
+    });
+
+    it("'tomei' digitado com 2+ doses do mesmo grupo NUNCA adivinha: reenvia o menu; citando o remédio, confirma só aquele", async () => {
+      const g = await comGrupo("Ambiguo", false);
+      const { d } = deps();
+      const r = await processarEntrada(msgTexto(g.f.adminPhone, "tomei"), d.nucleo);
+      expect(r.respostas[0]).toContain("Qual você quer anotar");
+      expect(r.respostas[0]).toContain("*1* — Tomei todos");
+      expect(r.respostas[0]).toContain("*2* — Vou confirmar um por um");
+      expect(r.respostas[0]).toContain("*3* — Lembrar daqui a 15 min");
+      expect(await g.saldoDe(g.zyp)).toBe(10);
+      expect(await g.saldoDe(g.omep)).toBe(10);
+      const so = await processarEntrada(msgTexto(g.f.adminPhone, `tomei ${g.f.medName}`), d.nucleo);
+      expect(so.respostas[0]).toContain("Anotado");
+      expect(await g.saldoDe(g.zyp)).toBe(9);
+      expect(await g.saldoDe(g.omep)).toBe(10);
+    });
+
+    it("'um por um': pergunta dose por dose (1 Tomei · 2 Lembrar · 3 Não vou tomar) e resume no fim; pulada não baixa estoque nem vira 'esquecida'", async () => {
+      const g = await comGrupo("UmPorUm", false);
+      await entrega(g.f);
+      const { d } = deps();
+      const r2 = await processarEntrada(msgTexto(g.f.adminPhone, "2"), d.nucleo);
+      expect(r2.respostas[0]).toContain(`Omeprazol${g.nome}`);
+      expect(r2.respostas[0]).toContain("1 de 2");
+      expect(r2.respostas[0]).toContain("*1* — Tomei");
+      expect(r2.respostas[0]).toContain("*2* — Lembrar daqui a 15 min");
+      expect(r2.respostas[0]).toContain("*3* — Não vou tomar");
+      const r3 = await processarEntrada(msgTexto(g.f.adminPhone, "1"), d.nucleo); // Tomei o primeiro (Omeprazol)
+      expect(r3.respostas[0]).toContain(`✅ Omeprazol${g.nome} anotado.`);
+      expect(r3.respostas[0]).toContain(g.f.medName);
+      expect(r3.respostas[0]).toContain("2 de 2");
+      const r4 = await processarEntrada(msgTexto(g.f.adminPhone, "3"), d.nucleo); // Não vou tomar o segundo (Zypred)
+      expect(r4.respostas[0]).toContain("Pronto");
+      expect(r4.respostas[0]).toContain(`Omeprazol${g.nome} ✅`);
+      expect(r4.respostas[0]).toContain(`${g.f.medName} ⏭️ não vai tomar`);
+      expect(await g.saldoDe(g.omep)).toBe(9);
+      expect(await g.saldoDe(g.zyp)).toBe(10); // pulada: sem baixa
+      const [pulada] = await admin`select status, skipped_reason, channel, confirmed_by_member_id from dose_events where id = ${g.doseZyp}`;
+      expect(pulada).toMatchObject({ status: "skipped", channel: "whatsapp", confirmed_by_member_id: g.f.adminId });
+      expect(String(pulada!["skipped_reason"])).toContain("WhatsApp pela própria pessoa");
+      // nenhum aviso de "esquecida" para quem foi pulada ou tomada, mesmo passadas as 2 h
+      await gerarMensagens(g.f.familyId, new Date("2026-10-19T12:30:00Z"));
+      const esq = await admin`select context from outbound_messages where family_id = ${g.f.familyId} and kind = 'dose_missed'`;
+      const ids = esq.flatMap((x) => { const c = x["context"] as { doseId?: string; doseIds?: string[] }; return [c.doseId, ...(c.doseIds ?? [])]; });
+      expect(ids).not.toContain(g.doseZyp);
+      expect(ids).not.toContain(g.doseOmep);
+      // e o resumo diário mostra a pulada
+      await gerarMensagens(g.f.familyId, new Date("2026-10-19T23:30:00Z"));
+      const [res] = await admin`select body from outbound_messages where family_id = ${g.f.familyId} and kind = 'daily_summary' limit 1`;
+      expect(String(res!["body"])).toContain("1 pulada");
+    });
+
+    it("'um por um' com 'Lembrar daqui a 15 min': a dose é adiada (remind_again_at) e o resumo diz a hora", async () => {
+      const g = await comGrupo("UmLembrar", false);
+      await entrega(g.f);
+      const { d } = deps();
+      await processarEntrada(msgTexto(g.f.adminPhone, "2"), d.nucleo);
+      const a = await processarEntrada(msgTexto(g.f.adminPhone, "1"), d.nucleo); // Omeprazol: tomei
+      expect(a.respostas[0]).toContain("anotado");
+      const b = await processarEntrada(msgTexto(g.f.adminPhone, "2"), d.nucleo); // Zypred: lembrar
+      expect(b.respostas[0]).toContain("Pronto");
+      expect(b.respostas[0]).toMatch(new RegExp(`${g.f.medName} 🔁 lembrar às 06:25`));
+      const [x] = await admin`select remind_again_at from dose_events where id = ${g.doseZyp}`;
+      expect(x!["remind_again_at"]).not.toBeNull();
+    });
+
+    it("'3' no menu do grupo adia TODAS as doses; resposta atrasada (doses já resolvidas no portal) diz que já foram anotadas", async () => {
+      const g = await comGrupo("TresAtraso", false);
+      await entrega(g.f);
+      const { d } = deps();
+      const r = await processarEntrada(msgTexto(g.f.adminPhone, "3"), d.nucleo);
+      expect(r.respostas[0]).toContain("Lembro de novo em 15 min");
+      const adiadas = await admin`select id from dose_events where family_id = ${g.f.familyId} and remind_again_at is not null`;
+      expect(adiadas).toHaveLength(2);
+      // resposta atrasada: o menu do grupo continua valendo?  não: foi usado. Novo grupo, resolvido no portal antes da resposta
+      const h = await comGrupo("Atraso", false);
+      await entrega(h.f);
+      await confirmDose(h.portal, h.doseZyp, T0610, { channel: "panel" });
+      await confirmDose(h.portal, h.doseOmep, T0610, { channel: "panel" });
+      const tarde = await processarEntrada(msgTexto(h.f.adminPhone, "1"), d.nucleo);
+      expect(tarde.respostas[0]).toContain("já foram anotadas");
+      expect(await h.saldoDe(h.zyp)).toBe(9); // só a baixa do portal, nenhuma a mais
+    });
+
+    it("o menu do grupo expira em 2 h: '1' depois disso não confirma nada", async () => {
+      const g = await comGrupo("Expira", false);
+      await entrega(g.f);
+      const { d } = deps();
+      const mais3h = { ...d.nucleo, agora: () => new Date(T0610.getTime() + 3 * 3600_000), agente: { ...d.nucleo.agente, agora: () => new Date(T0610.getTime() + 3 * 3600_000) } };
+      const r = await processarEntrada(msgTexto(g.f.adminPhone, "1"), mais3h);
+      expect(r.respostas[0]).not.toContain("Anotado");
+      expect(await g.saldoDe(g.zyp)).toBe(10);
+    });
+
+    it("aviso de dose ESQUECIDA à família: uma mensagem por paciente e horário, com a lista; '1' = já tomou todos", async () => {
+      const g = await comGrupo("Esquecida");
+      const outro = await pessoa(g.f.familyId, "Familiar", "Fam");
+      const tarde = new Date("2026-10-19T12:30:00Z"); // 09:30: passou de 2 h
+      const lista = (await pendentes(g.f.familyId, { reivindicar: true, agora: tarde })).filter((m) => m.tipo === "dose_missed" && m.membroId === g.f.adminId);
+      expect(lista).toHaveLength(2); // Adelino (2 remédios) + Maria (1)
+      const adelino = lista.find((m) => m.texto.includes(`Adelino${g.nome}`))!;
+      expect(adelino.texto).toContain("Remédios esquecidos");
+      expect(adelino.texto).toContain(g.f.medName);
+      expect(adelino.texto).toContain(`Omeprazol${g.nome}`);
+      expect(adelino.opcoes.map((o) => o.rotulo)).toEqual(["Já tomou todos"]);
+      expect(lista.find((m) => m.texto.includes(`Maria${g.nome}`))!.texto).toContain("Dose esquecida");
+      void outro;
+      const { d } = deps();
+      const nu = { ...d.nucleo, agora: () => tarde, agente: { ...d.nucleo.agente, agora: () => tarde } };
+      const r = await processarEntrada(msgTexto(g.f.adminPhone, "1"), nu);
+      expect(r.respostas[0]).toContain("Anotado");
+      expect(await g.saldoDe(g.zyp)).toBe(9);
+      expect(await g.saldoDe(g.omep)).toBe(9);
+    });
+
+    it("grupos de pacientes diferentes ficam separados: 'tomei' com doses de 2 pacientes mostra a lista de escolha, não o menu do grupo", async () => {
+      const g = await comGrupo("DoisPac");
+      const { d } = deps();
+      const r = await processarEntrada(msgTexto(g.f.adminPhone, "tomei"), d.nucleo);
+      expect(r.respostas[0]).toContain("Qual dose você tomou?");
+      expect(r.respostas[0]).not.toContain("Tomei todos");
     });
   });
 
