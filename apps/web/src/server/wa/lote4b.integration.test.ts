@@ -15,7 +15,7 @@ import { ensureDosesForDay } from "../pg/doses";
 import { createFamilyWithAdmin } from "../pg/families";
 import * as meds from "../pg/medications";
 import * as patients from "../pg/patients";
-import { registerPurchase } from "../pg/stock";
+import { adjustStock, registerPurchase } from "../pg/stock";
 import { contadores, loadWaActor, resolveSender, type WaActor } from "./actor";
 import { monitorarInstancia, registrarResultadoEnvio } from "./alertas";
 import { cicloAgendador } from "./agendador";
@@ -1312,6 +1312,60 @@ describe.skipIf(!up)("Lote 4B — WhatsApp direto no portal", () => {
     await processarEntrada(msgMidia(f.adminPhone, "audio"), d2.nucleo);
     expect(await lerRuntime<{ motivo: string | null }>("midia")).toMatchObject({ motivo: null });
     await admin`delete from whatsapp_runtime where key = 'midia'`;
+  });
+
+
+  /* ------------------------------------------------------------ quantidade restante nas respostas */
+  describe("estoque com a QUANTIDADE restante", () => {
+    it("'estoque' mostra comprimidos e dias; perguntas de quantidade com o nome do remédio filtram; sem menção lista tudo", async () => {
+      const f = await novaFamilia("Qtd");
+      const outro = await meds.createMedication(f.admin, { patientId: f.patientId, name: `Vitamina${f.medName.slice(-3)}`, alternatives: [], route: "tablet", controlUnit: "unit", requiresPrescription: false, initialStock: 60 });
+      void outro;
+      const { d } = deps();
+      const geral = await processarEntrada(msgTexto(f.adminPhone, "estoque"), d.nucleo);
+      expect(geral.respostas[0]).toContain(`${f.medName}: 10 comprimidos ·`);
+      expect(geral.respostas[0]).toContain("Vitamina");
+      const so = await processarEntrada(msgTexto(f.adminPhone, `quantos comprimidos de ${f.medName} eu tenho?`), d.nucleo);
+      expect(so.intent).toBe("estoque");
+      expect(so.respostas[0]).toContain("10 comprimidos");
+      expect(so.respostas[0]).not.toContain("Vitamina");
+      const paciente = await processarEntrada(msgTexto(f.adminPhone, `quanto resta do ${f.medName}`), d.nucleo);
+      expect(paciente.respostas[0]).toContain(`${f.medName}: 10 comprimidos`);
+    });
+
+    it("remédio citado sem estoque cadastrado: diz isso; permissão de estoque é respeitada", async () => {
+      const f = await novaFamilia("QtdSem");
+      const sem = await meds.createMedication(f.admin, { patientId: f.patientId, name: `Losartana${f.medName.slice(-3)}`, alternatives: [], route: "tablet", controlUnit: "unit", requiresPrescription: false });
+      void sem;
+      const { d } = deps();
+      const r = await processarEntrada(msgTexto(f.adminPhone, `quantos comprimidos de losartana${f.medName.slice(-3).toLowerCase()} eu tenho?`), d.nucleo);
+      expect(r.respostas[0]).toContain("Não há estoque cadastrado para Losartana");
+      // Confirmador não vê estoque: resposta de falta de permissão, sem números
+      const conf = await pessoa(f.familyId, "Confirmador", "Conf");
+      const r2 = await processarEntrada(msgTexto(conf.phone!, "quantos comprimidos eu tenho?"), d.nucleo);
+      expect(r2.respostas.join(" ")).not.toMatch(/comprimidos ·/);
+    });
+
+    it("aviso de estoque baixo e resumo trazem a quantidade restante", async () => {
+      const f = await novaFamilia("QtdBaixo");
+      await adjustStock(f.admin, f.medId, 2, "conferi", T0610);
+      await gerarMensagens(f.familyId, T0610);
+      const [m] = await admin`select body from outbound_messages where family_id = ${f.familyId} and kind = 'low_stock' limit 1`;
+      expect(String(m!["body"])).toMatch(/Restam 2 comprimidos \(/);
+      const noite = new Date("2026-10-19T23:30:00Z");
+      await gerarMensagens(f.familyId, noite);
+      const [r] = await admin`select body from outbound_messages where family_id = ${f.familyId} and kind = 'daily_summary' limit 1`;
+      expect(String(r!["body"])).toMatch(/Estoque crítico[\s\S]*2 comprimidos ·/);
+    });
+
+    it("a ferramenta do agente devolve quantidade, unidade, dias e nível", async () => {
+      const f = await novaFamilia("QtdFerr");
+      const a = await actorAdmin(f);
+      const x = await executarFerramenta(a, "consultar_estoque", {}, T0610);
+      const item = (JSON.parse(x.conteudo) as { itens: Array<Record<string, unknown>> }).itens[0]!;
+      expect(item).toMatchObject({ remedio: f.medName, quantidade: 10, quantidadeTexto: "10 comprimidos", unidade: "unit", via: "tablet", nivel: expect.any(String) });
+      expect(typeof item["diasRestantes"]).toBe("number");
+    });
   });
 
   it("(sanidade) loadWaActor de uma família inexistente devolve null", async () => {

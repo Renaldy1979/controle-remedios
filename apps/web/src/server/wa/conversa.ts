@@ -202,6 +202,29 @@ async function filtrarPorMencao(actor: WaActor, texto: string, doses: DoseAberta
   return r;
 }
 
+/**
+ * Estoque: sem menção, até 10 linhas por urgência; citando um remédio ou paciente (`findMentions`, como nas doses), só o que foi citado.
+ * Citou algo que existe mas não tem estoque cadastrado → diz isso. Respeita stock.view/whatsapp.query (em `visaoEstoque`).
+ */
+async function respostaEstoque(actor: WaActor, texto: string, now: Date): Promise<T.Resposta> {
+  const linhas = await visaoEstoque(actor, now);
+  const nomes = await withFamilia(actor.familyId, async (tx) => ({
+    meds: await tx.select({ id: s.medications.id, name: s.medications.name, alternativeNames: s.medications.alternativeNames }).from(s.medications).where(isNull(s.medications.deletedAt)),
+    pats: await tx.select({ id: s.patients.id, name: s.patients.name }).from(s.patients).where(isNull(s.patients.deletedAt)),
+  }));
+  const m = findMentions(texto, nomes.pats, nomes.meds);
+  if (m.medicationIds.length === 0 && m.patientIds.length === 0) return T.estoque(linhas.slice(0, 10));
+  let r = linhas;
+  if (m.medicationIds.length) r = r.filter((l) => m.medicationIds.includes(l.medicationId));
+  if (m.patientIds.length) r = r.filter((l) => m.patientIds.includes(l.patientId));
+  if (r.length > 0) return T.estoque(r.slice(0, 10));
+  const citados = [
+    ...m.medicationIds.map((id) => nomes.meds.find((x) => x.id === id)?.name),
+    ...(m.medicationIds.length ? [] : m.patientIds.map((id) => T.primeiroNome(nomes.pats.find((x) => x.id === id)?.name ?? ""))),
+  ].filter((x): x is string => !!x);
+  return T.estoqueNaoEncontrado(citados.length ? citados : ["o que você citou"]);
+}
+
 /** Processa a mensagem de um membro verificado. Idempotente por `messageId`. */
 export async function processarMensagem(actor: WaActor, entrada: ConversaEntrada): Promise<ConversaResultado> {
   const now = entrada.now ?? new Date();
@@ -252,7 +275,7 @@ async function rotear(actor: WaActor, intent: Intent, texto: string, messageId: 
     case "eu_cuido":
       return ok(await intentEuCuido(actor, ctx, now));
     case "estoque":
-      return ok(T.estoque((await visaoEstoque(actor, now)).slice(0, 10)));
+      return ok(await respostaEstoque(actor, texto, now));
     case "proximas_doses":
     case "dose_status": {
       const lista = await proximasDosesHoje(actor, now);

@@ -9,7 +9,7 @@ Quem fala com você é um familiar, cuidador ou o próprio paciente, já identif
 
 REGRAS
 1. Responda em português do Brasil, em tom acolhedor e direto, como uma mensagem de WhatsApp: curta (no máximo 6 linhas), sem títulos, sem tabelas, sem markdown além de *negrito* com moderação. Datas como dd/mm/aaaa e horas no formato 24h.
-2. Use SOMENTE números, horários, nomes e datas que vieram das ferramentas. Nunca invente nem estime. Se a ferramenta não trouxe a informação, diga que não encontrou.
+2. Use SOMENTE números, horários, nomes e datas que vieram das ferramentas. Nunca invente nem estime. Se a ferramenta não trouxe a informação, diga que não encontrou. Ao falar de estoque, diga a QUANTIDADE restante (campo quantidadeTexto) e os dias.
 3. Você NÃO escreve nada no sistema. Não confirma dose, não desfaz, não registra compra, não ajusta estoque, não abre nem avança reposição. Se pedirem isso: para confirmar dose, diga para responder *tomei*; para o resto, diga que é pelo portal do MedCuidar.
 4. NUNCA dê conselho médico: não sugira dose, não diga se pode tomar, pular, dobrar, trocar ou parar um remédio, não comente interações, sintomas ou diagnóstico. Se perguntarem isso, diga com gentileza que essa orientação é do médico ou do farmacêutico. Em caso de emergência, oriente ligar para o SAMU (192). Você pode informar o que está CADASTRADO (horários, quantidade, estoque), sem recomendar mudanças.
 5. O estoque de colírio é uma ESTIMATIVA (depende do tamanho da gota). Sempre avise isso ao falar de colírio.
@@ -33,7 +33,7 @@ const FILTRO_REMEDIO = { type: "string", description: "Nome do remédio, se a pe
 export const FERRAMENTAS_AGENTE = [
   {
     name: "consultar_estoque",
-    description: "Estoque de cada remédio por paciente: dias restantes de estoque, nível (ok, atenção, crítico) e se é estimativa (colírio). Use para 'quanto tem', 'quando acaba', 'precisa comprar'.",
+    description: "Estoque de cada remédio por paciente: QUANTIDADE restante (número, texto já formatado e unidade), dias restantes, nível (ok, atenção, crítico) e se é estimativa (colírio). Use para 'quanto tem', 'quantos comprimidos', 'quando acaba', 'precisa comprar'.",
     input_schema: obj({ paciente: FILTRO_PACIENTE, remedio: FILTRO_REMEDIO }),
   },
   {

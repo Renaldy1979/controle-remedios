@@ -90,9 +90,12 @@ O WhatsApp bloqueia números que parecem "robôs de spam". O sistema ajuda (paus
 - **Limite mensal:** o padrão é **US$ 5 por família por mês**. Para mudar, **Configurações › WhatsApp → "Assistente de perguntas" → Limite mensal (US$) → Salvar limite**. O valor **0** pausa o assistente. Ao chegar no limite, o assistente de perguntas **pausa**, você recebe um **aviso no sino do portal** (uma vez por mês) e as pessoas recebem *"o assistente de perguntas está pausado neste mês"*. **Confirmar dose, estoque e próximas doses continuam funcionando.** O áudio e a foto continuam sendo lidos (custam muito pouco) e contam no gasto.
 - O quadro mostra **gasto do mês, limite e nº de chamadas**. Os preços ficam em `apps/web/src/server/wa/ia/precos.ts`; se a Anthropic ou o Google mudarem os preços, o gasto mostrado pode divergir um pouco da fatura (a fatura de cada empresa é a que vale).
 
-## 6. O que o assistente de IA pode e não pode
+## 6. Estoque pelo WhatsApp
+A resposta de **estoque** mostra a **quantidade restante** (mesma regra do portal: "11 comprimidos", "≈ 120 ml", "200 g", colírio como "≈ 1,8 ml · 36 gotas" com a nota de estimativa) e os dias. Perguntas como *"quantos comprimidos de losartana eu tenho?"* ou *"quanto resta do Zypred"* respondem só o remédio citado; sem citar, lista até 10 por urgência; remédio sem estoque cadastrado diz isso. O aviso de **estoque baixo** e o **resumo diário** também trazem "Restam 11 comprimidos (3 dias)".
 
-- **Pode consultar:** estoque e previsão, próximas doses, doses do dia, se uma dose já foi tomada (e por quem), reposições em andamento e receitas vigentes.
+## 6.1 O que o assistente de IA pode e não pode
+
+- **Pode consultar:** estoque (**quantidade restante** e previsão em dias), próximas doses, doses do dia, se uma dose já foi tomada (e por quem), reposições em andamento e receitas vigentes.
 - **Respeita o perfil de quem pergunta:** quem não pode ver estoque ou receitas recebe a resposta "seu perfil não permite". Quem só validou o WhatsApp (ainda não fez o primeiro acesso ao portal) **não** consulta receitas.
 - **Nunca escreve:** não confirma dose, não desfaz, não registra compra, não ajusta estoque. Para confirmar, a pessoa escreve **tomei**.
 - **Nunca dá conselho médico:** sobre dose, trocar, pular ou parar remédio, sintomas, interações → orienta falar com o médico ou o farmacêutico (e o SAMU, 192, em emergência).

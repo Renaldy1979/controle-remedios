@@ -84,18 +84,29 @@ export interface EstoqueLinha {
   dias: number;
   nivel: "ok" | "warning" | "critical";
   estimativa: boolean;
+  /** quantidade restante já formatada como no portal ("11 comprimidos", "≈ 120 ml", "200 g", "≈ 1,8 ml · 36 gotas") */
+  quantidade?: string;
 }
+
+/** " · 11 comprimidos" quando a quantidade é conhecida. */
+const qtd = (l: Pick<EstoqueLinha, "quantidade">) => (l.quantidade ? `${l.quantidade} · ` : "");
 
 export function estoque(linhas: EstoqueLinha[]): Resposta {
   if (linhas.length === 0) return { texto: `${titulo("📦", "Estoque")}\nNão há remédios com estoque cadastrado.` };
-  const corpo = linhas.map((l) => `${NIVEL[l.nivel]} · ${l.paciente} — ${l.remedio}: ${diasTexto(l.dias)}${l.estimativa ? " (estimativa)" : ""}`).join("\n");
+  const corpo = linhas.map((l) => `${NIVEL[l.nivel]} · ${l.paciente} — ${l.remedio}: ${qtd(l)}${diasTexto(l.dias)}${l.estimativa ? " (estimativa)" : ""}`).join("\n");
   return { texto: `${titulo("📦", "Estoque")}\n${corpo}${linhas.some((l) => l.estimativa) ? `\n${NOTA_ESTIMATIVA}` : ""}` };
 }
 
-export function estoqueBaixo(p: { paciente: string; remedio: string; dias: number; estimativa: boolean }): Resposta {
+/** Pergunta de estoque de um remédio/paciente citado que não tem estoque cadastrado. */
+export const estoqueNaoEncontrado = (citados: string[]): Resposta => ({
+  texto: `${titulo("📦", "Estoque")}\nNão há estoque cadastrado para ${citados.join(" e ")}. Registre uma compra no portal para acompanhar.`,
+});
+
+export function estoqueBaixo(p: { paciente: string; remedio: string; dias: number; estimativa: boolean; quantidade?: string }): Resposta {
   const icone = p.dias <= 3 ? "🔴" : "🟡";
+  const restam = p.quantidade ? `\nRestam ${p.quantidade} (${diasTexto(p.dias).replace(" de estoque", "")}).` : "";
   return comOpcoes(
-    `${titulo(icone, `Estoque baixo — ${p.paciente}`)}\n${p.remedio}: ${diasTexto(p.dias)}${p.estimativa ? " (estimativa)" : ""}.${p.estimativa ? `\n${NOTA_ESTIMATIVA}` : ""}`,
+    `${titulo(icone, `Estoque baixo — ${p.paciente}`)}\n${p.remedio}: ${diasTexto(p.dias)}${p.estimativa ? " (estimativa)" : ""}.${restam}${p.estimativa ? `\n${NOTA_ESTIMATIVA}` : ""}`,
     ["Eu cuido disso"],
   );
 }
@@ -124,7 +135,7 @@ export function resumoDiario(p: {
   }
   if (p.estoqueCritico.length > 0) {
     partes.push("", "🔴 Estoque crítico:");
-    for (const l of p.estoqueCritico) partes.push(`• ${l.paciente} — ${l.remedio}: ${diasTexto(l.dias)}${l.estimativa ? " (estimativa)" : ""}`);
+    for (const l of p.estoqueCritico) partes.push(`• ${l.paciente} — ${l.remedio}: ${qtd(l)}${diasTexto(l.dias)}${l.estimativa ? " (estimativa)" : ""}`);
     if (p.estoqueCritico.some((l) => l.estimativa)) partes.push(NOTA_ESTIMATIVA);
   }
   return { texto: partes.join("\n") };

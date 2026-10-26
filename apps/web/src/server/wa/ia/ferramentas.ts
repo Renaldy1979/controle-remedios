@@ -43,7 +43,8 @@ export async function executarFerramenta(actor: WaActor, nome: string, entrada: 
         const linhas = (await visaoEstoque(actor, agora)).filter((l) => bate(l.paciente, paciente) && bate(l.remedio, remedio));
         return ok({
           itens: linhas.slice(0, 30).map((l) => ({
-            paciente: l.paciente, remedio: l.remedio, diasRestantes: l.dias, nivel: l.nivel, estimativa: l.estimativa,
+            paciente: l.paciente, remedio: l.remedio, quantidade: l.quantidadeNumero, quantidadeTexto: l.quantidade, unidade: l.unidade, via: l.via,
+            diasRestantes: l.dias, nivel: l.nivel, estimativa: l.estimativa,
           })),
           total: linhas.length,
         });

@@ -91,7 +91,9 @@ export async function proximasDosesHoje(actor: WaActor, now: Date, limite = 8): 
 }
 
 /** Estoque por remédio/paciente com a previsão do domínio (mesma conta do portal). Exige `stock.view`. */
-export async function visaoEstoque(actor: WaActor, now: Date): Promise<Array<EstoqueLinha & { stockItemId: string; medicationId: string; patientId: string }>> {
+export type LinhaEstoque = EstoqueLinha & { stockItemId: string; medicationId: string; patientId: string; quantidadeNumero: number; unidade: ControlUnit; via: string };
+
+export async function visaoEstoque(actor: WaActor, now: Date): Promise<LinhaEstoque[]> {
   requirePermission(actor, "stock.view", "whatsapp.query");
   return withFamilia(actor.familyId, (tx) => estoqueDaFamilia(tx, actor.timezone, actor.settings.default_low_stock_days ?? DEFAULT_LOW_STOCK_DAYS, now));
 }
@@ -107,7 +109,7 @@ export async function estoqueDaFamilia(tx: Tx, tz: string, defaultLow: number, n
   ]);
   const phases = treats.length ? await tx.select().from(s.treatmentPhases).where(inArray(s.treatmentPhases.treatmentId, treats.map((t) => t.id))).orderBy(asc(s.treatmentPhases.order)) : [];
   const sumOf = new Map(sums.map((x) => [x.id, x.total]));
-  const out: Array<EstoqueLinha & { stockItemId: string; medicationId: string; patientId: string }> = [];
+  const out: LinhaEstoque[] = [];
   for (const it of items) {
     const med = meds.find((m) => m.id === it.medicationId);
     const pat = pats.find((p) => p.id === it.patientId);
@@ -121,6 +123,8 @@ export async function estoqueDaFamilia(tx: Tx, tz: string, defaultLow: number, n
     out.push({
       stockItemId: it.id, medicationId: med.id, patientId: pat.id,
       paciente: primeiroNome(pat.name), remedio: med.name, dias: calc.daysLeft, nivel: calc.level, estimativa: it.isEstimate,
+      // mesma regra do portal (`quantityText`): comprimido/unidade, ml, g e colírio em gotas (sempre estimativa)
+      quantidade: calc.vm.quantityText, quantidadeNumero: calc.vm.quantity, unidade: it.controlUnit as ControlUnit, via: String(med.route),
     });
   }
   return out.sort((a, b) => a.dias - b.dias || a.remedio.localeCompare(b.remedio, "pt-BR"));

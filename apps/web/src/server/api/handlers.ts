@@ -71,7 +71,7 @@ export const dosesLembrarDeNovo = rota(async ({ actor, params, corpo, agora }) =
 
 export const estoqueVisao = rota(async ({ actor, agora }) =>
   (await visaoEstoque(actor, agora)).map((l) => ({
-    remedioId: l.medicationId, pacienteId: l.patientId, paciente: l.paciente, remedio: l.remedio, diasRestantes: l.dias, nivel: l.nivel, estimativa: l.estimativa,
+    remedioId: l.medicationId, pacienteId: l.patientId, paciente: l.paciente, remedio: l.remedio, quantidade: l.quantidadeNumero, quantidadeTexto: l.quantidade, unidade: l.unidade, diasRestantes: l.dias, nivel: l.nivel, estimativa: l.estimativa,
   })));
 
 export const reposicoesListar = rota(async ({ actor }) => lerReposicoes(actor));

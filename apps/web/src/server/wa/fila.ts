@@ -105,7 +105,7 @@ export async function gerarMensagens(familyId: string, agora: Date = new Date())
     if (dest.length === 0) return 0;
     let novas = 0;
     novas += await gerarDoses(tx, familyId, tz, settings, dest, agora);
-    novas += await gerarAvisos(tx, familyId, dest, agora);
+    novas += await gerarAvisos(tx, familyId, tz, settings, dest, agora);
     novas += await gerarResumo(tx, familyId, tz, settings, dest, agora);
     return novas;
   });
@@ -168,7 +168,7 @@ async function gerarDoses(tx: Tx, familyId: string, tz: string, settings: Family
 }
 
 /** Avisos do portal (sino) que também vão ao WhatsApp: estoque baixo, receita vencendo, reposição. */
-async function gerarAvisos(tx: Tx, familyId: string, dest: Destinatario[], agora: Date): Promise<number> {
+async function gerarAvisos(tx: Tx, familyId: string, tz: string, settings: FamilySettings, dest: Destinatario[], agora: Date): Promise<number> {
   const desde = new Date(agora.getTime() - 48 * 3600_000);
   const avisos = await tx
     .select()
@@ -176,6 +176,10 @@ async function gerarAvisos(tx: Tx, familyId: string, dest: Destinatario[], agora
     .where(and(isNull(s.notifications.whatsappSentAt), gte(s.notifications.createdAt, desde), inArray(s.notifications.kind, ["low_stock", "prescription_expiring", "replenishment_update"])));
   if (avisos.length === 0) return 0;
   const [meds, pats, itens] = await Promise.all([tx.select().from(s.medications), tx.select().from(s.patients), tx.select().from(s.stockItems)]);
+  // quantidade restante (mesma conta do portal), só se algum aviso é de estoque baixo
+  const quantidades = avisos.some((a) => a.kind === "low_stock")
+    ? new Map((await estoqueDaFamilia(tx, tz, settings.default_low_stock_days ?? DEFAULT_LOW_STOCK_DAYS, agora)).map((l) => [l.stockItemId, l.quantidade]))
+    : new Map<string, string | undefined>();
   const rows: Novo[] = [];
   for (const a of avisos) {
     const m = dest.find((x) => x.id === a.memberId);
@@ -189,7 +193,7 @@ async function gerarAvisos(tx: Tx, familyId: string, dest: Destinatario[], agora
       const pat = pats.find((x) => x.id === p["patientId"]);
       const item = itens.find((x) => x.id === p["stockItemId"]);
       if (!med || !pat) continue;
-      r = T.estoqueBaixo({ paciente: T.primeiroNome(pat.name), remedio: med.name, dias: Number(p["daysLeft"] ?? 0), estimativa: item?.isEstimate ?? false });
+      r = T.estoqueBaixo({ paciente: T.primeiroNome(pat.name), remedio: med.name, dias: Number(p["daysLeft"] ?? 0), estimativa: item?.isEstimate ?? false, ...(item && quantidades.get(item.id) ? { quantidade: quantidades.get(item.id)! } : {}) });
       // "Eu cuido disso" só para quem pode (e só se o acesso é completo); os demais recebem só o aviso
       if (m.access !== "active" || !m.can("replenishment.manage")) r = { texto: r.texto.split("\n*1* —")[0]!.trimEnd() };
       ctx = { ...ctx, medicationId: med.id };

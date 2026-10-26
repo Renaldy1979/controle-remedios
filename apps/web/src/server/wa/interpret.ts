@@ -59,6 +59,8 @@ export function interpretText(text: string): Intent {
   if (has(t, /\b(lembr\w*|avis\w*)\b.*\b(de novo|depois|mais tarde|em \d+ ?(min|minutos))\b|^(depois|mais tarde|adiar|soneca)$/)) return "lembrar_depois";
   if (has(t, /\b(link|primeiro acesso)\b|\bcriar (minha )?senha\b|\bacesso ao portal\b/)) return "link_acesso";
   if (has(t, /\b(estoque|sobrando|quantos dias|acabando|vai acabar)\b/)) return "estoque";
+  // quantidade restante: "quantos comprimidos de X eu tenho?", "quanto resta do X", "quantidade restante". NÃO pega "quantos comprimidos eu tomo" (dose).
+  if (has(t, /\bquant[oa]s? .{0,40}\b(tenho|tem|temos|resta|restam|sobra|sobram|sobrou|sobraram)\b|\bquanto (resta|restou|sobra|sobrou|tenho|temos|tem)\b|\bquantidade (restante|em estoque|que (resta|tenho|temos))\b/)) return "estoque";
   if (has(t, /\b(proxima|proximas|proximo|proximos)\b.*\b(dose|doses|horario|horarios|remedio|remedios)\b|\bque horas\b|\bfalta tomar\b|\bo que falta\b|\bhorarios\b/)) return "proximas_doses";
   if (isQuestion && has(t, /\b(tomou|tomaram|tomei|tomada|tomado)\b/)) return "dose_status";
   if (has(t, /\b(tomei|tomou|tomaram|tomada|tomado|dei|confirmo|confirmado)\b/)) return "dose_tomada";
