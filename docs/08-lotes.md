@@ -64,12 +64,37 @@ O dono trocou o N8N por código no portal (`docs/06` seção 5). Entrega: webhoo
 - **Parte A, sem número:** tudo funciona no **simulador** (mesma conversa, agora passando pela fila e pelo worker), com o Claude de verdade nas perguntas livres e o modelo simulado nos testes automáticos.
 - **Parte B, com número real:** o dono conecta o chip dedicado por QR Code, valida o próprio número pelo WhatsApp, recebe o lembrete, responde "tomei", pergunta "como está o estoque?" (texto e áudio), vê um número não verificado ser ignorado, convida por código de WhatsApp e confere o alerta de desconexão.
 **Precisa do dono (fora do chat):** variáveis no EasyPanel (`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, base/chave/instância da Evolution Go, segredo do caminho do webhook) e o número de WhatsApp do sistema.
-## Lote 5 — Qualidade, segurança e piloto
-**Você testa:** o uso real com a família por duas semanas.
-- Revisão de segurança e LGPD (RLS, chaves, logs sem dados pessoais, URLs assinadas), acessibilidade, e2e, backup e restauração testados.
-- Trocar as chaves usadas em desenvolvimento, apagar dados de demonstração.
-- Cadastro real dos sogros e acompanhamento com conferência paralela ao papel.
+## Lote 5 — Perfil somente leitura, segurança, operação e piloto (revisado em 26/10/2026)
+Lotes 1 a 4B validados. O Lote 5 leva o sistema ao uso real com a família, em quatro entregas testáveis, cada uma com roteiro e validação do dono.
 
+### 5A — Perfil "Somente leitura" (e revisão dos perfis)
+Para familiares que só precisam acompanhar (visão de relatório): **veem e não agem**.
+- **Permissões do perfil:** `dashboard.view`, `patients.view`, `doses.history.view`, `stock.view` e `whatsapp.query` (consultar estoque e próximas doses). **Fora por padrão:** receitas (`prescriptions.view`: documento de saúde; o administrador pode liberar só a leitura), qualquer ação (confirmar dose, comprar, ajustar, anexar, compartilhar, reposição) e qualquer cadastro/administração.
+- **Travado:** as permissões de ação **não podem ser ligadas** nesse perfil (a tela da matriz bloqueia e o servidor recusa). Quem precisa agir recebe outro perfil.
+- **Avisos:** só o **resumo diário** (e o resumo semanal, se ligado). **Não** recebe lembrete de dose, aviso de esquecida, de estoque baixo nem de reposição (não pode agir sobre eles). Corrige também a regra geral: aviso de dose esquecida e de estoque só vai a quem **pode agir**.
+- **Privacidade:** não vê telefones e e-mails de outras pessoas, configurações, chaves nem registros de auditoria.
+- **Famílias existentes** ganham o perfil por migração de dados idempotente (e a criação de família já o inclui).
+- **Prova automática:** teste que percorre **todas** as ações do servidor e rotas da API e confirma que o perfil recebe recusa em toda escrita.
+- **Roteiro:** convidar alguém com o perfil, entrar e conferir que só vê; tentar "tomei" pelo WhatsApp ("seu perfil não permite"); receber só o resumo diário.
+
+### 5B — Segurança e privacidade (LGPD)
+- Revisão de segurança do código (cabeçalhos HTTP, cookies, limite de tentativas no login, validações) e auditoria automática do isolamento: toda tabela com `family_id` com RLS forçado e testes de acesso cruzado também pelas rotas da API.
+- Segredos: varredura do repositório, checklist de rotação (chaves da Evolution, Anthropic, Gemini; Appwrite já trocada) e nenhum dado pessoal em logs (revisão dos logs reais do staging).
+- LGPD: política de privacidade pública, aviso e consentimento no cadastro (dados de saúde; paciente com Alzheimer exige responsável), **exportar** e **excluir** os dados da família (Postgres, Appwrite e arquivos), retenção definida.
+- Dependências: auditoria (`pnpm audit`) e atualização; **CI com Postgres** para os testes de integração rodarem no GitHub (hoje só rodam na sua máquina).
+
+### 5C — Operação e continuidade
+- **Backup automático** do Postgres com retenção (diários e semanais) em armazenamento fora da VPS e **restauração testada** em um banco temporário.
+- **Monitoramento:** verificação externa de `/api/health` com alerta para você, além do alerta de desconexão do WhatsApp que já existe.
+- **Produção:** definir o ambiente real, versão marcada (tag), backup antes de cada migração e passo de volta (rollback).
+- Opcional: domínio próprio e e-mail autenticado (Brevo).
+
+### 5D — Piloto com a família (2 semanas)
+- Limpeza dos dados de teste e **congelamento da versão**.
+- Cadastro real dos sogros: pacientes, remédios, esquemas, **estoque contado fisicamente** e receitas fotografadas.
+- Convites: filhas (Familiar), cuidadoras (Cuidadora), sogro (Confirmador), sobrinho e quem só acompanha (Somente leitura). Cada pessoa salva o número do chip, manda "oi" e verifica o número.
+- Rotina de conferência com o papel por 14 dias, revisão rápida ao fim da primeira semana e acompanhamento diário (doses confirmadas, esquecidas, atrasos, falhas de envio, custo de IA e qualquer bloqueio do número).
+- **Pronto quando:** 7 dias seguidos com a maioria das doses registradas pelo sistema, nenhuma falha crítica, nenhum bloqueio do número e ao menos uma reposição conduzida pelo sistema. Plano B documentado (portal + papel) se o WhatsApp cair.
 ---
 
 ## O que cada lote entrega (definição de pronto)
