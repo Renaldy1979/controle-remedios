@@ -152,6 +152,8 @@ async function assumir(actor: WaActor, ctx: ConvCtx, r: Reposicao, now: Date): P
 }
 
 async function intentEuCuido(actor: WaActor, ctx: ConvCtx, now: Date): Promise<T.Resposta> {
+  // perfil de acompanhamento: "acesso completo" não adianta, então a resposta é a recusa do perfil, não "só pelo portal"
+  if (isReadOnlyProfile(actor.realProfile)) return T.semPermissaoLeitura();
   if (actor.access !== "active") return T.precisaPortal();
   if (!can(actor.member, "replenishment.manage")) return semPermissaoDe(actor);
   let abertas = await reposicoesAbertas(actor);
@@ -169,6 +171,7 @@ async function responderEscolha(actor: WaActor, ctx: ConvCtx, n: number, message
   const id = ch.ids[n - 1];
   if (!id) return T.respostaLivre();
   if (ch.acao === "cuido") {
+    if (isReadOnlyProfile(actor.realProfile)) return T.semPermissaoLeitura();
     if (actor.access !== "active" || !can(actor.member, "replenishment.manage")) return T.precisaPortal();
     const r = (await reposicoesAbertas(actor)).find((x) => x.medicationId === id);
     return r ? assumir(actor, ctx, r, now) : T.reposicaoNaoEncontrada();
