@@ -35,6 +35,7 @@ Padrão de receitas: Administrador, Familiar e Cuidadora veem; Confirmador não.
 **treatment_phases**: family_id, treatment_id, order, start_day (1-based), end_day (null = até acabar), schedule_type (`interval|fixed_times`), interval_hours (para interval), first_dose_time (HH:mm), times (string[] para fixed_times), dose_amount (na control_unit)
 Regras: fases sem sobreposição; `end_day` de uma fase + 1 = `start_day` da seguinte; apenas a última pode ter `end_day` nulo.
 Exemplo: fase 1 = dias 1–15, interval 3h; fase 2 = dias 16–20, interval 6h.
+**Intervalo contínuo (27/10/2026, ver `docs/06` seção 9):** `interval` corre sem parar através da meia-noite. Âncora = `start_date` + `first_dose_time` da fase de menor `order`; cada fase começa em `start_day` no horário da âncora e gera doses a cada `interval_hours` até o fim do seu último dia (`end_day`). Nenhuma mudança de colunas.
 
 ## Doses
 **dose_events**: family_id, treatment_id, patient_id, medication_id, scheduled_at, status (`pending|taken|late|missed|skipped`), confirmed_by_member_id, confirmed_at, channel (`whatsapp|panel|system`), source_message_id, skipped_reason, amount (snapshot da dose), phase_id

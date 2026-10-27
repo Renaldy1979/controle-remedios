@@ -1,4 +1,4 @@
-import { intervalTimes } from "@/lib/times";
+import { schemeDosesOnDate } from "@/lib/scheme";
 
 /** O mínimo de um remédio que o calendário precisa (subconjunto de `MedicationVM`). */
 export interface CalendarMed {
@@ -6,6 +6,7 @@ export interface CalendarMed {
   patientId: string;
   name: string;
   unitLabel: string;
+  /** hora de início (âncora do intervalo contínuo) */
   firstTime: string;
   /** aaaa-mm-dd: dia 1 do esquema */
   startDate?: string | undefined;
@@ -20,21 +21,16 @@ export interface CalendarDose {
   doseText: string;
 }
 
-const utc = (iso: string) => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
-const DAY = 86_400_000;
-
 export const isoOf = (y: number, m0: number, d: number) => new Date(Date.UTC(y, m0, d)).toISOString().slice(0, 10);
 
-/** Doses que o esquema gera num dia (aaaa-mm-dd), ordenadas por horário. Antes do dia 1 não há nenhuma. */
+/** Doses que o esquema gera num dia (aaaa-mm-dd), ordenadas por horário (mesmo cálculo do servidor). Antes do dia 1 não há nenhuma. */
 export function dosesOnDate(meds: CalendarMed[], date: string): CalendarDose[] {
   const out: CalendarDose[] = [];
   for (const m of meds) {
     if (!m.startDate || date < m.startDate) continue;
-    const day = Math.round((utc(date) - utc(m.startDate)) / DAY) + 1;
-    const ph = [...m.phases].sort((a, b) => a.order - b.order).find((p) => day >= p.fromDay && (p.toDay === null || day <= p.toDay));
-    if (!ph) continue;
-    for (const time of intervalTimes(m.firstTime, ph.everyHours)) {
-      out.push({ time, medicationId: m.id, patientId: m.patientId, medName: m.name, doseText: `${String(ph.perDose).replace(".", ",")} × ${m.unitLabel.toLowerCase()}` });
+    const phases = m.phases.map((p) => ({ everyHours: p.everyHours, fromDay: p.fromDay, toDay: p.toDay, perDose: p.perDose }));
+    for (const d of schemeDosesOnDate({ startDate: m.startDate, firstTime: m.firstTime, phases, date })) {
+      out.push({ time: d.time, medicationId: m.id, patientId: m.patientId, medName: m.name, doseText: `${String(d.perDose).replace(".", ",")} × ${m.unitLabel.toLowerCase()}` });
     }
   }
   return out.sort((a, b) => a.time.localeCompare(b.time) || a.medName.localeCompare(b.medName, "pt-BR"));

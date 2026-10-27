@@ -334,21 +334,22 @@ describe("Lote 1 — Pacientes, Remédios e Esquemas (cadastros)", () => {
     });
     const { container } = renderApp(shell("/configuracoes/esquemas", <SettingsScreen section="esquemas" />), { source: fakePg(snap, { saveScheme }) });
     const form = screen.getByRole("form", { name: "Esquema de Zypred" });
-    await userEvent.click(within(form).getByRole("switch", { name: /Fase única/ }));
+    expect(within(form).queryByRole("switch", { name: /Fase única/ })).not.toBeInTheDocument(); // não existe mais "fase única"
     await userEvent.click(within(form).getByRole("button", { name: "Adicionar fase" }));
     const menos = () => within(form).getByRole("button", { name: "Diminuir horas entre as doses" });
     for (let i = 0; i < 3; i++) await userEvent.click(menos()); // fase 2: 24 -> 6
     await userEvent.click(within(form).getByRole("button", { name: "Fase 1" }));
     for (let i = 0; i < 5; i++) await userEvent.click(menos()); // fase 1: 24 -> 3
-    expect(within(form).getByLabelText("Quantos dias dura esta fase")).toHaveValue("7"); // a fase que era a última ganha 7 dias de sugestão
-    await userEvent.clear(within(form).getByLabelText("Quantos dias dura esta fase"));
-    await userEvent.type(within(form).getByLabelText("Quantos dias dura esta fase"), "15");
+    expect(within(form).getByLabelText("Por quantos dias dura a fase 1")).toHaveValue("7"); // a fase que era a última ganha 7 dias de sugestão
+    await userEvent.clear(within(form).getByLabelText("Por quantos dias dura a fase 1"));
+    await userEvent.type(within(form).getByLabelText("Por quantos dias dura a fase 1"), "15");
     expect(await axe(container)).toHaveNoViolations();
     await userEvent.click(within(form).getByRole("button", { name: "Salvar esquema" }));
     await waitFor(() => expect(saveScheme).toHaveBeenCalledTimes(1));
-    const [id, input] = saveScheme.mock.calls[0]! as unknown as [string, { single: boolean; firstTime: string; startDate: string; phases: Array<Record<string, unknown>> }];
+    const [id, input] = saveScheme.mock.calls[0]! as unknown as [string, { firstTime: string; startDate: string; phases: Array<Record<string, unknown>> }];
     expect(id).toBe("m1");
-    expect(input).toMatchObject({ single: false, firstTime: "06:00", startDate: "2026-10-01" });
+    expect(input).toMatchObject({ firstTime: "06:00", startDate: "2026-10-01" });
+    expect(input).not.toHaveProperty("single");
     expect(input.phases).toEqual([
       { order: 1, everyHours: 3, fromDay: 1, toDay: 15, perDose: 1 },
       { order: 2, everyHours: 6, fromDay: 16, toDay: null, perDose: 1 },
@@ -364,15 +365,21 @@ describe("Lote 1 — Pacientes, Remédios e Esquemas (cadastros)", () => {
       });
       renderApp(shell("/configuracoes/esquemas", <SettingsScreen section="esquemas" />), { source: fakePg(snap) });
       const form = screen.getByRole("form", { name: "Esquema de Zypred" });
-      expect(within(form).getByLabelText(/Primeiro horário do dia/)).toHaveValue("22:30");
+      expect(within(form).getByLabelText(/Hora da primeira dose/)).toHaveValue("22:30");
       expect(within(form).getByLabelText(/Começa em/)).toHaveValue("26/10/2026");
       const resumo = within(form).getByLabelText("Resumo do que vai acontecer");
-      expect(resumo).toHaveTextContent("Todos os dias: 1 dose (22:30)");
-      expect(resumo).toHaveTextContent("Hoje (26/10): faltam 1 dose (22:30)");
-      // de hora em hora a partir de 22:30 só cabem 2 doses por dia: o aviso diz isso e sugere 00:00
+      expect(resumo).toHaveTextContent("Hoje (26/10): 22:30");
+      expect(resumo).toHaveTextContent("Amanhã (27/10): 22:30");
+      // intervalo contínuo: de 8 em 8 h a partir de 22:30 o dia seguinte tem 06:30, 14:30 e 22:30
       await userEvent.click(within(form).getByRole("button", { name: "Diminuir horas entre as doses" })); // 24 -> 12
-      await userEvent.click(within(form).getByRole("button", { name: "Diminuir horas entre as doses" }));
-      expect(within(form).getByLabelText("Resumo do que vai acontecer")).toHaveTextContent(/só cabem 1, e isso se repete todos os dias/);
+      await userEvent.click(within(form).getByRole("button", { name: "Diminuir horas entre as doses" })); // 12 -> 8
+      expect(within(form).getByLabelText("Resumo do que vai acontecer")).toHaveTextContent("Amanhã (27/10): 06:30, 14:30 e 22:30");
+      // sem "fase única": a duração é escolhida sempre; por padrão vale até acabar o estoque
+      expect(within(form).getByRole("switch", { name: "Até acabar o estoque do remédio" })).toBeChecked();
+      await userEvent.click(within(form).getByRole("switch", { name: "Até acabar o estoque do remédio" }));
+      await userEvent.clear(within(form).getByLabelText("Por quantos dias você vai tomar"));
+      await userEvent.type(within(form).getByLabelText("Por quantos dias você vai tomar"), "2");
+      expect(within(form).getByLabelText("Resumo do que vai acontecer")).toHaveTextContent("por 2 dias (até 27/10/2026)");
     } finally {
       vi.useRealTimers();
     }
@@ -385,7 +392,7 @@ describe("Lote 1 — Pacientes, Remédios e Esquemas (cadastros)", () => {
       const snap = lote1Snapshot({ medications: [{ ...med, id: "m1", patientId: "p2", name: "Zypred", phases: [{ order: 1, everyHours: 24, fromDay: 1, toDay: null, perDose: 1 }], firstTime: "09:00", startDate: "2026-10-01", treatmentDay: null }] });
       renderApp(shell("/configuracoes/esquemas", <SettingsScreen section="esquemas" />), { source: fakePg(snap) });
       const form = screen.getByRole("form", { name: "Esquema de Zypred" });
-      expect(within(form).getByLabelText(/Primeiro horário do dia/)).toHaveValue("09:00");
+      expect(within(form).getByLabelText(/Hora da primeira dose/)).toHaveValue("09:00");
       expect(within(form).getByLabelText(/Começa em/)).toHaveValue("01/10/2026");
     } finally {
       vi.useRealTimers();
@@ -435,7 +442,7 @@ describe("Lote 1 — Pacientes, Remédios e Esquemas (cadastros)", () => {
     renderApp(shell("/configuracoes/esquemas", <SettingsScreen section="esquemas" />), { source: fakePg(snap, { saveScheme }) });
     const form = screen.getByRole("form", { name: "Esquema de Zypred" });
     await userEvent.click(within(form).getByRole("button", { name: "Fase 1" }));
-    await userEvent.clear(within(form).getByLabelText("Quantos dias dura esta fase"));
+    await userEvent.clear(within(form).getByLabelText("Por quantos dias dura a fase 1"));
     await userEvent.click(within(form).getByRole("button", { name: "Salvar esquema" }));
     expect(within(form).getByRole("alert")).toHaveTextContent(/Fase 1: informe quantos dias ela dura/);
     expect(saveScheme).not.toHaveBeenCalled();

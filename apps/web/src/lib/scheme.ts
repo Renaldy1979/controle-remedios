@@ -2,7 +2,7 @@
  * Validação do esquema de um remédio (fases). Roda no navegador (feedback imediato) e no servidor (a verdade).
  * As regras de "qual fase vale em cada dia" e "quantas doses por dia" vêm de @medcuidar/domain.
  */
-import { dosesPerDay, phaseForDay, type TreatmentPhase } from "@medcuidar/domain";
+import { DEFAULT_TZ, generateDoseEvents, localParts, phaseForDay, type Treatment, type TreatmentPhase } from "@medcuidar/domain";
 
 export const INTERVAL_HOURS = [1, 2, 3, 4, 6, 8, 12, 24] as const;
 export const MAX_PHASES = 6;
@@ -61,12 +61,32 @@ export function validateScheme(phases: PhaseInput[], firstTime: string): SchemeC
   }
   if (errors.length) return { ok: false, errors };
 
-  // Confere com o domínio: cada dia cai exatamente na fase esperada e a fase gera doses.
+  // Confere com o domínio: cada dia cai exatamente na fase esperada.
   const dom = toDomain(phases, firstTime);
   dom.forEach((d, i) => {
-    const probe = d.start_day;
-    if (phaseForDay(dom, probe)?.order !== i + 1) errors.push(`Fase ${i + 1}: as datas se confundem com outra fase.`);
-    if (dosesPerDay(d) < 1) errors.push(`Fase ${i + 1}: com esse horário inicial não sobra nenhuma dose no dia.`);
+    if (phaseForDay(dom, d.start_day)?.order !== i + 1) errors.push(`Fase ${i + 1}: as datas se confundem com outra fase.`);
   });
   return { ok: errors.length === 0, errors };
+}
+
+export interface SchemeDose {
+  /** HH:mm no fuso do sistema */
+  time: string;
+  perDose: number;
+  phase: number;
+}
+
+/**
+ * Doses que o esquema gera num dia (aaaa-mm-dd), pelo mesmo cálculo do servidor (intervalo contínuo, com a
+ * hora de início da fase 1 como âncora). Usado pela prévia do formulário e pelo calendário.
+ */
+export function schemeDosesOnDate(args: { startDate: string; firstTime: string; phases: PhaseInput[]; date: string; tz?: string }): SchemeDose[] {
+  const tz = args.tz ?? DEFAULT_TZ;
+  if (!HHMM.test(args.firstTime) || args.phases.length === 0) return [];
+  const dom = toDomain(args.phases, args.firstTime);
+  const treatment: Treatment = { id: "t", family_id: "f", patient_id: "p", medication_id: "m", start_date: args.startDate, status: "active" };
+  return generateDoseEvents(treatment, dom, args.date, tz).map((d) => {
+    const mins = localParts(new Date(d.scheduled_at), tz).minutes;
+    return { time: `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`, perDose: d.amount, phase: dom.find((p) => p.id === d.phase_id)?.order ?? 1 };
+  });
 }

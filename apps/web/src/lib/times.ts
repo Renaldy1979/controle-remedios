@@ -1,16 +1,4 @@
-const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
-
 const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(Math.round(m % 60)).padStart(2, "0")}`;
-const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
-
-/** Horários do dia a partir do primeiro horário e do intervalo (mesma conta de `dosesPerDay` do domínio). */
-export function intervalTimes(firstTime: string, everyHours: number): string[] {
-  if (!HHMM.test(firstTime) || !(everyHours > 0)) return [];
-  const step = everyHours * 60;
-  const out: string[] = [];
-  for (let m = toMin(firstTime); m < 1440; m += step) out.push(hhmm(m));
-  return out;
-}
 
 export const SCHEME_TZ = "America/Sao_Paulo";
 
@@ -31,26 +19,9 @@ export function nextSlot(now: Date, tz: string = SCHEME_TZ, stepMin = 30): { tim
   return next >= 1440 ? { time: "00:00", tomorrow: true } : { time: hhmm(next), tomorrow: false };
 }
 
-export interface DayPreview {
-  /** todos os horários de um dia do esquema */
-  daily: string[];
-  /** horários de hoje que ainda não passaram (só quando o tratamento já vale hoje) */
-  todayLeft: string[];
-  /** horários de hoje que já passaram */
-  todayPast: string[];
-  /** quantas doses por dia o intervalo comportaria se o dia começasse à meia-noite */
-  fullDay: number;
-  /** o primeiro horário corta o dia: cabem menos doses do que 24 h / intervalo */
-  cutsDay: boolean;
-}
-
-/** Prévia do que o esquema gera: o dia "normal" e o dia de hoje. `startsToday` = o dia 1 é hoje (ou antes). */
-export function previewDay(firstTime: string, everyHours: number, nowMinutes: number, startsToday: boolean): DayPreview {
-  const daily = intervalTimes(firstTime, everyHours);
-  const fullDay = everyHours > 0 ? Math.floor(1440 / (everyHours * 60)) + (1440 % (everyHours * 60) ? 1 : 0) : 0;
-  const todayLeft = startsToday ? daily.filter((t) => toMin(t) >= nowMinutes) : [];
-  const todayPast = startsToday ? daily.filter((t) => toMin(t) < nowMinutes) : [];
-  // só avisa quando o intervalo fecha o dia certinho (1, 2, 3, 4, 6, 8, 12 h...) e o primeiro horário perde doses
-  const exact = everyHours > 0 && 24 % everyHours === 0;
-  return { daily, todayLeft, todayPast, fullDay, cutsDay: exact && daily.length > 0 && daily.length < 24 / everyHours };
+/** aaaa-mm-dd somando dias (sem fuso: só calendário). */
+export function addDaysIso(date: string, n: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 }

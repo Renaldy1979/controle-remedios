@@ -9,7 +9,7 @@ import type {
 } from "@/data/types";
 import { ROUTE_LABEL, UNIT_LABEL } from "@/lib/labels";
 import { formatPhone } from "@/lib/phone";
-import { intervalTimes } from "@/lib/times";
+import { schemeDosesOnDate } from "@/lib/scheme";
 import type { Ctx } from "./access";
 import { DEFAULT_LOW_STOCK_DAYS, UNTRACKED_STOCK, computeStock, doseWhenLabel, qtyText, unitNoun } from "./calc";
 import { effectiveStatus } from "./doses";
@@ -194,7 +194,10 @@ export async function buildSnapshot(ctx: Ctx, now: Date = new Date()): Promise<S
       doseText: `${qtyText(per)} ${unitNoun(unit, med.route, per)}`,
       scheduleText: every === 24 ? "1 vez ao dia" : `de ${qtyText(every)} em ${qtyText(every)} h`,
       phaseText: phases.length <= 1 ? "Uso contínuo" : `Fase ${current?.order ?? 1} de ${phases.length}${day >= 1 ? ` · dia ${day}` : ""}`,
-      times: intervalTimes(first, every),
+      times: schemeDosesOnDate({
+        startDate: t.startDate, firstTime: first, date: today, tz: ctx.timezone,
+        phases: phases.map((p) => ({ everyHours: p.intervalHours ?? 24, fromDay: p.startDay, toDay: p.endDay, perDose: p.doseAmount })),
+      }).map((d) => d.time),
       perDose: per,
       phases: phases.map((p) => ({ order: p.order, everyHours: p.intervalHours ?? 24, fromDay: p.startDay, toDay: p.endDay, perDose: p.doseAmount })),
       treatmentDay: phases.length > 1 && day >= 1 ? day : null,

@@ -35,7 +35,7 @@ O Lote 2 traz **uma coluna nova no banco** (`dose_events.remind_again_at`, usada
 | # | Faça | Resultado esperado |
 |---|---|---|
 | A1 | **Configurações → Remédios → Novo remédio**. Paciente *Adelino*, nome *Teste Lote 2*, tipo **Comprimido**, unidade **Unidade**, **Estoque inicial 30**. Cadastrar. | Aviso "Teste Lote 2 cadastrado". |
-| A2 | **Configurações → Esquemas**, escolha *Teste Lote 2*. Mantenha **Fase única**, toque no **−** de "horas entre as doses" até **8** (24 → 12 → 8), **Primeiro horário do dia: 06:00**, **Salvar esquema**. | Aviso "Esquema de Teste Lote 2 salvo". Os horários gerados são **06:00, 14:00 e 22:00**. |
+| A2 | **Configurações → Esquemas**, escolha *Teste Lote 2*. Mantenha uma fase só (até acabar o estoque), toque no **−** de "horas entre as doses" até **8** (24 → 12 → 8), **Hora da primeira dose: 06:00**, **Salvar esquema**. | Aviso "Esquema de Teste Lote 2 salvo". Os horários gerados são **06:00, 14:00 e 22:00**. |
 | A3 | Abra **Pacientes → Adelino**. | O remédio aparece com **3 horários de hoje** (06:00, 14:00, 22:00) e a situação de cada um: *Esquecida* e *Atrasada* para os que já passaram, *Pendente* para os que ainda vão chegar. "0 de 3 doses tomadas hoje". O bloco de estoque mostra **30 comprimidos** e cerca de 10 dias. |
 | A4 | Abra o **Início**. | Doses que já passaram aparecem em **Pedem atenção** (com texto "Atrasada há…" ou "Esquecida", não só cor); a próxima aparece em **Próximas doses**; *Estoque perto de acabar* mostra o remédio (cerca de 10 dias = faixa "Atenção"). **Receitas e reposição** mostram "chegam no Lote 3". |
 | A5 | Atualize a página várias vezes. | **Nunca** aparecem doses repetidas (são sempre 3 por dia para esse remédio). |

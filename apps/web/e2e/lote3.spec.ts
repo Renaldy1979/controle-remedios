@@ -97,7 +97,7 @@ test("Lote 3: receitas com fotos e PDF, compartilhar, permissões e reposição 
 
     await open(page, "/configuracoes/esquemas");
     for (let i = 0; i < 2; i++) await page.getByRole("button", { name: "Diminuir horas entre as doses" }).click();
-    await page.getByLabel("Primeiro horário do dia").fill("06:00");
+    await page.getByLabel("Hora da primeira dose").fill("06:00");
     await page.getByRole("button", { name: "Salvar esquema" }).click();
     await toast(page, "Esquema de Losartana 50 mg salvo");
   });

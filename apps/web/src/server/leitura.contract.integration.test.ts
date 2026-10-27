@@ -356,7 +356,7 @@ describe.skipIf(!up)("Somente leitura: toda escrita é recusada e o banco não m
       "server/pg/actions.ts#updateMedicationAction": { chamar: () => A.updateMedicationAction(F.medId, { name: "Renomeado" }) },
       "server/pg/actions.ts#deleteMedicationAction": { chamar: () => A.deleteMedicationAction(F.medId) },
       "server/pg/actions.ts#restoreMedicationAction": { chamar: () => A.restoreMedicationAction(F.medId) },
-      "server/pg/actions.ts#saveSchemeAction": { chamar: () => A.saveSchemeAction(F.medId, { single: true, firstTime: "07:00", phases: [{ everyHours: 12, fromDay: 1, toDay: null, perDose: 1 }] }) },
+      "server/pg/actions.ts#saveSchemeAction": { chamar: () => A.saveSchemeAction(F.medId, { firstTime: "07:00", phases: [{ everyHours: 12, fromDay: 1, toDay: null, perDose: 1 }] }) },
       "server/wa/actions.ts#criarChaveAction": { chamar: () => W.criarChaveAction("Chave de teste"), recusa: /Administrador|permissão/ },
       "server/wa/actions.ts#revogarChaveAction": { chamar: () => W.revogarChaveAction(randomUUID()), recusa: /Administrador|permissão/ },
       "server/wa/actions.ts#reenviarLinkAcessoAction": { chamar: () => W.reenviarLinkAcessoAction(F.outroId) },

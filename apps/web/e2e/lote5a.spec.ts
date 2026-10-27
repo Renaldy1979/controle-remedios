@@ -85,7 +85,7 @@ test("Lote 5A: perfil Somente leitura (convite, navegação, recusas, matriz e a
     await toast(page, "Zypred cadastrado");
 
     await open(page, "/configuracoes/esquemas");
-    await page.getByLabel("Primeiro horário do dia").fill(dezMinutosAtras());
+    await page.getByLabel("Hora da primeira dose").fill(dezMinutosAtras());
     await page.getByRole("button", { name: "Salvar esquema" }).click();
     await toast(page, "Esquema de Zypred salvo");
 

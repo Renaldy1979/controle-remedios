@@ -85,6 +85,8 @@ Portal Next.js ──► serviços (regras: @medcuidar/domain) ──► Postgre
 ## 9. Decisões do dono registradas
 Login e-mail/senha (Appwrite); validação do número depois do login, com o dono enviando o código ao sistema; sem WhatsApp verificado = sem mensagens; conversa **híbrida**; Postgres + Drizzle no EasyPanel; reaproveitar o que serve. **Revisão de 22/10/2026: sem N8N** — WhatsApp direto no portal (webhook + fila + worker), conversa em código e agente Claude (só leitura) por *tool use*, como no lote AG1 do projeto financeiro; escolhido por simplicidade operacional e testabilidade.
 
+**Esquema de doses — intervalo contínuo (decisão de 27/10/2026, vale sobre o `docs/02`).** O intervalo corre sem parar, atravessando a meia-noite: começa às 15:00 de 6 em 6 h = 15:00, 21:00, 03:00, 09:00, 15:00… A hora de início da **fase 1** (`first_dose_time` + `start_date`) é a âncora. Cada fase seguinte começa no dia em que a anterior termina, **no mesmo horário da âncora**, e segue o próprio intervalo a partir dali. Não existe "fase única": todo esquema tem ao menos uma fase e **toda fase informa a duração** em dias, ou "até acabar o estoque" (só a última). Mais de uma fase só se o usuário adicionar. A previsão de término soma as doses reais de cada dia (um dia pode ter 4 ou 5 doses num intervalo de 5 h). Esquemas antigos (intervalo que não divide 24 h, ex.: 8 em 8 h começando às 08:00, que gerava só 08:00 e 16:00) passam a seguir a regra contínua; os de 24 h, 12 h, 6 h etc. com horário que já fechava o dia não mudam.
+
 ## 10. Pendências
 - Criar o Postgres de produção no EasyPanel (quando chegar o piloto).
 - Número de WhatsApp para o sistema (ainda não existe): a Parte B do `docs/lotes/L4B-roteiro.md` só roda depois dele.

@@ -44,7 +44,7 @@ const phase = (o: Partial<TreatmentPhase>): TreatmentPhase => ({
   end_day: null,
   schedule_type: "interval",
   interval_hours: 3,
-  first_dose_time: "06:00",
+  first_dose_time: "00:00",
   dose_amount: 1,
   ...o,
 });
@@ -52,28 +52,47 @@ const chained = [
   phase({ id: "a", order: 1, start_day: 1, end_day: 15, interval_hours: 3, first_dose_time: "06:00" }),
   phase({ id: "b", order: 2, start_day: 16, end_day: 20, interval_hours: 6, first_dose_time: "06:00" }),
 ];
+/** Mesmas fases, mas começando à meia-noite: todo dia inteiro tem 8 doses (fase 1) ou 4 (fase 2). */
+const chainedMid = [
+  phase({ id: "a", order: 1, start_day: 1, end_day: 15, interval_hours: 3 }),
+  phase({ id: "b", order: 2, start_day: 16, end_day: 20, interval_hours: 6 }),
+];
 const hours = (iso: string[]) => iso.map((s) => new Date(s).toLocaleTimeString("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }));
 
 describe("generateDoseEvents", () => {
-  it("fase 1: 3 em 3 h → 6h..21h (6 doses; 24h não entra no mesmo dia)", () => {
-    const d = generateDoseEvents(treatment, chained, "2026-10-15", TZ);
-    expect(hours(d.map((x) => x.scheduled_at))).toEqual(["06:00", "09:00", "12:00", "15:00", "18:00", "21:00"]);
-    expect(d[0]!.phase_id).toBe("a");
+  it("intervalo contínuo: começa às 06:00 do dia 1 e o intervalo atravessa a meia-noite", () => {
+    const d1 = generateDoseEvents(treatment, chained, "2026-10-01", TZ);
+    expect(hours(d1.map((x) => x.scheduled_at))).toEqual(["06:00", "09:00", "12:00", "15:00", "18:00", "21:00"]);
+    expect(d1[0]!.phase_id).toBe("a");
+    expect(hours(generateDoseEvents(treatment, chained, "2026-10-15", TZ).map((x) => x.scheduled_at))).toEqual(["00:00", "03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00"]);
   });
-  it("borda do dia 15→16 muda de fase", () => {
-    const d15 = generateDoseEvents(treatment, chained, "2026-10-15", TZ);
+  it("15h de 6 em 6 horas: 15h/21h/3h/9h/15h... (o dia seguinte começa às 03:00)", () => {
+    const p = [phase({ interval_hours: 6, first_dose_time: "15:00" })];
+    expect(hours(generateDoseEvents(treatment, p, "2026-10-01", TZ).map((x) => x.scheduled_at))).toEqual(["15:00", "21:00"]);
+    expect(hours(generateDoseEvents(treatment, p, "2026-10-02", TZ).map((x) => x.scheduled_at))).toEqual(["03:00", "09:00", "15:00", "21:00"]);
+  });
+  it("intervalo que não divide 24 h (5 em 5 h) alterna 5 e 4 doses por dia e não repete horário fixo", () => {
+    const p = [phase({ interval_hours: 5, first_dose_time: "08:00" })];
+    const por = (d: string) => hours(generateDoseEvents(treatment, p, d, TZ).map((x) => x.scheduled_at));
+    expect(por("2026-10-01")).toEqual(["08:00", "13:00", "18:00", "23:00"]);
+    expect(por("2026-10-02")).toEqual(["04:00", "09:00", "14:00", "19:00"]);
+    expect(por("2026-10-03")).toEqual(["00:00", "05:00", "10:00", "15:00", "20:00"]);
+  });
+  it("a fase 2 começa no dia dela, no horário da âncora, e a fase 1 não passa do fim do último dia", () => {
     const d16 = generateDoseEvents(treatment, chained, "2026-10-16", TZ);
-    expect(d15.every((x) => x.phase_id === "a")).toBe(true);
-    expect(hours(d16.map((x) => x.scheduled_at))).toEqual(["06:00", "12:00", "18:00"]);
-    expect(d16.every((x) => x.phase_id === "b")).toBe(true);
+    expect(hours(d16.map((x) => x.scheduled_at))).toEqual(["00:00", "03:00", "06:00", "12:00", "18:00"]);
+    expect(d16.map((x) => x.phase_id)).toEqual(["a", "a", "b", "b", "b"]);
+    expect(hours(generateDoseEvents(treatment, chained, "2026-10-17", TZ).map((x) => x.scheduled_at))).toEqual(["00:00", "06:00", "12:00", "18:00"]);
   });
-  it("depois do dia 20 e antes do início não gera", () => {
-    expect(generateDoseEvents(treatment, chained, "2026-10-21", TZ)).toEqual([]);
+  it("depois do fim da última fase e antes do início não gera", () => {
+    // a fase 2 vai até o fim do dia 20 contado a partir de 06:00: a última dose é 2026-10-21 00:00
+    expect(hours(generateDoseEvents(treatment, chained, "2026-10-21", TZ).map((x) => x.scheduled_at))).toEqual(["00:00"]);
+    expect(generateDoseEvents(treatment, chained, "2026-10-22", TZ)).toEqual([]);
     expect(generateDoseEvents(treatment, chained, "2026-09-30", TZ)).toEqual([]);
   });
   it("fase final 'até acabar' continua gerando", () => {
     const p = [phase({ end_day: null })];
-    expect(generateDoseEvents(treatment, p, "2027-03-01", TZ).length).toBe(6);
+    expect(generateDoseEvents(treatment, p, "2027-03-01", TZ).length).toBe(8);
   });
   it("é idempotente e descarta já existentes", () => {
     const a = generateDoseEvents(treatment, chained, "2026-10-15", TZ);
@@ -249,32 +268,39 @@ describe("estoque", () => {
 
 describe("forecastDepletion", () => {
   const from = "2026-10-01";
-  it("fase única: 60 unidades, 6 doses/dia → 10 dias", () => {
-    const f = forecastDepletion({ balance: 60, is_estimate: false }, treatment, [phase({})], from, TZ);
-    expect(f).toMatchObject({ daysLeft: 10, depletionDate: "2026-10-11", confidence: "high" });
+  it("fase única: 64 unidades, 8 doses/dia (3 em 3 h) → 8 dias", () => {
+    const f = forecastDepletion({ balance: 64, is_estimate: false }, treatment, [phase({})], from, TZ);
+    expect(f).toMatchObject({ daysLeft: 8, depletionDate: "2026-10-09", confidence: "high" });
   });
-  it("atravessa mudança de fase (6/dia nos dias 1–15, 3/dia nos dias 16–20)", () => {
-    // 15*6=90 + 3 dias*3=9 → 99 cobre 18 dias; 100 não cobre dia 19 inteiro? 100-90=10 → 3 dias (9), sobra 1 → acaba no dia 19
-    const f = forecastDepletion({ balance: 100, is_estimate: false }, treatment, chained, from, TZ);
-    expect(f.daysLeft).toBe(18);
-    expect(f.depletionDate).toBe("2026-10-19");
+  it("atravessa mudança de fase (8/dia nos dias 1–15, 4/dia nos dias 16–20)", () => {
+    // 15*8=120; sobram 10 → dias 16 e 17 (4 cada) cobertos; o dia 18 precisa de 4 e restam 2
+    const f = forecastDepletion({ balance: 130, is_estimate: false }, treatment, chainedMid, from, TZ);
+    expect(f.daysLeft).toBe(17);
+    expect(f.depletionDate).toBe("2026-10-18");
   });
   it("cobre até o fim das fases finitas", () => {
-    const f = forecastDepletion({ balance: 500, is_estimate: false }, treatment, chained, from, TZ);
+    const f = forecastDepletion({ balance: 500, is_estimate: false }, treatment, chainedMid, from, TZ);
     expect(f).toMatchObject({ coversUntilEnd: true, daysLeft: null, depletionDate: null });
   });
   it("fase final 'até acabar' sempre esgota", () => {
     const p = [phase({ end_day: null })];
-    expect(forecastDepletion({ balance: 6000, is_estimate: false }, treatment, p, from, TZ).daysLeft).toBe(1000);
+    expect(forecastDepletion({ balance: 6000, is_estimate: false }, treatment, p, from, TZ).daysLeft).toBe(750);
+  });
+  it("intervalo contínuo: soma as doses reais de cada dia (5 em 5 h alterna 4 e 5 doses)", () => {
+    // 10-01 (08:00 em diante) 4 doses, 10-02 4, 10-03 5: saldo 13 cobre os 3 dias
+    const p = [phase({ interval_hours: 5, first_dose_time: "08:00" })];
+    const f = forecastDepletion({ balance: 13, is_estimate: false }, treatment, p, from, TZ);
+    expect(f.daysLeft).toBe(3);
+    expect(f.depletionDate).toBe("2026-10-04");
   });
   it("calcula a partir de um dia no meio do tratamento", () => {
-    const f = forecastDepletion({ balance: 30, is_estimate: false }, treatment, chained, "2026-10-14", TZ);
-    // dias 14,15 (6 cada)=12; 16,17,18,19,20 (3 cada)=15 → 27; sobram 3 → cobre tudo? 30≥27 → até o fim
+    const f = forecastDepletion({ balance: 40, is_estimate: false }, treatment, chainedMid, "2026-10-14", TZ);
+    // dias 14,15 (8 cada)=16; 16 a 20 (4 cada)=20 → 36; 40 ≥ 36 → até o fim
     expect(f.coversUntilEnd).toBe(true);
-    const g = forecastDepletion({ balance: 20, is_estimate: false }, treatment, chained, "2026-10-14", TZ);
-    // 12 + 3 dias (9) = 21 > 20 → dias 14,15,16,17 (18) cobertos; dia 18 precisa 3, restam 2
-    expect(g.daysLeft).toBe(4);
-    expect(g.depletionDate).toBe("2026-10-18");
+    const g = forecastDepletion({ balance: 30, is_estimate: false }, treatment, chainedMid, "2026-10-14", TZ);
+    // 16 + dias 16,17,18 (12) = 28; o dia 19 precisa de 4 e restam 2
+    expect(g.daysLeft).toBe(5);
+    expect(g.depletionDate).toBe("2026-10-19");
   });
   it("colírio: frasco 5 ml, 20 gotas/ml, 2 gotas por dose, 3 em 3 h → 100 gotas / 16 = 6 dias, confiança baixa", () => {
     const drops = [phase({ dose_amount: 2, first_dose_time: "00:00", end_day: 15 })];
@@ -283,15 +309,15 @@ describe("forecastDepletion", () => {
     expect(f.confidence).toBe("low");
   });
   it("hoje (Date no meio do dia) conta só as doses que faltam", () => {
-    const drops = [phase({ dose_amount: 2, first_dose_time: "06:00" })]; // 6 doses × 2 = 12/dia; faltam 15h,18h,21h = 6
-    const s = { balance: 24, is_estimate: true };
+    const drops = [phase({ dose_amount: 2, first_dose_time: "00:00" })]; // 8 doses × 2 = 16/dia; faltam 15h,18h,21h = 6
+    const s = { balance: 22, is_estimate: true };
     const f = forecastDepletion(s, treatment, drops, new Date("2026-10-15T17:10:00Z"), TZ); // 14:10 local
     expect(f).toMatchObject({ daysLeft: 2, depletionDate: "2026-10-17", confidence: "low" });
-    // com saldo 19 acaba no dia 17; com string de data o dia inteiro conta
-    expect(forecastDepletion({ ...s, balance: 19 }, treatment, drops, new Date("2026-10-15T17:10:00Z"), TZ).depletionDate).toBe("2026-10-17");
-    expect(forecastDepletion({ ...s, balance: 19 }, treatment, drops, "2026-10-15", TZ).depletionDate).toBe("2026-10-16");
+    // com saldo 21 hoje (6) ainda cobre, mas o dia 16 (16) não cabe: acaba no dia 16; com string de data o dia inteiro conta
+    expect(forecastDepletion({ ...s, balance: 21 }, treatment, drops, new Date("2026-10-15T17:10:00Z"), TZ).depletionDate).toBe("2026-10-16");
+    expect(forecastDepletion({ ...s, balance: 21 }, treatment, drops, "2026-10-15", TZ).depletionDate).toBe("2026-10-16");
     // depois da última dose do dia, hoje já não consome
-    const late = forecastDepletion({ ...s, balance: 12 }, treatment, drops, new Date("2026-10-16T01:00:00Z"), TZ); // 22:00 local
+    const late = forecastDepletion({ ...s, balance: 16 }, treatment, drops, new Date("2026-10-16T01:00:00Z"), TZ); // 22:00 local
     expect(late).toMatchObject({ daysLeft: 2, depletionDate: "2026-10-17" });
   });
   it("ajuste manual muda saldo e previsão", () => {
@@ -299,8 +325,8 @@ describe("forecastDepletion", () => {
     const before = forecastDepletion({ balance: balance(mv), is_estimate: false }, treatment, [phase({})], from, TZ);
     const adj = applyAdjustment(mv, { familyId: "f1", stockItemId: "s1", newBalance: 30, memberId: "m" })!;
     const after = forecastDepletion({ balance: balance([...mv, adj]), is_estimate: false }, treatment, [phase({})], from, TZ);
-    expect(before.daysLeft).toBe(10);
-    expect(after.daysLeft).toBe(5);
+    expect(before.daysLeft).toBe(7);
+    expect(after.daysLeft).toBe(3);
   });
   it("respeita end_date do tratamento", () => {
     const f = forecastDepletion({ balance: 60, is_estimate: false }, { ...treatment, end_date: "2026-10-05" }, [phase({})], from, TZ);

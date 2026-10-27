@@ -54,7 +54,7 @@ test("Lote 2: doses do dia, check, baixa de estoque, desfazer e aviso no sino", 
   await test.step("esquema de 8 em 8 horas a partir das 06:00 (3 doses por dia)", async () => {
     await open(page, "/configuracoes/esquemas");
     for (let i = 0; i < 2; i++) await page.getByRole("button", { name: "Diminuir horas entre as doses" }).click(); // 24 -> 12 -> 8
-    await page.getByLabel("Primeiro horário do dia").fill("06:00");
+    await page.getByLabel("Hora da primeira dose").fill("06:00");
     await page.getByRole("button", { name: "Salvar esquema" }).click();
     await toast(page, "Esquema de Losartana 50 mg salvo");
   });

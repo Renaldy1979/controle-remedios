@@ -69,7 +69,7 @@ test("Lote 4A: número, simulador, tomei, estoque, chave de API, convite por Wha
     await toast(page, "Zypred cadastrado");
 
     await open(page, "/configuracoes/esquemas");
-    await page.getByLabel("Primeiro horário do dia").fill(dezMinutosAtras());
+    await page.getByLabel("Hora da primeira dose").fill(dezMinutosAtras());
     await page.getByRole("button", { name: "Salvar esquema" }).click();
     await toast(page, "Esquema de Zypred salvo");
   });

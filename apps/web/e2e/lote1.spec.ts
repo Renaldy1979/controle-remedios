@@ -110,13 +110,12 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
 
   await test.step("esquema com duas fases: 3 em 3 h por 15 dias, depois 6 em 6 h", async () => {
     await open(page, "/configuracoes/esquemas");
-    await page.getByRole("switch", { name: /Fase única/ }).click(); // desliga a fase única
     await page.getByRole("button", { name: "Adicionar fase" }).click();
     // fase 2 (selecionada ao adicionar): 6 em 6 h
     for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Diminuir horas entre as doses" }).click(); // 24 -> 12 -> 8 -> 6
     await page.getByRole("button", { name: "Fase 1" }).click();
     for (let i = 0; i < 5; i++) await page.getByRole("button", { name: "Diminuir horas entre as doses" }).click(); // 24 -> ... -> 3
-    await page.getByLabel("Quantos dias dura esta fase").fill("15");
+    await page.getByLabel("Por quantos dias dura a fase 1").fill("15");
     await page.getByRole("button", { name: "Salvar esquema" }).click();
     await toast(page, "Esquema de Zypred salvo");
 
@@ -130,7 +129,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
 
   await test.step("fases com buraco são recusadas com mensagem clara", async () => {
     await open(page, "/configuracoes/esquemas");
-    await page.getByLabel("Quantos dias dura esta fase").fill("0");
+    await page.getByLabel("Por quantos dias dura a fase 1").fill("0");
     await page.getByRole("button", { name: "Salvar esquema" }).click();
     await expect(page.getByRole("alert").getByText(/duração precisa ser um número de dias/)).toBeVisible();
   });

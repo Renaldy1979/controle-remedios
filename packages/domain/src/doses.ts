@@ -1,5 +1,5 @@
 import type { FamilySettings } from "@medcuidar/shared";
-import { daysBetween, localParts, parseHHmm, zonedToUtc, DEFAULT_TZ } from "./time";
+import { addDays, daysBetween, parseHHmm, zonedToUtc, DEFAULT_TZ } from "./time";
 import type { DoseEvent, StockMovement, Treatment, TreatmentPhase } from "./types";
 
 export interface DoseDraft {
@@ -22,19 +22,24 @@ export function phaseForDay(phases: TreatmentPhase[], day: number): TreatmentPha
     .find((p) => day >= p.start_day && (p.end_day === null || day <= p.end_day));
 }
 
-/** Número de doses que a fase gera num dia (sem contar horário de verão). */
+/**
+ * Doses por dia em média (sem contar horário de verão). Intervalo contínuo: 24 h / intervalo,
+ * então um intervalo de 5 h dá 4,8 por dia (4 ou 5 doses conforme o dia).
+ */
 export function dosesPerDay(phase: TreatmentPhase): number {
   if (phase.schedule_type === "fixed_times") return new Set(phase.times ?? []).size;
-  const step = (phase.interval_hours ?? 0) * 60;
-  if (step <= 0) return 0;
-  const first = parseHHmm(phase.first_dose_time ?? "00:00");
-  return Math.floor((1440 - 1 - first) / step) + 1;
+  const hours = phase.interval_hours ?? 0;
+  return hours > 0 ? 24 / hours : 0;
 }
 
 /**
  * Doses de um dia local (YYYY-MM-DD). Idempotente: mesmo resultado a cada chamada;
- * `existing` (scheduled_at já gravados) é descartado. Intervalos contam em tempo real
- * a partir da primeira dose, então a troca de horário de verão não duplica nem pula doses.
+ * `existing` (scheduled_at já gravados) é descartado.
+ *
+ * Intervalo CONTÍNUO: a âncora é o dia 1 + `first_dose_time` da primeira fase. Cada fase de intervalo começa
+ * no seu `start_day` no horário da âncora e gera doses a cada `interval_hours`, atravessando a meia-noite, até o
+ * fim do seu último dia (`end_day`; nulo = sem fim). Os intervalos contam em tempo real, então a troca de
+ * horário de verão não duplica nem pula doses.
  */
 export function generateDoseEvents(
   treatment: Treatment,
@@ -47,37 +52,48 @@ export function generateDoseEvents(
   if (date < treatment.start_date) return [];
   if (treatment.end_date && date > treatment.end_date) return [];
   const day = daysBetween(treatment.start_date, date) + 1;
-  const phase = phaseForDay(phases, day);
-  if (!phase) return [];
+  const sorted = [...phases].sort((a, b) => a.order - b.order);
+  const anchorTime = parseHHmm(sorted.find((p) => p.schedule_type === "interval")?.first_dose_time ?? "00:00");
+  const dayStart = zonedToUtc(date, 0, tz).getTime();
+  const dayEnd = zonedToUtc(addDays(date, 1), 0, tz).getTime();
 
-  const instants: Date[] = [];
-  if (phase.schedule_type === "fixed_times") {
-    for (const t of new Set(phase.times ?? [])) instants.push(zonedToUtc(date, parseHHmm(t), tz));
-  } else {
+  const drafts: Array<{ at: Date; phase: TreatmentPhase }> = [];
+  if (phaseForDay(sorted, day)?.schedule_type === "fixed_times") {
+    const phase = phaseForDay(sorted, day)!;
+    for (const t of new Set(phase.times ?? [])) drafts.push({ at: zonedToUtc(date, parseHHmm(t), tz), phase });
+  }
+  for (const phase of sorted) {
+    if (phase.schedule_type !== "interval") continue;
     const step = (phase.interval_hours ?? 0) * 3600_000;
-    if (step <= 0) return [];
-    let cur = zonedToUtc(date, parseHHmm(phase.first_dose_time ?? "00:00"), tz);
-    while (localParts(cur, tz).date === date) {
-      instants.push(cur);
-      cur = new Date(cur.getTime() + step);
+    if (step <= 0) continue;
+    const from = zonedToUtc(addDays(treatment.start_date, phase.start_day - 1), anchorTime, tz).getTime();
+    const until = phase.end_day === null ? Infinity : zonedToUtc(addDays(treatment.start_date, phase.end_day), anchorTime, tz).getTime();
+    if (from >= dayEnd || until <= dayStart) continue;
+    for (let t = from + Math.max(0, Math.ceil((dayStart - from) / step)) * step; t < dayEnd && t < until; t += step) {
+      if (t >= dayStart) drafts.push({ at: new Date(t), phase });
     }
   }
 
   const have = new Set(existing.map((e) => new Date(e.scheduled_at).toISOString()));
-  return instants
-    .sort((a, b) => a.getTime() - b.getTime())
-    .map((d) => d.toISOString())
-    .filter((iso, i, arr) => arr.indexOf(iso) === i && !have.has(iso))
-    .map((iso) => ({
+  const seen = new Set<string>();
+  return drafts
+    .sort((a, b) => a.at.getTime() - b.at.getTime())
+    .filter((d) => {
+      const iso = d.at.toISOString();
+      if (seen.has(iso) || have.has(iso)) return false;
+      seen.add(iso);
+      return true;
+    })
+    .map(({ at, phase }) => ({
       family_id: treatment.family_id,
       treatment_id: treatment.id,
       patient_id: treatment.patient_id,
       medication_id: treatment.medication_id,
-      scheduled_at: iso,
+      scheduled_at: at.toISOString(),
       status: "pending" as const,
       amount: phase.dose_amount,
       phase_id: phase.id,
-      key: `${treatment.id}|${iso}`,
+      key: `${treatment.id}|${at.toISOString()}`,
     }));
 }
 

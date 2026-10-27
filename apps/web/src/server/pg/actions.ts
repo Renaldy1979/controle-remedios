@@ -332,14 +332,13 @@ export async function saveSchemeAction(medicationId: string, input: unknown) {
   return run(async (ctx) => {
     const i = parse(
       z.object({
-        single: z.boolean(),
         firstTime: z.string().max(5),
         phases: z.array(phaseInput).min(1).max(6),
         startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       }),
       input,
     );
-    const phases = (i.single ? [{ ...i.phases[0]!, fromDay: 1, toDay: null }] : i.phases).map((p) => ({ everyHours: p.everyHours, fromDay: p.fromDay, toDay: p.toDay, perDose: p.perDose }));
+    const phases = i.phases.map((p) => ({ everyHours: p.everyHours, fromDay: p.fromDay, toDay: p.toDay, perDose: p.perDose }));
     await (await import("./medications")).saveScheme(ctx, parse(id, medicationId), { firstTime: i.firstTime, phases, ...(i.startDate ? { startDate: i.startDate } : {}) });
   });
 }

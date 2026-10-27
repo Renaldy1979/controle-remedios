@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { normalizePhone, formatPhone, maskPhone } from "./phone";
-import { validateScheme, type PhaseInput } from "./scheme";
-import { intervalTimes } from "./times";
+import { schemeDosesOnDate, validateScheme, type PhaseInput } from "./scheme";
 
 const ph = (everyHours: number, fromDay: number, toDay: number | null, perDose = 1): PhaseInput => ({ everyHours, fromDay, toDay, perDose });
 
 describe("validateScheme (regras de fases, com @medcuidar/domain)", () => {
-  it("aceita fase única até acabar", () => {
+  it("aceita uma fase só, até acabar o estoque", () => {
     expect(validateScheme([ph(8, 1, null)], "08:00")).toEqual({ ok: true, errors: [] });
   });
 
@@ -46,15 +45,26 @@ describe("validateScheme (regras de fases, com @medcuidar/domain)", () => {
   });
 });
 
-describe("intervalTimes", () => {
-  it("gera os horários do dia", () => {
-    expect(intervalTimes("06:00", 6)).toEqual(["06:00", "12:00", "18:00"]);
-    expect(intervalTimes("08:00", 24)).toEqual(["08:00"]);
-    expect(intervalTimes("00:00", 8)).toEqual(["00:00", "08:00", "16:00"]);
+describe("schemeDosesOnDate (intervalo contínuo)", () => {
+  const times = (date: string, phases: PhaseInput[], firstTime = "15:00") =>
+    schemeDosesOnDate({ startDate: "2026-10-26", firstTime, phases, date }).map((d) => d.time);
+
+  it("15h de 6 em 6 horas: 15/21 no dia 1 e 03/09/15/21 nos seguintes", () => {
+    expect(times("2026-10-26", [ph(6, 1, null)])).toEqual(["15:00", "21:00"]);
+    expect(times("2026-10-27", [ph(6, 1, null)])).toEqual(["03:00", "09:00", "15:00", "21:00"]);
   });
-  it("devolve vazio para entrada inválida", () => {
-    expect(intervalTimes("25:00", 6)).toEqual([]);
-    expect(intervalTimes("08:00", 0)).toEqual([]);
+  it("8 em 8 horas a partir das 08:00 dá 3 doses por dia: 08/16/00", () => {
+    expect(times("2026-10-27", [ph(8, 1, null)], "08:00")).toEqual(["00:00", "08:00", "16:00"]);
+  });
+  it("duração em dias: depois do último dia não há mais doses", () => {
+    const f = [ph(12, 1, 2)];
+    expect(times("2026-10-27", f)).toEqual(["03:00", "15:00"]);
+    expect(times("2026-10-28", f)).toEqual(["03:00"]); // a fase termina às 15:00 do dia seguinte ao último dia (exclusive)
+    expect(times("2026-10-29", f)).toEqual([]);
+  });
+  it("vazio para horário inválido ou sem fases", () => {
+    expect(times("2026-10-27", [ph(6, 1, null)], "25:00")).toEqual([]);
+    expect(times("2026-10-27", [])).toEqual([]);
   });
 });
 

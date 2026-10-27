@@ -460,7 +460,7 @@ export interface MedicationInput {
 }
 
 export interface SchemeInput {
-  single: boolean;
+  /** hora de início: âncora do intervalo contínuo (dia 1 + este horário) */
   firstTime: string;
   phases: PhaseVM[];
   /** aaaa-mm-dd: dia 1 do esquema */
