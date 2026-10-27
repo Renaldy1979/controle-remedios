@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  ACTION_PERMISSIONS,
   ADMIN_PROFILE_NAME,
+  READ_ONLY_PROFILE_NAME,
   COLLECTIONS,
   PERMISSION_GROUPS,
   PERMISSION_KEYS,
@@ -60,6 +62,31 @@ describe("permissões", () => {
     expect(can({ profileName: "Confirmador", permissions: by("Confirmador").permissions }, "prescriptions.view")).toBe(false);
     expect(can({ profileName: "Familiar", permissions: by("Familiar").permissions }, "prescriptions.view")).toBe(true);
     expect(can({ profileName: "Cuidadora", permissions: by("Cuidadora").permissions }, "prescriptions.view")).toBe(true);
+  });
+});
+
+describe("perfil Somente leitura", () => {
+  const prof = SYSTEM_PROFILES.find((p) => p.name === READ_ONLY_PROFILE_NAME)!;
+
+  it("é o último perfil de sistema e tem exatamente as 5 permissões de leitura", () => {
+    expect(SYSTEM_PROFILES[SYSTEM_PROFILES.length - 1]!.name).toBe(READ_ONLY_PROFILE_NAME);
+    expect(Object.keys(prof.permissions).sort()).toEqual(["dashboard.view", "doses.history.view", "patients.view", "stock.view", "whatsapp.query"]);
+  });
+
+  it("nenhuma permissão de ação vem ligada e `can` recusa mesmo com o mapa adulterado", () => {
+    const forjado = Object.fromEntries(PERMISSION_KEYS.map((k) => [k, true]));
+    for (const k of ACTION_PERMISSIONS) {
+      expect(prof.permissions[k], k).toBeUndefined();
+      expect(can({ profileName: READ_ONLY_PROFILE_NAME, permissions: forjado }, k), k).toBe(false);
+    }
+    // leitura de receita pode ser liberada pelo administrador
+    expect(can({ profileName: READ_ONLY_PROFILE_NAME, permissions: { "prescriptions.view": true } }, "prescriptions.view")).toBe(true);
+    expect(can({ profileName: READ_ONLY_PROFILE_NAME, permissions: prof.permissions }, "prescriptions.view")).toBe(false);
+  });
+
+  it("cada permissão está em exatamente uma lista: de ação ou de leitura", () => {
+    const leitura = PERMISSION_KEYS.filter((k) => !ACTION_PERMISSIONS.includes(k));
+    expect(leitura.sort()).toEqual(["dashboard.view", "doses.history.view", "patients.view", "prescriptions.view", "stock.view", "whatsapp.query"]);
   });
 });
 

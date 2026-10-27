@@ -335,6 +335,8 @@ export interface PermissionRowVM {
   label: string;
   /** valor por perfil, na ordem de `profiles` */
   values: boolean[];
+  /** linha de ação (escrever/administrar): fica travada no perfil "Somente leitura" */
+  action?: boolean;
 }
 
 export interface NotificationSettingsVM {

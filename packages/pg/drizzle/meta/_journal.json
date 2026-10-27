@@ -78,6 +78,13 @@
       "when": 1792700165556,
       "tag": "0010_lote4b_familias_com_whatsapp",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793000000000,
+      "tag": "0011_lote5a_perfil_somente_leitura",
+      "breakpoints": true
     }
   ]
 }

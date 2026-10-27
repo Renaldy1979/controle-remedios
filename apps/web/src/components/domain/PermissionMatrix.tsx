@@ -2,6 +2,7 @@
 import type { PermissionRowVM } from "@/data";
 import { Switch } from "@/components/ui/Controls";
 import { Icon } from "@/components/ui/Icon";
+import { isReadOnlyProfile } from "@medcuidar/shared";
 
 interface Props {
   profiles: string[];
@@ -10,11 +11,11 @@ interface Props {
   readOnly?: boolean;
 }
 
-/** Grade funcionalidade × perfil. Administrador bloqueado ("Sempre"). */
+/** Grade funcionalidade × perfil. Administrador bloqueado ("Sempre"); linhas de ação travadas em "Somente leitura". */
 export function PermissionMatrix({ profiles, rows, onChange, readOnly }: Props) {
   return (
     <div className="overflow-x-auto rounded-lg border border-bd bg-sf">
-      <table className="w-full min-w-[640px] border-collapse text-left">
+      <table className="w-full min-w-[860px] border-collapse text-left">
         <caption className="sr-only">Permissões por perfil</caption>
         <thead>
           <tr>
@@ -35,11 +36,16 @@ export function PermissionMatrix({ profiles, rows, onChange, readOnly }: Props) 
                 {row.label}
               </th>
               {profiles.map((p, i) => (
-                <td key={p} className="border-t border-bd px-3 py-1 text-center">
+                <td key={p} className="border-t border-bd px-3 py-1 text-center align-middle">
                   {p === "Administrador" ? (
                     <span className="inline-flex min-h-touch items-center gap-1 font-bold text-ink2">
                       <Icon name="lock" size={18} />
                       Sempre
+                    </span>
+                  ) : row.action && isReadOnlyProfile(p) ? (
+                    <span aria-disabled="true" className="inline-flex min-h-touch items-center justify-center gap-1 text-cap font-bold text-ink2">
+                      <Icon name="lock" size={18} />
+                      ação: indisponível neste perfil
                     </span>
                   ) : (
                     <Switch small showState disabled={readOnly} checked={row.values[i] ?? false} onChange={(v) => onChange(row.id, p, v)} label={`${row.label} — ${p}`} />

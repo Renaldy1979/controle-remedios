@@ -866,4 +866,27 @@ describe.skipIf(!disponivel)("Postgres + RLS (papel da aplicação)", () => {
       expect(await ativarMembroPorEmail(email, `zz-test-${randomUUID()}`)).toBeNull();
     });
   });
+  /* ------------------------------------------------------------ Lote 5A: migração do perfil "Somente leitura" */
+  describe("migração 0011 (perfil Somente leitura)", () => {
+    it("dá o perfil de sistema às famílias que não o têm, sem duplicar ao rodar de novo e sem tocar nos outros perfis", async () => {
+      const { readFileSync } = await import("node:fs");
+      const { fileURLToPath } = await import("node:url");
+      const arquivo = fileURLToPath(new URL("../drizzle/0011_lote5a_perfil_somente_leitura.sql", import.meta.url));
+      const ddl = readFileSync(arquivo, "utf8");
+      const perfis = async (familia: string) => admin`select name, is_system, permissions from profiles where family_id = ${familia} order by name`;
+
+      expect((await perfis(A.id)).map((p) => p["name"])).toEqual(["Administrador"]);
+      const antes = await admin`select id, permissions from profiles where id = ${A.profileId}`;
+      await admin.unsafe(ddl);
+      await admin.unsafe(ddl); // idempotente
+      for (const F of [A, B]) {
+        const ps = await perfis(F.id);
+        expect(ps.map((p) => p["name"])).toEqual(["Administrador", "Somente leitura"]);
+        const ro = ps.find((p) => p["name"] === "Somente leitura")!;
+        expect(ro["is_system"]).toBe(true);
+        expect(Object.keys(ro["permissions"] as object).sort()).toEqual(["dashboard.view", "doses.history.view", "patients.view", "stock.view", "whatsapp.query"]);
+      }
+      expect(await admin`select id, permissions from profiles where id = ${A.profileId}`).toEqual(antes);
+    });
+  });
 });

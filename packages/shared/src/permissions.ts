@@ -66,9 +66,41 @@ export const SYSTEM_PROFILES: ReadonlyArray<{ name: string; permissions: Permiss
     ),
   },
   { name: "Confirmador", permissions: only("dashboard.view", "patients.view", "doses.confirm", "whatsapp.query") },
+  {
+    name: "Somente leitura",
+    permissions: only("dashboard.view", "patients.view", "doses.history.view", "stock.view", "whatsapp.query"),
+  },
 ];
 
 export const ADMIN_PROFILE_NAME = "Administrador";
+
+/** Perfil de quem só acompanha (visão de relatório): vê e não age. */
+export const READ_ONLY_PROFILE_NAME = "Somente leitura";
+
+/**
+ * Permissões que fazem ALGO (escrever, confirmar, cadastrar, administrar). Nunca podem ser ligadas no perfil
+ * "Somente leitura": a matriz bloqueia e o servidor recusa. `prescriptions.view`, `stock.view` etc. são de leitura.
+ */
+export const ACTION_PERMISSIONS: readonly PermissionKey[] = [
+  "doses.confirm",
+  "stock.adjust",
+  "replenishment.manage",
+  "prescriptions.upload",
+  "prescriptions.share",
+  "prescriptions.delete",
+  "members.manage",
+  "profiles.manage",
+  "settings.manage",
+  "patients.manage",
+  "medications.manage",
+  "treatments.manage",
+];
+
+export const isReadOnlyProfile = (profileName: string): boolean => profileName === READ_ONLY_PROFILE_NAME;
+export const isActionPermission = (k: PermissionKey): boolean => ACTION_PERMISSIONS.includes(k);
+
+/** Uma linha da matriz (grupo de chaves) só de ação? Então fica travada no perfil "Somente leitura". */
+export const isActionGroup = (g: { keys: readonly PermissionKey[] }): boolean => g.keys.some(isActionPermission);
 
 /** Administrador sempre tem acesso total, independente do mapa salvo. */
 export function can(
@@ -76,5 +108,7 @@ export function can(
   permission: PermissionKey,
 ): boolean {
   if (member.profileName === ADMIN_PROFILE_NAME) return true;
+  // trava de defesa: mesmo que o mapa salvo no banco tenha uma permissão de ação, "Somente leitura" nunca age
+  if (member.profileName === READ_ONLY_PROFILE_NAME && ACTION_PERMISSIONS.includes(permission)) return false;
   return member.permissions[permission] === true;
 }

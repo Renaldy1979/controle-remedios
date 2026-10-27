@@ -3,7 +3,7 @@
  * receita, rótulos de tempo) são apenas o suficiente para as telas funcionarem
  * com dados fictícios; a regra oficial virá de packages/domain na Fase 3.
  */
-import { PERMISSION_GROUPS, SYSTEM_PROFILES, can, type DoseStatus, type PermissionMap } from "@medcuidar/shared";
+import { PERMISSION_GROUPS, SYSTEM_PROFILES, can, isActionGroup, isReadOnlyProfile, type DoseStatus, type PermissionMap } from "@medcuidar/shared";
 import { addDays, fmtDate, fmtDuration, fmtShort, fmtTime, fmtWeekday, parseDate, plural } from "@/lib/format";
 import { DOSE_STATUS, RX_STATUS } from "@/lib/status";
 import type {
@@ -93,7 +93,7 @@ function initialRaw(): Raw {
   const alertsRow: Record<string, boolean> = {};
   for (const p of SYSTEM_PROFILES) {
     profilePerms[p.name] = { ...p.permissions };
-    alertsRow[p.name] = p.name !== "Confirmador";
+    alertsRow[p.name] = p.name !== "Confirmador" && !isReadOnlyProfile(p.name);
   }
   return {
     memberId: "ana",
@@ -415,6 +415,7 @@ export class MockDataSource implements DataSource {
     const permissionRows = PERMISSION_GROUPS.map((g) => ({
       id: g.id,
       label: g.label,
+      ...(isActionGroup(g) ? { action: true } : {}),
       values: profiles.map((pn) => (g.keys.length === 0 ? !!r.alertsRow[pn] : g.keys.every((k) => can({ profileName: pn, permissions: perms(pn) }, k)))),
     }));
 
@@ -563,6 +564,7 @@ export class MockDataSource implements DataSource {
       this.set((r) => {
         const group = PERMISSION_GROUPS.find((g) => g.id === rowId);
         if (!group || profile === "Administrador") return r;
+        if (value && isReadOnlyProfile(profile) && isActionGroup(group)) return r;
         if (group.keys.length === 0) return { ...r, alertsRow: { ...r.alertsRow, [profile]: value } };
         const next: PermissionMap = { ...r.profilePerms[profile] };
         for (const k of group.keys) next[k] = value;

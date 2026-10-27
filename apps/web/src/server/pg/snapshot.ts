@@ -3,7 +3,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, lt, notInArray, or, sql } fro
 import { withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { addDays, effectiveRecipientsMode, localParts, resolveResponsible, zonedToUtc } from "@medcuidar/domain";
-import { PERMISSION_GROUPS, SYSTEM_PROFILES, can, permissionMapSchema, type ControlUnit, type PermissionMap } from "@medcuidar/shared";
+import { PERMISSION_GROUPS, SYSTEM_PROFILES, can, isActionGroup, permissionMapSchema, type ControlUnit, type PermissionMap } from "@medcuidar/shared";
 import type {
   AccessState, DoseVM, MedicationVM, PatientVM, PermissionRowVM, PersonVM, Role, Snapshot, StockMovementVM, StockVM, Tone,
 } from "@/data/types";
@@ -211,6 +211,7 @@ export async function buildSnapshot(ctx: Ctx, now: Date = new Date()): Promise<S
     ? PERMISSION_GROUPS.filter((g) => g.keys.length > 0).map((g) => ({
         id: g.id,
         label: g.label,
+        ...(isActionGroup(g) ? { action: true } : {}),
         values: profileNames.map((pn) => {
           const prof = L.profiles.find((p) => p.name === pn);
           return g.keys.every((k) => can({ profileName: pn, permissions: permsOf(prof) }, k));
