@@ -249,7 +249,7 @@ describe.skipIf(!up)("Somente leitura: toda escrita é recusada e o banco não m
   let F: Fam;
   let tabelas: string[] = [];
 
-  /** Impressão digital das tabelas da família (menos a escrita de bookkeeping da conversa: log, contexto e idempotência). */
+  /** Impressão digital das tabelas da família (menos bookkeeping da conversa e avisos do sino, que rotinas em segundo plano de outras suítes também gravam). */
   async function impressao(): Promise<string> {
     const partes: string[] = [];
     for (const t of tabelas) {
@@ -269,7 +269,7 @@ describe.skipIf(!up)("Somente leitura: toda escrita é recusada e o banco não m
     await limparFamiliasAntigasDeTeste(admin);
     tabelas = ((await admin`select table_name from information_schema.columns where table_schema = 'public' and column_name = 'family_id'`).map((r) => r["table_name"] as string))
       .concat("families")
-      .filter((t) => !["message_log", "conversation_state", "idempotency", "platform_audit_log", "ai_usage"].includes(t))
+      .filter((t) => !["message_log", "conversation_state", "idempotency", "platform_audit_log", "ai_usage", "notifications"].includes(t))
       .sort();
 
     const r = await createFamilyWithAdmin({ appwriteUserId: `zz-test-${randomUUID()}`, name: "Admin Leitura", email: `zz-test-leitura-${randomUUID().slice(0, 6)}@exemplo.test`, familyName: "Família Leitura" });

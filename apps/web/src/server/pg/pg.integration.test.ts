@@ -96,7 +96,7 @@ describe.skipIf(!up)("Lote 1 — regras do portal no Postgres", () => {
     it("cria família, perfis iniciais e o administrador ativo", async () => {
       const snap = await buildSnapshot(A.ctxOf(A.admin));
       expect(snap.family.name).toBe("Família A");
-      expect(snap.profiles).toEqual(["Administrador", "Familiar", "Cuidadora", "Confirmador"]);
+      expect(snap.profiles).toEqual(["Administrador", "Familiar", "Cuidadora", "Confirmador", "Somente leitura"]);
       expect(snap.people).toHaveLength(1);
       expect(snap.people[0]).toMatchObject({ profileName: "Administrador", accessState: "active", isSelf: true });
     });
