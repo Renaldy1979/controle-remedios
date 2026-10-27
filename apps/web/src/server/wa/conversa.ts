@@ -199,8 +199,6 @@ async function responderOpcao(actor: WaActor, ctx: ConvCtx, n: number, messageId
 
 /* ------------------------------------------------------------------ vários remédios juntos: "Tomei todos", "um por um", "lembrar" */
 
-const itensTexto = (ds: DoseAberta[]) => ds.map((d) => ({ remedio: d.remedio, dose: d.dose }));
-
 /** Doses do mesmo paciente e horário (janela de `WHATSAPP_GRUPO_JANELA_MIN`, padrão 10 min a partir da primeira) formam um grupo. */
 function agruparDoses(doses: DoseAberta[]): DoseAberta[][] {
   const janela = janelaGrupoMs();
@@ -230,12 +228,6 @@ async function salvarCtx(actor: WaActor, ctx: ConvCtx, now: Date): Promise<void>
 /** Resolvidas as doses: tira-as do contexto e apaga os menus (grupo, um por um, escolha). */
 async function limparDoses(actor: WaActor, ctx: ConvCtx, now: Date, ids: string[]): Promise<void> {
   await salvarCtx(actor, { doseIds: ctx.doseIds.filter((d) => !ids.includes(d)), medIds: ctx.medIds }, now);
-}
-
-/** O menu do grupo (1 Tomei todos · 2 Um por um · 3 Lembrar daqui a 15 min). Reenviado quando "tomei" é ambíguo: nunca adivinha. */
-async function mostrarMenuGrupo(actor: WaActor, ctx: ConvCtx, grupo: DoseAberta[], now: Date): Promise<T.Resposta> {
-  await salvarCtx(actor, { doseIds: ctx.doseIds, medIds: ctx.medIds, grupo: { ids: grupo.map((d) => d.id) } }, now);
-  return T.menuGrupo({ paciente: grupo[0]!.paciente, hora: grupo[0]!.hora, doses: itensTexto(grupo) });
 }
 
 async function confirmarTodas(actor: WaActor, ctx: ConvCtx, ids: string[], messageId: string, now: Date): Promise<T.Resposta> {
@@ -277,7 +269,15 @@ async function iniciarUm(actor: WaActor, ctx: ConvCtx, ids: string[], now: Date)
 
 async function passoUm(actor: WaActor, ctx: ConvCtx, n: number, messageId: string, now: Date): Promise<T.Resposta> {
   const um = ctx.um!;
-  if (n < 1 || n > 3) return T.respostaLivre();
+  // 4 = "Tomei todos" os que faltam (só existe quando há outra dose depois desta)
+  if (n < 1 || n > (um.fila.length >= 2 ? 4 : 3)) return T.respostaLivre();
+  if (n === 4) {
+    const restantes = await dosesAindaAbertas(actor, um.fila, now);
+    for (const d of restantes) await confirmDose(actor, d.id, now, { channel: "whatsapp", sourceMessageId: `wa:${actor.familyId}:${messageId}:${d.id}` });
+    await limparDoses(actor, ctx, now, [...um.feitos.map((f) => f.id), ...um.fila]);
+    const feitosTodos = [...um.feitos, ...restantes.map((d) => ({ id: d.id, remedio: d.remedio, r: "tomou" as const }))];
+    return feitosTodos.length ? T.resumoUmPorUm({ paciente: um.paciente, hora: um.hora, feitos: feitosTodos }) : T.dosesJaAnotadas();
+  }
   const [d] = await dosesAindaAbertas(actor, [um.fila[0]!], now);
   const feitos = [...um.feitos];
   let linha = "";
@@ -398,6 +398,8 @@ async function rotear(actor: WaActor, intent: Intent, texto: string, messageId: 
   if (ctx.um && (intent === "dose_tomada" || intent === "lembrar_depois" || intent === "pular" || intent === "nao_tomou")) {
     return ok(await passoUm(actor, ctx, intent === "dose_tomada" ? 1 : intent === "lembrar_depois" ? 2 : 3, messageId, now));
   }
+  // "todos" no meio do um por um: confirma a dose em pergunta e as que faltam
+  if (ctx.um && intent === "tomei_todos") return ok(await passoUm(actor, ctx, ctx.um.fila.length >= 2 ? 4 : 1, messageId, now), "tomei_todos");
 
   switch (intent) {
     case "codigo":
@@ -406,10 +408,10 @@ async function rotear(actor: WaActor, intent: Intent, texto: string, messageId: 
       return ok(await responderOpcao(actor, ctx, parseOption(texto)!, messageId, now));
     case "dose_tomada": {
       const doses = await filtrarPorMencao(actor, texto, await candidatasConfirmacao(actor, now));
-      // 2+ doses do MESMO paciente e horário: nunca adivinha, reenvia o menu (todos / um por um / lembrar)
+      // 2+ doses do MESMO paciente e horário: nunca adivinha nem repete o menu; vai direto para o um por um (com a opção "Tomei todos")
       if (doses.length >= 2) {
         const grupos = agruparDoses(doses);
-        if (grupos.length === 1) return ok(await mostrarMenuGrupo(actor, ctx, grupos[0]!, now));
+        if (grupos.length === 1) return ok(await iniciarUm(actor, ctx, grupos[0]!.map((d) => d.id), now));
       }
       return ok(await agirSobreDoses(actor, ctx, "tomei", doses, messageId, now));
     }

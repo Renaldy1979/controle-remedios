@@ -257,16 +257,12 @@ export const lembrarGrupo = (p: { paciente: string; hora: string; minutos: numbe
   texto: `${titulo("⏳", "Combinado")}\nLembro de novo em ${p.minutos} min (às ${p.horaLembrete}): ${p.paciente}, remédios das ${p.hora}.`,
 });
 
-/** Menu repetido quando "tomei" vale para vários remédios do mesmo horário: nunca adivinha. */
-export function menuGrupo(p: { paciente: string; hora: string; doses: DoseItem[] }): Resposta {
-  return comOpcoes(`${titulo("❓", `Qual você quer anotar — ${p.paciente} (${p.hora})?`)}\n${itensDe(p.doses)}`, ["Tomei todos", "Vou confirmar um por um", "Lembrar daqui a 15 min"]);
-}
-
 /** Pergunta do fluxo "um por um" (dose por dose). */
 export function perguntaUm(p: { paciente: string; hora: string; remedio: string; dose?: string; n: number; total: number }): Resposta {
   return comOpcoes(
     `${titulo("💊", `${p.remedio} — ${p.paciente} (${p.hora})`)}${p.total > 1 ? ` · ${p.n} de ${p.total}` : ""}${p.dose ? `\n${p.dose}.` : ""}`,
-    ["Tomei", "Lembrar daqui a 15 min", "Não vou tomar"],
+    // "Tomei todos" (os que faltam) só aparece quando ainda há outro depois desta dose
+    ["Tomei", "Lembrar daqui a 15 min", "Não vou tomar", ...(p.total - p.n >= 1 ? [`Tomei todos (os ${p.total - p.n + 1} que faltam)`] : [])],
   );
 }
 

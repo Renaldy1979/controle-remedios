@@ -355,6 +355,79 @@ describe("Lote 1 — Pacientes, Remédios e Esquemas (cadastros)", () => {
     ]);
   });
 
+  it("esquema de remédio novo: vem com o próximo horário redondo, a data de hoje e o resumo de hoje", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-27T01:21:00Z") }); // 26/10/2026 22:21 em São Paulo
+    try {
+      const med = createMockDataSource().getSnapshot().medications[0]!;
+      const snap = lote1Snapshot({
+        medications: [{ ...med, id: "m1", patientId: "p2", name: "Zypred", unitLabel: "Gotas", phases: [{ order: 1, everyHours: 24, fromDay: 1, toDay: null, perDose: 1 }], firstTime: "08:00", startDate: "2026-10-26", treatmentDay: null }],
+      });
+      renderApp(shell("/configuracoes/esquemas", <SettingsScreen section="esquemas" />), { source: fakePg(snap) });
+      const form = screen.getByRole("form", { name: "Esquema de Zypred" });
+      expect(within(form).getByLabelText(/Primeiro horário do dia/)).toHaveValue("22:30");
+      expect(within(form).getByLabelText(/Começa em/)).toHaveValue("26/10/2026");
+      const resumo = within(form).getByLabelText("Resumo do que vai acontecer");
+      expect(resumo).toHaveTextContent("Todos os dias: 1 dose (22:30)");
+      expect(resumo).toHaveTextContent("Hoje (26/10): faltam 1 dose (22:30)");
+      // de hora em hora a partir de 22:30 só cabem 2 doses por dia: o aviso diz isso e sugere 00:00
+      await userEvent.click(within(form).getByRole("button", { name: "Diminuir horas entre as doses" })); // 24 -> 12
+      await userEvent.click(within(form).getByRole("button", { name: "Diminuir horas entre as doses" }));
+      expect(within(form).getByLabelText("Resumo do que vai acontecer")).toHaveTextContent(/só cabem 1, e isso se repete todos os dias/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("esquema já ajustado não é trocado pela sugestão de horário", () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-27T01:21:00Z") });
+    try {
+      const med = createMockDataSource().getSnapshot().medications[0]!;
+      const snap = lote1Snapshot({ medications: [{ ...med, id: "m1", patientId: "p2", name: "Zypred", phases: [{ order: 1, everyHours: 24, fromDay: 1, toDay: null, perDose: 1 }], firstTime: "09:00", startDate: "2026-10-01", treatmentDay: null }] });
+      renderApp(shell("/configuracoes/esquemas", <SettingsScreen section="esquemas" />), { source: fakePg(snap) });
+      const form = screen.getByRole("form", { name: "Esquema de Zypred" });
+      expect(within(form).getByLabelText(/Primeiro horário do dia/)).toHaveValue("09:00");
+      expect(within(form).getByLabelText(/Começa em/)).toHaveValue("01/10/2026");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("calendário dos esquemas: mês com as doses de cada dia e filtros de paciente e remédio", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-27T01:21:00Z") });
+    try {
+      const med = createMockDataSource().getSnapshot().medications[0]!;
+      const phases = [{ order: 1, everyHours: 12, fromDay: 1, toDay: null, perDose: 1 }];
+      const snap = lote1Snapshot({
+        medications: [
+          { ...med, id: "m1", patientId: "p1", name: "Losartana", unitLabel: "Comprimido", phases, firstTime: "08:00", startDate: "2026-10-20", treatmentDay: null },
+          { ...med, id: "m2", patientId: "p2", name: "Omeprazol", unitLabel: "Comprimido", phases: [{ order: 1, everyHours: 24, fromDay: 1, toDay: null, perDose: 1 }], firstTime: "07:00", startDate: "2026-10-25", treatmentDay: null },
+        ],
+      });
+      const { container } = renderApp(shell("/configuracoes/esquemas", <SettingsScreen section="esquemas" />), { source: fakePg(snap) });
+      await userEvent.click(screen.getByRole("tab", { name: /Calendário/ }));
+      expect(screen.getByRole("heading", { name: "outubro de 2026" })).toBeInTheDocument();
+      // hoje (26/10): Losartana 2x + Omeprazol 1x; antes do dia 1 não há dose
+      expect(screen.getByRole("button", { name: "26 de outubro: 3 doses, hoje" })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "19 de outubro: sem doses" })).toBeInTheDocument();
+      const dia = screen.getByRole("region", { name: "Doses de 26/10/2026" });
+      expect(within(dia).getAllByRole("listitem").map((li) => li.textContent)).toEqual(expect.arrayContaining([expect.stringContaining("Omeprazol"), expect.stringContaining("Losartana")]));
+      // filtro de paciente: só a Maria (Omeprazol)
+      await userEvent.selectOptions(screen.getByLabelText("Paciente"), "p2");
+      expect(screen.getByRole("button", { name: "26 de outubro: 1 dose, hoje" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Remédio")).not.toHaveTextContent("Losartana");
+      // filtro de remédio dentro de todos os pacientes
+      await userEvent.selectOptions(screen.getByLabelText("Paciente"), "");
+      await userEvent.selectOptions(screen.getByLabelText("Remédio"), "m1");
+      expect(screen.getByRole("button", { name: "26 de outubro: 2 doses, hoje" })).toBeInTheDocument();
+      // mês seguinte
+      await userEvent.click(screen.getByRole("button", { name: "Próximo mês" }));
+      expect(screen.getByRole("heading", { name: "novembro de 2026" })).toBeInTheDocument();
+      expect(await axe(container)).toHaveNoViolations();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("esquema: duração inválida não salva e mostra o motivo", async () => {
     const saveScheme = vi.fn(async () => undefined);
     const med = createMockDataSource().getSnapshot().medications[0]!;

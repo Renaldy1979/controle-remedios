@@ -1456,20 +1456,35 @@ describe.skipIf(!up)("Lote 4B — WhatsApp direto no portal", () => {
       expect(await g.saldoDe(g.omep)).toBe(9);
     });
 
-    it("'tomei' digitado com 2+ doses do mesmo grupo NUNCA adivinha: reenvia o menu; citando o remédio, confirma só aquele", async () => {
+    it("'tomei' digitado com 2+ doses do mesmo grupo NUNCA adivinha: vai direto ao um por um, com a opção 'Tomei todos'; citando o remédio, confirma só aquele", async () => {
       const g = await comGrupo("Ambiguo", false);
       const { d } = deps();
       const r = await processarEntrada(msgTexto(g.f.adminPhone, "tomei"), d.nucleo);
-      expect(r.respostas[0]).toContain("Qual você quer anotar");
-      expect(r.respostas[0]).toContain("*1* — Tomei todos");
-      expect(r.respostas[0]).toContain("*2* — Vou confirmar um por um");
-      expect(r.respostas[0]).toContain("*3* — Lembrar daqui a 15 min");
+      expect(r.respostas[0]).toContain("1 de 2");
+      expect(r.respostas[0]).toContain("*1* — Tomei");
+      expect(r.respostas[0]).toContain("*2* — Lembrar daqui a 15 min");
+      expect(r.respostas[0]).toContain("*3* — Não vou tomar");
+      expect(r.respostas[0]).toContain("*4* — Tomei todos (os 2 que faltam)");
       expect(await g.saldoDe(g.zyp)).toBe(10);
       expect(await g.saldoDe(g.omep)).toBe(10);
+      const todos = await processarEntrada(msgTexto(g.f.adminPhone, "4"), d.nucleo);
+      expect(todos.respostas[0]).toContain("Pronto");
+      expect(await g.saldoDe(g.zyp)).toBe(9);
+      expect(await g.saldoDe(g.omep)).toBe(9);
+    });
+
+    it("'tomei <remédio>' com 2+ doses no grupo confirma só aquele; na última pergunta do um por um não existe 'Tomei todos'", async () => {
+      const g = await comGrupo("AmbiguoMed", false);
+      const { d } = deps();
       const so = await processarEntrada(msgTexto(g.f.adminPhone, `tomei ${g.f.medName}`), d.nucleo);
       expect(so.respostas[0]).toContain("Anotado");
       expect(await g.saldoDe(g.zyp)).toBe(9);
       expect(await g.saldoDe(g.omep)).toBe(10);
+      const g2 = await comGrupo("UltimaPergunta", false);
+      await processarEntrada(msgTexto(g2.f.adminPhone, "tomei"), d.nucleo);
+      const seg = await processarEntrada(msgTexto(g2.f.adminPhone, "2"), d.nucleo); // lembrar a primeira
+      expect(seg.respostas[0]).toContain("2 de 2");
+      expect(seg.respostas[0]).not.toContain("Tomei todos");
     });
 
     it("'um por um': pergunta dose por dose (1 Tomei · 2 Lembrar · 3 Não vou tomar) e resume no fim; pulada não baixa estoque nem vira 'esquecida'", async () => {

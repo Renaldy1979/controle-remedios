@@ -3,8 +3,10 @@ import { useState } from "react";
 import { cx } from "@/lib/format";
 import { parseDate } from "@/lib/format";
 import { INTERVAL_HOURS, MAX_PHASES, validateScheme } from "@/lib/scheme";
-import { intervalTimes } from "@/lib/times";
+import { SCHEME_TZ, intervalTimes, localNow, nextSlot, previewDay } from "@/lib/times";
 import { useActions, useSnapshot, type MedicationVM, type PhaseVM } from "@/data";
+import { Tabs } from "@/components/ui/Tabs";
+import { SchemeCalendar } from "./SchemeCalendar";
 import { Button, IconButton } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/Controls";
 import { SelectField, TextField } from "@/components/ui/Field";
@@ -17,11 +19,33 @@ const toDisplay = (iso: string) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)
 const toIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const num = (s: string) => Number(String(s).replace(",", "."));
 
+type View = "editar" | "calendario";
+
 export function SchemesPanel() {
+  const snap = useSnapshot();
+  const [view, setView] = useState<View>("editar");
+  if (snap.medications.length === 0) return <EmptyState icon="timeline" title="Nenhum remédio cadastrado" text="Cadastre um remédio em Remédios para montar o esquema dele." />;
+  return (
+    <div className="flex flex-col gap-4">
+      <Tabs
+        label="Como ver os esquemas"
+        value={view}
+        onChange={setView}
+        items={[
+          { value: "editar", label: "Editar esquema", icon: "edit" },
+          { value: "calendario", label: "Calendário", icon: "calendar_month" },
+        ]}
+      />
+      {view === "editar" ? <SchemeEditor /> : <SchemeCalendar />}
+    </div>
+  );
+}
+
+function SchemeEditor() {
   const snap = useSnapshot();
   const [selId, setSelId] = useState(snap.medications[0]?.id ?? "");
   const med = snap.medications.find((m) => m.id === selId) ?? snap.medications[0];
-  if (!med) return <EmptyState icon="timeline" title="Nenhum remédio cadastrado" text="Cadastre um remédio em Remédios para montar o esquema dele." />;
+  if (!med) return null;
   return (
     <div className="flex flex-col gap-4">
       <SelectField label="Remédio" value={med.id} onChange={(e) => setSelId(e.target.value)}>
@@ -52,8 +76,20 @@ function SchemeForm({ med }: { med: MedicationVM }) {
   const unit = med.unitLabel.toLowerCase();
   const [rows, setRows] = useState<Row[]>(med.phases.length ? rowsOf(med) : [{ everyHours: 24, perDose: "1", days: "" }]);
   const [single, setSingle] = useState(med.phases.length <= 1);
-  const [first, setFirst] = useState(med.firstTime);
-  const [start, setStart] = useState(toDisplay(med.startDate ?? ""));
+  // remédio recém-cadastrado (esquema padrão: 1x ao dia às 08:00, começando hoje): sugere o próximo horário redondo e a data de hoje
+  const [fresh] = useState(() => {
+    const t = localNow(new Date(), SCHEME_TZ).date;
+    return med.phases.length <= 1 && (med.phases[0]?.everyHours ?? 24) === 24 && med.firstTime === "08:00" && med.startDate === t;
+  });
+  const [suggestion] = useState(() => {
+    const now = new Date();
+    const slot = nextSlot(now, SCHEME_TZ);
+    const base = localNow(now, SCHEME_TZ).date;
+    const date = slot.tomorrow ? new Date(Date.UTC(Number(base.slice(0, 4)), Number(base.slice(5, 7)) - 1, Number(base.slice(8, 10)) + 1)).toISOString().slice(0, 10) : base;
+    return { time: slot.time, date };
+  });
+  const [first, setFirst] = useState(fresh ? suggestion.time : med.firstTime);
+  const [start, setStart] = useState(toDisplay(fresh ? suggestion.date : (med.startDate ?? "")));
   const [idx, setIdx] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -89,6 +125,12 @@ function SchemeForm({ med }: { med: MedicationVM }) {
   const timeline = build().phases;
   const lastDay = Math.max(...timeline.map((p) => p.toDay ?? p.fromDay + 10));
   const times = intervalTimes(first, ph.everyHours);
+  const nowLocal = localNow(new Date(), SCHEME_TZ);
+  const startParsed = start.trim() ? parseDate(start) : null;
+  const effectiveStart = startParsed ? toIso(startParsed) : (med.startDate ?? nowLocal.date);
+  const preview = previewDay(first, ph.everyHours, nowLocal.minutes, effectiveStart <= nowLocal.date);
+  const listText = (l: string[]) => (l.length <= 1 ? l.join("") : `${l.slice(0, -1).join(", ")} e ${l[l.length - 1]}`);
+  const dosesText = (n: number) => `${n} ${n === 1 ? "dose" : "doses"}`;
 
   const submit = async () => {
     const b = build();
@@ -202,6 +244,29 @@ function SchemeForm({ med }: { med: MedicationVM }) {
         ) : (
           <p className="text-ink2">Informe o primeiro horário para ver os horários do dia.</p>
         )}
+        {times.length ? (
+          <div className="mt-3 flex flex-col gap-1 rounded-md bg-sf2 p-3" aria-label="Resumo do que vai acontecer">
+            <p>
+              <span className="font-bold">Todos os dias:</span> {dosesText(preview.daily.length)} ({listText(preview.daily)}). O dia termina à meia-noite e o esquema recomeça no primeiro horário.
+            </p>
+            {effectiveStart <= nowLocal.date ? (
+              <p>
+                <span className="font-bold">Hoje ({toDisplay(nowLocal.date).slice(0, 5)}):</span>{" "}
+                {preview.todayLeft.length ? `faltam ${dosesText(preview.todayLeft.length)} (${listText(preview.todayLeft)})` : "não falta nenhuma dose"}
+                {preview.todayPast.length ? `; já passaram ${listText(preview.todayPast)}` : ""}.
+              </p>
+            ) : (
+              <p>
+                <span className="font-bold">Começa em {toDisplay(effectiveStart)}:</span> até lá não há doses.
+              </p>
+            )}
+            {preview.cutsDay ? (
+              <p className="font-bold text-lt">
+                Atenção: de {ph.everyHours} em {ph.everyHours} h, um dia inteiro teria {preview.fullDay} doses, mas começando às {first} só cabem {preview.daily.length}, e isso se repete todos os dias. Para as {preview.fullDay} doses, comece às 00:00.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {errors.length ? (
