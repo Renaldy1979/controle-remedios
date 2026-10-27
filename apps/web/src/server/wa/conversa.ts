@@ -4,7 +4,7 @@ import {
   consumirConviteWhatsapp, hashCodigoVerificacao, hashConviteCodigo, verificarTelefonePendente, withFamilia,
 } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
-import { can } from "@medcuidar/shared";
+import { can, isReadOnlyProfile } from "@medcuidar/shared";
 import { ForbiddenError, UserError, isUniqueViolation } from "../pg/errors";
 import { confirmDose, skipDose, snoozeDose } from "../pg/doses";
 import { claim } from "../pg/replenishment";
@@ -89,6 +89,8 @@ export async function remetenteDesconhecido(telefone: string, texto: string): Pr
 
 /* ------------------------------------------------------------------ remetente conhecido */
 
+const semPermissaoDe = (actor: WaActor): T.Resposta => (isReadOnlyProfile(actor.realProfile) ? T.semPermissaoLeitura() : T.semPermissao());
+
 async function guardarEscolha(actor: WaActor, ctx: ConvCtx, choose: NonNullable<ConvCtx["choose"]>, now: Date): Promise<void> {
   await withFamilia(actor.familyId, (tx) => gravarContexto(tx, actor.familyId, actor.memberId, { ...ctx, choose }, now));
 }
@@ -151,7 +153,7 @@ async function assumir(actor: WaActor, ctx: ConvCtx, r: Reposicao, now: Date): P
 
 async function intentEuCuido(actor: WaActor, ctx: ConvCtx, now: Date): Promise<T.Resposta> {
   if (actor.access !== "active") return T.precisaPortal();
-  if (!can(actor.member, "replenishment.manage")) return T.semPermissao();
+  if (!can(actor.member, "replenishment.manage")) return semPermissaoDe(actor);
   let abertas = await reposicoesAbertas(actor);
   const lembradas = abertas.filter((r) => ctx.medIds.includes(r.medicationId));
   if (lembradas.length > 0) abertas = lembradas;
@@ -379,7 +381,7 @@ export async function processarMensagem(actor: WaActor, entrada: ConversaEntrada
     return await rotear(actor, intent, texto, entrada.messageId, now);
   } catch (e) {
     await withFamilia(actor.familyId, (tx) => tx.delete(s.messageLog).where(eq(s.messageLog.providerMessageId, logKey))).catch(() => {});
-    if (e instanceof ForbiddenError) return { respostas: [T.semPermissao()], intent: "sem_permissao" };
+    if (e instanceof ForbiddenError) return { respostas: [semPermissaoDe(actor)], intent: "sem_permissao" };
     if (e instanceof UserError) return { respostas: [{ texto: `⚠️ ${e.message}` }], intent };
     throw e;
   }

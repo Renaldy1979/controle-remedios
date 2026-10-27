@@ -181,9 +181,11 @@ async function gerarDoses(tx: Tx, familyId: string, tz: string, settings: Family
     if (d.status === "missed") {
       // só avisa a família de dose esquecida das últimas 6 h; as mais antigas ficam só no portal (sem mensagem, nem em backlog)
       if (agora.getTime() - d.scheduledAt.getTime() > JANELA_ESQUECIDA_MS) continue;
-      // dose esquecida: avisa a família (quem recebe alertas da família; se ninguém marcou, todos os verificados)
-      const familia = dest.filter((x) => x.receivesFamilyAlerts && x.can("dashboard.view"));
-      const alvo = familia.length ? familia : dest.filter((x) => x.can("dashboard.view"));
+      // dose esquecida: avisa a família (quem recebe alertas da família; se ninguém marcou, todos os que PODEM AGIR). Quem não pode
+      // confirmar dose (ex.: "Somente leitura") não recebe aviso de ação, nem pelo caminho de reserva.
+      const podem = dest.filter((x) => x.can("doses.confirm") && x.can("dashboard.view"));
+      const familia = podem.filter((x) => x.receivesFamilyAlerts);
+      const alvo = familia.length ? familia : podem;
       for (const m of alvo) if (!jaEsquecida.has(`${m.id}:${d.id}`)) esquecidas.push({ m, d });
       continue;
     }
@@ -273,6 +275,10 @@ async function gerarAvisos(tx: Tx, familyId: string, tz: string, settings: Famil
   for (const a of avisos) {
     const m = dest.find((x) => x.id === a.memberId);
     if (!m) continue;
+    // regra geral: só recebe aviso de ação quem pode agir sobre ele (a notificação do portal já nasce só para eles; aqui é a segunda trava)
+    if (a.kind === "low_stock" && !(m.can("stock.adjust") || m.can("replenishment.manage"))) continue;
+    if (a.kind === "prescription_expiring" && !(m.can("prescriptions.view") && (m.can("prescriptions.upload") || m.can("replenishment.manage")))) continue;
+    if (a.kind === "replenishment_update" && !m.can("replenishment.manage")) continue;
     const p = a.payload as Record<string, unknown>;
     let r: T.Resposta;
     let ctx: Record<string, unknown> = { notificationId: a.id };

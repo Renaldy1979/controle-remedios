@@ -2,7 +2,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { resolverMembroPorTelefone, withFamilia, type EstadoAcesso } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
-import { PERMISSION_KEYS, familySettingsSchema, permissionMapSchema, type FamilySettings, type PermissionKey, type PermissionMap } from "@medcuidar/shared";
+import { ACTION_PERMISSIONS, PERMISSION_KEYS, READ_ONLY_PROFILE_NAME, familySettingsSchema, permissionMapSchema, type FamilySettings, type PermissionKey, type PermissionMap } from "@medcuidar/shared";
 import type { DoseActor } from "../pg/doses";
 import { logWa } from "./log";
 import { variantesBr } from "./provider/telefone";
@@ -20,6 +20,12 @@ export const BASIC_WHATSAPP_PERMISSIONS: readonly PermissionKey[] = ["dashboard.
 export function effectivePermissions(
   state: EstadoAcesso, profileName: string, permissions: PermissionMap,
 ): { profileName: string; permissions: PermissionMap } {
+  // "Somente leitura" nunca age: mesmo com o mapa adulterado no banco, as permissões de ação saem (também em `active`)
+  if (profileName === READ_ONLY_PROFILE_NAME) {
+    const so: PermissionMap = {};
+    for (const k of PERMISSION_KEYS) if (permissions[k] === true && !ACTION_PERMISSIONS.includes(k)) so[k] = true;
+    permissions = so;
+  }
   if (state === "active") return { profileName, permissions };
   if (state === "invited") return { profileName: `${profileName} (sem acesso)`, permissions: {} };
   const base: PermissionMap = profileName === "Administrador" ? Object.fromEntries(PERMISSION_KEYS.map((k) => [k, true])) : permissions;

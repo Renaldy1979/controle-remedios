@@ -295,7 +295,7 @@ async function sessaoAdmin() {
 }
 
 /** Monta o painel do administrador: instância, worker, fila de entrada/saída, uso e custo de IA no mês. */
-export async function statusWhatsapp(familyId: string, tz: string): Promise<StatusWa> {
+async function statusWhatsapp(familyId: string, tz: string): Promise<StatusWa> {
   const [{ resumoEntrada }, { resumoSaida }, { lerRuntime }, { resumoDeUso }, prov, { modeloConfigurado }, { geminiModelo }] = await Promise.all([
     import("./inbound"), import("./fila"), import("./runtime"), import("./ia/uso"), import("./provider"), import("./ia/modelo"), import("./ia/midia"),
   ]);

@@ -158,6 +158,11 @@ export const ajuda = (): Resposta => ({
 export const semPermissao = (): Resposta => ({
   texto: `${titulo("🔒", "Sem acesso")}\nSeu perfil não permite isso pelo WhatsApp. Peça pelo portal ou fale com quem administra a família.`,
 });
+/** Perfil "Somente leitura": acompanha, mas não age (nem pelo portal), então não adianta mandar pedir no portal. */
+export const semPermissaoLeitura = (): Resposta => ({
+  texto: `${titulo("🔒", "Seu perfil não permite")}
+Seu perfil é só de acompanhamento: você vê as doses e o estoque, mas não confirma doses nem faz compras. Quem cuida do remédio recebe esses avisos.`,
+});
 export const precisaPortal = (): Resposta => ({
   texto: `${titulo("🔒", "Só pelo portal")}\nIsso exige o acesso completo. Termine o primeiro acesso ao portal (peça "link de acesso" aqui) e use o portal.`,
 });
