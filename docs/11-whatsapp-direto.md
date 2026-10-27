@@ -15,6 +15,19 @@ Guia para o **dono do projeto** (não precisa ser técnico). Explica o que confi
    - **Perguntas livres** ("o remédio da Maria vai acabar?") vão para o **Claude** (da Anthropic), que **só consulta** e nunca altera nada.
 5. O mesmo worker manda os **lembretes**: dose na hora, dose atrasada/esquecida, estoque baixo, receita vencendo, reposição e resumo do dia.
 
+**Quem recebe cada aviso** (regra geral desde o Lote 5A: aviso de ação só vai a quem **pode agir** sobre ele):
+
+| Aviso | Quem recebe |
+|---|---|
+| Lembrete de dose | quem tem `doses.confirm` e está na escala do paciente |
+| Dose esquecida | quem tem `doses.confirm`; entre eles, os marcados em "avisos da família"; se ninguém estiver marcado, **todos os que têm `doses.confirm`** (o caminho de reserva também respeita a permissão) |
+| Estoque baixo | `stock.adjust` ou `replenishment.manage` (ou administrador) |
+| Receita vencendo | `prescriptions.view` e (`prescriptions.upload` ou `replenishment.manage`) |
+| Reposição | `replenishment.manage` |
+| Resumo diário | todos com `dashboard.view` |
+
+O perfil **Somente leitura** recebe **só o resumo diário**. "tomei", "eu cuido disso" e as demais ações respondem *"Seu perfil não permite"* (a consulta de estoque e de próximas doses, e **PARAR**/**REATIVAR**, continuam valendo). Sempre exige número verificado e não ter dado PARAR.
+
 Regras que valem sempre:
 - **Quem não tem número verificado não recebe nem é atendido** pelo WhatsApp (o portal funciona normal).
 - A identidade vem **do número de quem escreveu**, nunca do que a IA "acha".

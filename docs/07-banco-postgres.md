@@ -36,7 +36,7 @@ Chaves `uuid` (`gen_random_uuid()`), datas `timestamptz` (UTC), `date` para data
 | Tabela | Relações / regras |
 |---|---|
 | `families` | `name`, `timezone` (`America/Sao_Paulo`), `settings` jsonb (`FamilySettings`), `active`, `deleted_at` |
-| `profiles` | por família; único `(family_id, name)`; `permissions` jsonb |
+| `profiles` | por família; único `(family_id, name)`; `permissions` jsonb. Perfis de sistema (`is_system`): Administrador, Familiar, Cuidadora, Confirmador e **Somente leitura** (Lote 5A: só `dashboard.view`, `patients.view`, `doses.history.view`, `stock.view` e `whatsapp.query`; as permissões de **ação** nunca podem ser ligadas nele: a matriz bloqueia, `setPermission` recusa e `can()` as nega mesmo com o mapa adulterado) |
 | `members` | `profile_id → profiles`; **`access_state`** (`invited` \| `whatsapp_verified` \| `active`, padrão `invited`), `email`, `email_confirmed_at`, `appwrite_user_id` (único, parcial), `phone_verified` (**único no sistema**, parcial), `phone_pending`, `verification_code_hash/expires_at/attempts`, `receives_family_alerts`, `active`, `removed_at`. Checks: `active` exige `appwrite_user_id` + e-mail + `email_confirmed_at`; fora de `active` esses dois não existem (o `email` pré-preenchido pode); `whatsapp_verified` exige `phone_verified` |
 | `invites` | convite por `email` ou `whatsapp`: `profile_id`, `member_id` (membro criado, nasce `invited`), `email` **xor** `expected_phone` (só dígitos), `code_hash` (hash preso ao número, nunca o código), `expires_at` (24 h), `attempts`, `consumed_at`, `revoked_at`, `created_by_member_id`. Único **um convite WhatsApp ativo por `expected_phone`** (índice parcial: sem `consumed_at`/`revoked_at`), então o app revoga o antigo antes de criar outro |
 | `first_access_links` | `member_id`, `token_hash` (sha256, único; o token só existe no link enviado), `expires_at` (24 h), `consumed_at`, `revoked_at` |
@@ -196,3 +196,6 @@ Só acréscimos (nenhum DROP, DELETE ou TRUNCATE). Código: `apps/web/src/server
 - `docs/06` cita `app.familia_id` simples; usamos `nullif(...)::uuid` (equivalente, sem erro de cast).
 - Chaves `cdf_` e `cpl_` ficam em duas tabelas (`api_keys` com família, `platform_api_keys` sem), por causa do RLS; `resolve_api_key` procura nas duas.
 - Falta (próximas fases): rotinas de limpeza (`idempotency` > 24 h, `notifications` antigas), geração das doses futuras do seed e FKs compostas por família, se desejado.
+
+## 6.5 Migração 0011 (Lote 5A — perfil "Somente leitura")
+Migração só de **dados**, aditiva e idempotente (`packages/pg/drizzle/0011_lote5a_perfil_somente_leitura.sql`): insere o perfil de sistema "Somente leitura" (`is_system = true`, com as 5 permissões de leitura) em toda família que ainda não o tem, com `ON CONFLICT (family_id, name) DO NOTHING`. Não altera nenhum outro perfil nem a RLS. Rodar de novo não duplica. Famílias novas e o seed já o recebem de `SYSTEM_PROFILES` (`packages/shared/src/permissions.ts`). Teste: `packages/pg/src/integration.test.ts` ("migração 0011").
