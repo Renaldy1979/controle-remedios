@@ -32,7 +32,7 @@ Padrão de referência: projeto `controle-financeiro` do dono (`withFamilia`, `r
 - Cada lote termina com algo **testável pelo dono** em staging, com roteiro em `docs/lotes/L<n>-roteiro.md`. O lote só está pronto com testes verdes, conferência do orquestrador **e validação do dono** registrada em `docs/lotes/L<n>-validacao.md`. Não comece o lote seguinte sem o "validado".
 
 ## Convenções
-- Monorepo: `apps/web` (portal + API `/api/v1`), `packages/domain`, `packages/shared`, `packages/pg` (`@medcuidar/pg`: Postgres + Drizzle + RLS), `docs`, `design`. O legado do escopo v1 (`apps/functions`, `packages/channels`, `packages/db`, `scripts/appwrite`) foi removido no Lote 4B (`docs/handoffs/L4B-limpeza.md`).
+- Monorepo: `apps/web` (portal + API `/api/v1`), `apps/backup` (serviço de backup criptografado para o R2, `docs/12-backup.md`), `packages/domain`, `packages/shared`, `packages/pg` (`@medcuidar/pg`: Postgres + Drizzle + RLS), `docs`, `design`. O legado do escopo v1 (`apps/functions`, `packages/channels`, `packages/db`, `scripts/appwrite`) foi removido no Lote 4B (`docs/handoffs/L4B-limpeza.md`).
 - Cada agente só edita as pastas que o plano lhe atribui. Mudou fora da sua pasta? Abra uma nota em `docs/handoffs/` em vez de editar.
 - Commits pequenos e em português, formato `tipo(escopo): descrição`.
 - Nenhuma tarefa termina sem testes do que mudou e sem atualizar o doc afetado.

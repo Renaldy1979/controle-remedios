@@ -11,4 +11,12 @@ export default tseslint.config(
       "no-console": ["error", { allow: ["warn", "error"] }],
     },
   },
+  {
+    // serviço de backup: JavaScript puro em Node, com saída no console (é um programa de linha de comando)
+    files: ["apps/backup/**/*.mjs"],
+    languageOptions: {
+      globals: { Buffer: "readonly", process: "readonly", console: "readonly", fetch: "readonly", URL: "readonly", AbortSignal: "readonly", setTimeout: "readonly" },
+    },
+    rules: { "no-console": "off" },
+  },
 );
