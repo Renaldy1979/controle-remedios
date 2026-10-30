@@ -40,6 +40,7 @@ const ACAO_PARA_INTENT: Record<NonNullable<ConversaEntrada["acao"]>, Intent> = {
 
 const SNOOZE_PADRAO = 15;
 const MAX_OPCOES = 9;
+const MAX_TODAS = 40;
 
 /* ------------------------------------------------------------------ remetente ainda sem acesso */
 
@@ -127,8 +128,22 @@ async function agirSobreDoses(
   if (doses.length === 0) return T.nenhumaDose();
   if (doses.length === 1) return acao === "tomei" ? confirmar(actor, ctx, doses[0]!, messageId, now) : adiar(actor, ctx, doses[0]!, now);
   const lista = doses.slice(0, MAX_OPCOES);
-  await guardarEscolha(actor, ctx, { acao, ids: lista.map((d) => d.id) }, now);
-  return T.qualDose(lista.map(linha), acao);
+  // "tomei": a última opção, "Todas", confirma todas as pendentes (não só as MAX_OPCOES numeradas)
+  const todas = acao === "tomei" ? doses.slice(0, MAX_TODAS).map((d) => d.id) : undefined;
+  await guardarEscolha(actor, ctx, { acao, ids: lista.map((d) => d.id), ...(todas ? { todas } : {}) }, now);
+  return T.qualDose(lista.map(linha), acao, todas?.length ?? 0);
+}
+
+/** "Todas" da lista de pendentes: confirma cada dose ainda aberta (idempotente por mensagem + id da dose). */
+async function confirmarPendentes(actor: WaActor, ctx: ConvCtx, ids: string[], messageId: string, now: Date): Promise<T.Resposta> {
+  const abertas = await dosesAindaAbertas(actor, ids, now);
+  if (abertas.length === 0) {
+    await limparDoses(actor, ctx, now, ids);
+    return T.dosesJaAnotadas();
+  }
+  for (const d of abertas) await confirmDose(actor, d.id, now, { channel: "whatsapp", sourceMessageId: `wa:${actor.familyId}:${messageId}:${d.id}` });
+  await limparDoses(actor, ctx, now, ids);
+  return T.todasAnotadas(abertas.map(linha));
 }
 
 interface Reposicao { medicationId: string; paciente: string; remedio: string }
@@ -168,6 +183,7 @@ async function intentEuCuido(actor: WaActor, ctx: ConvCtx, now: Date): Promise<T
 
 async function responderEscolha(actor: WaActor, ctx: ConvCtx, n: number, messageId: string, now: Date): Promise<T.Resposta> {
   const ch = ctx.choose!;
+  if (ch.acao === "tomei" && ch.todas && ch.todas.length >= 2 && n === ch.ids.length + 1) return confirmarPendentes(actor, ctx, ch.todas, messageId, now);
   const id = ch.ids[n - 1];
   if (!id) return T.respostaLivre();
   if (ch.acao === "cuido") {
@@ -416,6 +432,8 @@ async function rotear(actor: WaActor, intent: Intent, texto: string, messageId: 
       return ok(await agirSobreDoses(actor, ctx, "tomei", doses, messageId, now));
     }
     case "tomei_todos": {
+      // "todos" com a lista de pendentes na tela vale para a opção "Todas"
+      if (ctx.choose?.acao === "tomei" && ctx.choose.todas && ctx.choose.todas.length >= 2) return ok(await confirmarPendentes(actor, ctx, ctx.choose.todas, messageId, now), "tomei_todos");
       const alvo = await alvoDoGrupo(actor, ctx, now);
       if (alvo) return ok(await confirmarTodas(actor, ctx, alvo, messageId, now), "tomei_todos");
       return ok(await agirSobreDoses(actor, ctx, "tomei", await candidatasConfirmacao(actor, now), messageId, now), "tomei_todos");

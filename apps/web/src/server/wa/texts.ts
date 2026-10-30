@@ -61,9 +61,19 @@ export const doseJaAnotada = (p: Pick<DoseLinha, "paciente" | "remedio">): Respo
   texto: `${titulo("✅", "Já estava anotado")}\n${p.paciente}: ${p.remedio}. Nada foi descontado de novo.`,
 });
 
-export function qualDose(linhas: DoseLinha[], acao: "tomei" | "lembrar"): Resposta {
+/** `totalPendentes` (só em "tomei", 2+): acrescenta a última opção "Todas", que confirma todas as pendentes de uma vez. */
+export function qualDose(linhas: DoseLinha[], acao: "tomei" | "lembrar", totalPendentes = 0): Resposta {
   const cab = acao === "tomei" ? "Qual dose você tomou?" : "Lembrar de qual dose?";
-  return comOpcoes(titulo("❓", cab), linhas.map((l) => `${l.paciente} · ${l.remedio} (${l.hora})`));
+  const todas = acao === "tomei" && totalPendentes >= 2 ? [`Todas (as ${totalPendentes} pendentes)`] : [];
+  return comOpcoes(titulo("❓", cab), [...linhas.map((l) => `${l.paciente} · ${l.remedio} (${l.hora})`), ...todas]);
+}
+
+/** "Todas" confirmadas de uma vez: uma linha por paciente. */
+export function todasAnotadas(linhas: DoseLinha[]): Resposta {
+  const porPaciente = new Map<string, DoseLinha[]>();
+  for (const l of linhas) porPaciente.set(l.paciente, [...(porPaciente.get(l.paciente) ?? []), l]);
+  const corpo = [...porPaciente].map(([p, ls]) => `• ${p}: ${ls.map((l) => `${l.remedio} (${l.hora})`).join(", ")}`).join("\n");
+  return { texto: `${titulo("✅", `Anotado — ${linhas.length} ${plural(linhas.length, "dose", "doses")}`)}\n${corpo}` };
 }
 
 export const nenhumaDose = (): Resposta => ({ texto: `${titulo("ℹ️", "Nenhuma dose pendente")}\nNão achei dose pendente agora.` });

@@ -291,8 +291,9 @@ describe.skipIf(!up)("Lote 4A — WhatsApp: API, conversa e fila no Postgres", (
       const tel = f.adminPhone!;
       const r = await conversa({ telefone: tel, messageId: `a-${randomUUID()}`, texto: "tomei", now: T1410 });
       expect(r.respostas[0]!.texto).toContain("Qual dose você tomou?");
-      expect(r.respostas[0]!.opcoes).toHaveLength(2);
+      expect(r.respostas[0]!.opcoes).toHaveLength(3); // as 2 doses + "Todas (as 2 pendentes)"
       expect(r.respostas[0]!.texto).toContain("*1* —");
+      expect(r.respostas[0]!.texto).toContain("*3* — Todas (as 2 pendentes)");
       expect((await admin`select count(*)::int as n from dose_events where family_id = ${f.familyId} and status = 'taken'`)[0]!["n"]).toBe(0);
       expect(await saldo(f)).toBe(10);
       const r2 = await conversa({ telefone: tel, messageId: `a-${randomUUID()}`, texto: "2", now: T1410 });
@@ -300,6 +301,25 @@ describe.skipIf(!up)("Lote 4A — WhatsApp: API, conversa e fila no Postgres", (
       const taken = await admin`select id from dose_events where family_id = ${f.familyId} and status = 'taken'`;
       expect(taken.map((t) => t["id"])).toEqual([f.doses[1]]); // a 2ª da lista (14:00)
       expect(await saldo(f)).toBe(9);
+    });
+
+    it("lista de pendentes: a última opção 'Todas' (número ou a palavra 'todos') confirma tudo e baixa o estoque uma vez por dose", async () => {
+      for (const resposta of ["3", "todos"]) {
+        const f = await novaFamilia(`Todas-${resposta}`);
+        const tel = f.adminPhone!;
+        await conversa({ telefone: tel, messageId: `t-${randomUUID()}`, texto: "tomei", now: T1410 });
+        const msg = `t-${randomUUID()}`;
+        const r = await conversa({ telefone: tel, messageId: msg, texto: resposta, now: T1410 });
+        expect(r.respostas[0]!.texto).toContain("Anotado — 2 doses");
+        expect((await admin`select count(*)::int as n from dose_events where family_id = ${f.familyId} and status = 'taken'`)[0]!["n"]).toBe(2);
+        expect(await saldo(f)).toBe(8);
+        // repetir a mesma mensagem não desconta de novo
+        await conversa({ telefone: tel, messageId: msg, texto: resposta, now: T1410 });
+        expect(await saldo(f)).toBe(8);
+        // a lista foi limpa: "3" sem pergunta em aberto não é adivinhado
+        const sobra = await conversa({ telefone: tel, messageId: `t-${randomUUID()}`, texto: "3", now: T1410 });
+        expect(sobra.respostas[0]!.texto).toContain("Como posso ajudar");
+      }
     });
 
     it("'1' sem nenhuma pergunta recente não é adivinhado", async () => {

@@ -69,7 +69,7 @@ O Lote 4A traz **uma migração do banco** e **uma variável opcional que liga o
 | B6 | Envie **estoque**. | "📦 Estoque — … Adelino — Zypred: N dias de estoque". Colírio, se houver, vem marcado como **estimativa**. |
 | B7 | Envie **próximas doses**. | "🕒 Próximas doses" com as de hoje (ou "Não há mais doses hoje"). |
 | B8 | Envie **ajuda** e depois uma frase solta, como *qual a melhor dieta?* | A ajuda lista o que dá para escrever. A frase solta mostra o aviso **"Texto livre: o agente de IA chega no Lote 4B"** (nenhuma resposta inventada). |
-| B9 | (Se houver duas doses abertas ao mesmo tempo, ex.: dois remédios no mesmo horário) envie **tomei**. | Em vez de escolher uma, o sistema pergunta **"Qual dose você tomou?"** com a lista **1, 2…**; **só depois** da sua escolha baixa o estoque. Nunca adivinha. |
+| B9 | (Se houver duas doses abertas ao mesmo tempo, ex.: dois remédios no mesmo horário) envie **tomei**. | Em vez de escolher uma, o sistema pergunta **"Qual dose você tomou?"** com a lista **1, 2…** e, por último, **"Todas (as N pendentes)"**; **só depois** da sua escolha baixa o estoque. Nunca adivinha. Escolher "Todas" (ou digitar **todos**) confirma tudo de uma vez. |
 
 ## Parte C — Fila de lembretes: dose e estoque baixo
 

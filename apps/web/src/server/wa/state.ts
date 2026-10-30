@@ -30,7 +30,7 @@ export interface ConvCtx {
   /** remédios com aviso de estoque baixo/reposição que esperam "eu cuido disso" */
   medIds: string[];
   /** lista numerada em aberto */
-  choose?: { acao: "tomei" | "lembrar" | "cuido"; ids: string[] };
+  choose?: { acao: "tomei" | "lembrar" | "cuido"; ids: string[]; /** só em "tomei": TODAS as pendentes da lista (a última opção "Todas") */ todas?: string[] };
   grupo?: GrupoCtx;
   um?: UmPorUm;
 }
