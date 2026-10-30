@@ -89,4 +89,4 @@ Cenário: a VPS foi perdida ou o banco corrompeu.
 ## Limites conhecidos
 - Perda máxima: até 24 h de dados (o backup é diário). Se isso for pouco, dá para rodar mais vezes por dia mudando a regra de horário.
 - Fotos apagadas no portal ficam no backup por até 35 dias; a exclusão total de uma família (LGPD) entra no Lote 5B.
-- O dump usa `pg_dump` 17 (lê servidores 12 a 17). Restaurar num Postgres mais antigo que o do dump funciona, apenas com um aviso de parâmetro desconhecido que o serviço ignora.
+- O dump usa `pg_dump` 18 (lê servidores 12 a 18; o `pg_dump` recusa servidor mais novo que ele). Se o Postgres for atualizado para a 19, refaça o build com `--build-arg PG_CLIENT_VERSION=19`. Restaurar num Postgres mais antigo que o do dump funciona, apenas com um aviso de parâmetro desconhecido que o serviço ignora.
