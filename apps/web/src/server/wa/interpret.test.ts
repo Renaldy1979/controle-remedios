@@ -14,6 +14,7 @@ describe("interpretação de mensagens", () => {
   it("opções numeradas", () => {
     expect(parseOption("1")).toBe(1);
     expect(parseOption(" 2. ")).toBe(2);
+    expect(parseOption("10")).toBe(10); // 9 doses numeradas + "Todas"
     expect(parseOption("12")).toBeNull();
     expect(parseOption("tomei 1")).toBeNull();
     expect(interpretText("3)")).toBe("opcao");

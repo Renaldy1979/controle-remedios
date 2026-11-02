@@ -322,6 +322,26 @@ describe.skipIf(!up)("Lote 4A — WhatsApp: API, conversa e fila no Postgres", (
       }
     });
 
+    it("lista cheia (9 doses + 'Todas' = opção 10): digitar 10 confirma todas, inclusive as que não coube na lista", async () => {
+      const f = await novaFamilia("Dez");
+      const tel = f.adminPhone!;
+      // 12 doses abertas no mesmo dia (1 já existente x 2 + extras via insert direto)
+      const base = await admin`select * from dose_events where family_id = ${f.familyId} order by scheduled_at`;
+      expect(base.length).toBeGreaterThanOrEqual(2);
+      for (let i = 0; i < 12; i++) {
+        const src = base[1]!; // a das 14:00, dentro da janela de "tomei" às 14:10
+        const { id: _id, ...resto } = src as Record<string, unknown>;
+        void _id;
+        await admin`insert into dose_events ${admin({ ...resto, scheduled_at: new Date((src["scheduled_at"] as Date).getTime() - (i + 1) * 60_000) } as never)}`;
+      }
+      const r = await conversa({ telefone: tel, messageId: `d-${randomUUID()}`, texto: "tomei", now: T1410 });
+      expect(r.respostas[0]!.opcoes).toHaveLength(10);
+      const total = Number(/\*10\* — Todas \(as (\d+) pendentes\)/.exec(r.respostas[0]!.texto)?.[1]);
+      expect(total).toBeGreaterThan(9); // a lista numerada mostra 9; "Todas" cobre também as que não couberam
+      await conversa({ telefone: tel, messageId: `d-${randomUUID()}`, texto: "10", now: T1410 });
+      expect((await admin`select count(*)::int as n from dose_events where family_id = ${f.familyId} and status = 'taken'`)[0]!["n"]).toBe(total);
+    });
+
     it("'1' sem nenhuma pergunta recente não é adivinhado", async () => {
       const f = await novaFamilia("Um");
       const r = await conversa({ telefone: f.adminPhone!, messageId: `u-${randomUUID()}`, texto: "1", now: T0610 });

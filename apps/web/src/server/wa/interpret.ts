@@ -31,7 +31,7 @@ export function parseCode(text: string): string | null {
 
 /** Resposta "1", "2", "3." a uma lista numerada. Devolve o número ou null. */
 export function parseOption(text: string): number | null {
-  const m = /^\s*([1-9])\s*[.):]?\s*$/.exec(String(text ?? ""));
+  const m = /^\s*(10|[1-9])\s*[.):]?\s*$/.exec(String(text ?? ""));
   return m ? Number(m[1]) : null;
 }
 
