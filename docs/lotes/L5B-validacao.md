@@ -2,8 +2,8 @@
 
 > Preencha depois de seguir `docs/lotes/L5B-roteiro.md`. O Lote 5C só começa com o status **validado**.
 
-- **Data do teste:**
-- **Quem testou:**
+- **Data do teste:** 02/11/2026
+- **Quem testou:** Renaldy Sousa (dono)
 - **Endereço do staging / versão (commit):**
 - **Aparelhos e navegadores:**
 - **Migração 0012 rodada no staging (Parte 0):** ☐ sim ☐ não
@@ -17,9 +17,11 @@
 - **"Todas" e pendências de 48 h no WhatsApp (passo 20):** ☐ sim ☐ não
 - **Chaves trocadas (passo 21):** ☐ todas ☐ parte ☐ não
 - **Logs do staging sem dado pessoal (passo 22):** ☐ sim ☐ não
-- **Status:** ☐ validado ☐ validado com ajustes ☐ não validado
+- **Status:** ☑ validado ☐ validado com ajustes ☐ não validado
 
 ## O que passou
+
+O dono declarou o lote "validado" em 02/11/2026, sem itemizar os passos. Os itens acima ficam sem marcação individual por esse motivo.
 
 ## O que não passou
 
