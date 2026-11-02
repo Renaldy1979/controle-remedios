@@ -190,12 +190,16 @@ export const codigoInvalido = (): Resposta => ({ texto: `${titulo("⚠️", "Có
 export const codigoBloqueado = (): Resposta => ({ texto: `${titulo("⏳", "Muitas tentativas")}\nAguarde 15 minutos e tente de novo.` });
 export const numeroEmUso = (): Resposta => ({ texto: `${titulo("⚠️", "Número em uso")}\nEste número já está ligado a outra pessoa no sistema.` });
 
-export const numeroVerificado = (p: { nome: string }): Resposta => ({
-  texto: `${titulo("✅", "Número verificado")}\nPronto, ${primeiroNome(p.nome)}! A partir de agora você recebe os lembretes por aqui.`,
+/** Aviso de privacidade que acompanha a confirmação do número (LGPD): o aceite da política fica registrado nessa hora. */
+const avisoPolitica = (link?: string) =>
+  link ? `\n\n🔒 Ao usar o MedCuidar você concorda com a política de privacidade (seus dados e os de saúde de quem você cuida): ${link}` : "";
+
+export const numeroVerificado = (p: { nome: string; politica?: string }): Resposta => ({
+  texto: `${titulo("✅", "Número verificado")}\nPronto, ${primeiroNome(p.nome)}! A partir de agora você recebe os lembretes por aqui.${avisoPolitica(p.politica)}`,
 });
 
-export const conviteAceito = (p: { nome: string; link: string }): Resposta => ({
-  texto: `${titulo("✅", `Bem-vindo(a), ${primeiroNome(p.nome)}`)}\nSeu número foi confirmado. Já dá para dar o check das doses por aqui.\nPara terminar o cadastro, defina seu e-mail e senha no link abaixo (vale 24 h, uso único):\n${p.link}`,
+export const conviteAceito = (p: { nome: string; link: string; politica?: string }): Resposta => ({
+  texto: `${titulo("✅", `Bem-vindo(a), ${primeiroNome(p.nome)}`)}\nSeu número foi confirmado. Já dá para dar o check das doses por aqui.\nPara terminar o cadastro, defina seu e-mail e senha no link abaixo (vale 24 h, uso único):\n${p.link}${avisoPolitica(p.politica)}`,
 });
 
 export const linkAcesso = (p: { link: string }): Resposta => ({

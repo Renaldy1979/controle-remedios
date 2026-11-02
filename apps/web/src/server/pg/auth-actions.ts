@@ -10,6 +10,7 @@ import {
   sendVerification, sessionFromMagicUrl, setUserName, setUserPassword, signInWithPassword,
 } from "../auth/appwrite";
 import { clearSession, currentAccount, sessionSecret, writeSession } from "../auth/session";
+import { bloqueadoPor, enderecoDoCliente, registrarFalha, registrarSucesso } from "../auth/throttle";
 import { appUrl } from "../env";
 import { audit } from "./audit";
 import { UserError, isUniqueViolation } from "./errors";
@@ -31,6 +32,9 @@ export async function signIn(_: FormState, form: FormData): Promise<FormState> {
   const p = z.object({ email, password: z.string().min(1).max(128) }).safeParse({ email: fd(form, "email"), password: fd(form, "senha") });
   const keep = { email: fd(form, "email") };
   if (!p.success) return { error: "Informe e-mail e senha.", values: keep };
+  const ip = await enderecoDoCliente();
+  const espera = bloqueadoPor(p.data.email, ip);
+  if (espera > 0) return { error: `Muitas tentativas erradas. Aguarde ${espera} min e tente de novo.`, values: keep };
   try {
     const session = await signInWithPassword(p.data.email, p.data.password);
     const account = await accountOfSession(session.secret);
@@ -38,8 +42,10 @@ export async function signIn(_: FormState, form: FormData): Promise<FormState> {
     if (member && !member.ativo) {
       return { error: "Seu acesso foi desativado. Fale com quem administra a família.", values: keep };
     }
+    registrarSucesso(p.data.email);
     await writeSession(session.secret, form.get("lembrar") ? session.expire : undefined);
   } catch (e) {
+    registrarFalha(p.data.email, ip);
     return { error: appwriteCode(e) === 429 ? "Muitas tentativas. Aguarde um pouco e tente de novo." : "E-mail ou senha incorretos.", values: keep };
   }
   redirect("/");

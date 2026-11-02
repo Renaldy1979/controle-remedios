@@ -167,12 +167,19 @@ const ACOES: Record<string, Classe> = {
   "server/pg/auth-actions.ts#acceptInvite": "autenticacao",
   "server/pg/auth-actions.ts#resendInviteEmail": "autenticacao",
   "server/wa/first-access-actions.ts#completeFirstAccess": "autenticacao",
+  // Lote 5B (LGPD): aceitar a política é da PRÓPRIA pessoa; pedir a exclusão é do Administrador; cancelar só age quando a família já
+  // está em exclusão agendada e confere o Administrador por conta própria (prova em lote5b.integration.test.ts)
+  "server/pg/privacy-actions.ts#aceitarPrivacidadeAction": "propria",
+  "server/pg/privacy-actions.ts#pedirExclusaoAction": "escrita",
+  "server/pg/privacy-actions.ts#cancelarExclusaoAction": "autenticacao",
 };
 
 /** Rotas de `app/api` que não são `/api/v1` (as do `/api/v1` são classificadas por `handler`, abaixo). */
 const ROTAS_FORA_DO_V1: Record<string, Classe> = {
   "get /api/health": "sistema",
   "get /api/rx-file/{fileId}": "leitura",
+  // exportação dos dados da família: só o Administrador (exportFamilyData recusa os demais; prova em lote5b.integration.test.ts)
+  "get /api/family-export": "leitura",
   "get /api/test/invite-link": "sistema",
   "post /api/whatsapp/evolution/{segredo}": "sistema",
 };
@@ -316,7 +323,7 @@ describe.skipIf(!up)("Somente leitura: toda escrita é recusada e o banco não m
   const comoAdmin = () => { sessao.ctx = ctxOf(F.familyId, F.admin.memberId, "Administrador", "Admin Leitura", permsOf("Administrador")); };
 
   /* ------------------------------ Server Actions de escrita: chamada com ids REAIS */
-  const novoPaciente = { name: "Novo Paciente", birthDate: "", notes: "", usesPhone: true, selfMemberId: null };
+  const novoPaciente = { name: "Novo Paciente", birthDate: "", notes: "", usesPhone: true, selfMemberId: null, dataAuthorized: true };
   const formRx = () => {
     const f = new FormData();
     f.set("draft", JSON.stringify({ patientId: F.patientId, date: "19/10/2026", doctor: "Dr. X", specialty: "", medicationIds: [F.medId], validity: "30", notes: "" }));
@@ -327,6 +334,7 @@ describe.skipIf(!up)("Somente leitura: toda escrita é recusada e o banco não m
   const escritas = async (): Promise<Record<string, Chamada>> => {
     const A = await import("./pg/actions");
     const W = await import("./wa/actions");
+    const P = await import("./pg/privacy-actions");
     return {
       "server/pg/actions.ts#confirmDoseAction": { chamar: () => A.confirmDoseAction(F.doseId) },
       "server/pg/actions.ts#registerLateDoseAction": { chamar: () => A.registerLateDoseAction(F.doseId) },
@@ -367,6 +375,7 @@ describe.skipIf(!up)("Somente leitura: toda escrita é recusada e o banco não m
       "server/wa/actions.ts#simMarcarEnviadaAction": { chamar: () => W.simMarcarEnviadaAction(`${F.familyId}.${randomUUID()}`), semControle: true },
       "server/wa/actions.ts#consultarInstanciaAction": { chamar: () => W.consultarInstanciaAction(), semControle: true },
       "server/wa/actions.ts#definirLimiteIaAction": { chamar: () => W.definirLimiteIaAction(5) },
+      "server/pg/privacy-actions.ts#pedirExclusaoAction": { chamar: () => P.pedirExclusaoAction("Família Leitura"), recusa: /Administrador/ },
     };
   };
 

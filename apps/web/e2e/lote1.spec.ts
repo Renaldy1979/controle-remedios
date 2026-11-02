@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { PASSWORD, cleanup, open, signIn, signUp, testEmail, verifyEmail } from "./support";
+import { PASSWORD, cleanup, open, signIn, signUp, testEmail, verifyEmail, aceitarPrivacidade } from "./support";
 
 /**
  * Roteiro do Lote 1 de ponta a ponta (docs/lotes/L1-roteiro.md): criar conta → confirmar e-mail → criar a família →
@@ -49,7 +49,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
   await test.step("criar a família e entrar como Administradora", async () => {
     await page.getByLabel("Nome da família").fill("Família Souza ZZ");
     await page.getByRole("button", { name: "Criar a família" }).click();
-    await expect(page).toHaveURL(/\/$/);
+    await aceitarPrivacidade(page);
     await expect(page.getByRole("heading", { name: "Primeiros passos" })).toBeVisible();
     await expect(page.getByText("Cadastre um remédio com estoque e esquema e as doses do dia aparecem aqui.")).toBeVisible();
     await expect(page.getByRole("link", { name: "Configurações" })).toBeVisible();
@@ -62,7 +62,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await signIn(page, emailA, "senha-errada-1");
     await expect(page.getByText("E-mail ou senha incorretos.")).toBeVisible();
     await signIn(page, emailA);
-    await expect(page).toHaveURL(/\/$/);
+    await aceitarPrivacidade(page);
   });
 
   // ---- 3) WhatsApp pendente ----
@@ -81,12 +81,14 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await expect(page.getByText("Nenhum paciente ainda")).toBeVisible();
     await page.getByRole("button", { name: "Cadastrar paciente" }).first().click();
     await page.getByLabel("Nome completo").fill("Adelino Souza");
+    await page.getByText("Tenho autorização desta pessoa").click();
     await page.getByLabel("Data de nascimento").fill("10/03/1942");
     await page.getByRole("dialog").getByRole("button", { name: "Salvar" }).click();
     await toast(page, "Adelino Souza cadastrado");
 
     await page.getByRole("button", { name: "Cadastrar paciente" }).first().click();
     await page.getByLabel("Nome completo").fill("Maria Souza");
+    await page.getByText("Tenho autorização desta pessoa").click();
     await page.getByLabel("Observações").fill("Alzheimer. Não usa celular.");
     await page.getByRole("dialog").getByText("Usa celular", { exact: true }).click(); // desmarca
     await page.getByRole("dialog").getByRole("button", { name: "Salvar" }).click();
@@ -159,7 +161,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await dp.getByLabel("Crie uma senha").fill(PASSWORD);
     await dp.getByLabel("Repita a senha").fill(PASSWORD);
     await dp.getByRole("button", { name: "Criar senha e entrar" }).click();
-    await expect(dp).toHaveURL(/\/$/);
+    await aceitarPrivacidade(dp);
     await expect(dp.getByText(/(Olá|Bom dia|Boa tarde|Boa noite), Filha Teste/)).toBeVisible();
     // o link é de uso único
     const again = await daughter.newPage();
@@ -178,9 +180,11 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
 
     await dp.reload();
     await expect(dp.getByText(/(Olá|Bom dia|Boa tarde|Boa noite), Filha Teste/)).toBeVisible();
-    await expect(dp.getByRole("link", { name: "Configurações" })).toHaveCount(0);
     await dp.goto("/configuracoes");
-    await expect(dp.getByText("Seu perfil não tem ajustes liberados.")).toBeVisible();
+    // só a seção de privacidade (política e contato) é liberada a qualquer perfil
+    const opcoes = dp.getByRole("navigation", { name: "Opções de Configurações" }).getByRole("link");
+    await expect(opcoes).toHaveCount(1);
+    await expect(opcoes.first()).toContainText("Privacidade e dados");
     await dp.goto("/configuracoes/pessoas");
     await expect(dp.getByRole("button", { name: "Convidar pessoa" })).toHaveCount(0);
   });
@@ -233,7 +237,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     await expect(op).toHaveURL(/\/criar-familia$/);
     await op.getByLabel("Nome da família").fill("Família Lima ZZ");
     await op.getByRole("button", { name: "Criar a família" }).click();
-    await expect(op).toHaveURL(/\/$/);
+    await aceitarPrivacidade(op);
 
     for (const path of ["/", "/pacientes", "/configuracoes/pacientes", "/configuracoes/remedios", "/configuracoes/esquemas", "/configuracoes/pessoas"]) {
       await open(op, path);

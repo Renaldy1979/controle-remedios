@@ -16,7 +16,7 @@
     "@medcuidar/domain": "workspace:^",
     "@medcuidar/pg": "workspace:*",
     "@medcuidar/shared": "workspace:*",
-    "drizzle-orm": "^0.36.4",
+    "drizzle-orm": "^0.45.2",
     "next": "15",
     "node-appwrite": "19.1.0",
     "react": "19",

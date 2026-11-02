@@ -18,6 +18,29 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test
-# Os testes de integração com Postgres (packages/pg, apps/web) ficam fora da CI até existir um serviço de banco no pipeline;
-# sem o banco eles são pulados com aviso.
+      # Postgres 16 de verdade (mesmo docker-compose do desenvolvimento: papéis dono e aplicação, porta 5440).
+      # Os testes de integração rodam todos: REQUIRE_DB=1 faz a falta do banco FALHAR em vez de pular.
+      - name: Subir o Postgres
+        run: docker compose -f docker-compose.dev.yml up -d --wait
+      - name: Testes (unidade e integração)
+        run: pnpm test
+        env:
+          REQUIRE_DB: "1"
+          APP_URL: http://localhost:3000
+      - name: Logs do Postgres (se falhou)
+        if: failure()
+        run: docker compose -f docker-compose.dev.yml logs --tail=80 postgres
+
+  # Informativo: não derruba a CI. Os avisos aceitos e o porquê estão em docs/13-seguranca-privacidade.md, seção 6.
+  audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --prod --audit-level=high

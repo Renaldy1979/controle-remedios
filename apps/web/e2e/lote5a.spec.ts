@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { PASSWORD, PREFIX, cleanup, open, signUp, testEmail, verifyEmail } from "./support";
+import { PASSWORD, PREFIX, cleanup, open, signUp, testEmail, verifyEmail, aceitarPrivacidade } from "./support";
 
 /**
  * Roteiro do Lote 5A de ponta a ponta (docs/lotes/L5A-roteiro.md), SEM número real: perfil "Somente leitura".
@@ -66,11 +66,12 @@ test("Lote 5A: perfil Somente leitura (convite, navegação, recusas, matriz e a
     await page.getByRole("button", { name: "Já confirmei" }).click();
     await page.getByLabel("Nome da família").fill("Família L5A ZZ");
     await page.getByRole("button", { name: "Criar a família" }).click();
-    await expect(page).toHaveURL(/\/$/);
+    await aceitarPrivacidade(page);
 
     await open(page, "/configuracoes/pacientes");
     await page.getByRole("button", { name: "Cadastrar paciente" }).first().click();
     await page.getByLabel("Nome completo").fill("Adelino Souza");
+    await page.getByText("Tenho autorização desta pessoa").click();
     await page.getByRole("dialog").getByRole("button", { name: "Salvar" }).click();
     await toast(page, "Adelino Souza cadastrado");
 
@@ -186,7 +187,8 @@ test("Lote 5A: perfil Somente leitura (convite, navegação, recusas, matriz e a
     await leitor.getByLabel("Crie uma senha").fill(PASSWORD);
     await leitor.getByLabel("Repita a senha").fill(PASSWORD);
     await leitor.getByRole("button", { name: "Criar senha e entrar" }).click();
-    await expect(leitor.getByText(`Olá, ${PREFIX}Sobrinho`)).toBeVisible();
+    await aceitarPrivacidade(leitor);
+    await expect(leitor.getByText(new RegExp(`(Olá|Bom dia|Boa tarde|Boa noite), ${PREFIX}Sobrinho`))).toBeVisible();
 
     const menu = leitor.getByRole("navigation", { name: "Principal" });
     await expect(menu.getByRole("link", { name: /Início/ })).toBeVisible();

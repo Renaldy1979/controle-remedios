@@ -6,6 +6,7 @@ import { ativarMembroPorEmail, resolverMembroPorAppwriteUser, withFamilia } from
 import * as s from "@medcuidar/pg/schema";
 import { familySettingsSchema, permissionMapSchema, type FamilySettings } from "@medcuidar/shared";
 import type { Member } from "@/data/types";
+import { DELETION_GRACE_DAYS, PRIVACY_VERSION } from "@/lib/privacy";
 import type { AuthAccount } from "../auth/appwrite";
 import { currentAccount } from "../auth/session";
 
@@ -29,6 +30,10 @@ export type Access =
   | { status: "nofamily"; account: AuthAccount }
   /** desativada, ou família inativa */
   | { status: "inactive" }
+  /** logada, mas ainda não aceitou a versão vigente da política de privacidade */
+  | { status: "privacy"; familyId: string; memberId: string }
+  /** a família tem exclusão agendada (30 dias): só o Administrador cancela */
+  | { status: "deletion"; familyId: string; memberId: string; timezone: string; member: Member; familyName: string; dueAt: Date }
   | { status: "ok"; ctx: Ctx };
 
 /**
@@ -53,9 +58,24 @@ export const getAccess = cache(async (): Promise<Access> => {
       .where(eq(s.members.id, found.membroId));
     return r;
   });
-  if (!row || !row.member.active || row.member.removedAt || !row.family.active || row.family.deletedAt) return { status: "inactive" };
+  if (!row || !row.member.active || row.member.removedAt || !row.family.active) return { status: "inactive" };
 
   const permissions = permissionMapSchema.safeParse(row.profile.permissions);
+  const member: Member = {
+    id: row.member.id,
+    name: row.member.name,
+    profileName: row.profile.name,
+    permissions: permissions.success ? permissions.data : {},
+  };
+  // exclusão agendada (Lote 5B): ninguém usa o sistema; o Administrador só vê a tela de cancelar
+  if (row.family.deletedAt) {
+    return {
+      status: "deletion", familyId: row.family.id, memberId: row.member.id, timezone: row.family.timezone, member,
+      familyName: row.family.name, dueAt: new Date(row.family.deletedAt.getTime() + DELETION_GRACE_DAYS * 86_400_000),
+    };
+  }
+  // política de privacidade vigente ainda não aceita (Lote 5B)
+  if (row.member.privacyVersion !== PRIVACY_VERSION) return { status: "privacy", familyId: row.family.id, memberId: row.member.id };
   return {
     status: "ok",
     ctx: {
@@ -66,12 +86,7 @@ export const getAccess = cache(async (): Promise<Access> => {
       account,
       memberId: row.member.id,
       profileId: row.profile.id,
-      member: {
-        id: row.member.id,
-        name: row.member.name,
-        profileName: row.profile.name,
-        permissions: permissions.success ? permissions.data : {},
-      },
+      member,
     },
   };
 });
@@ -93,6 +108,10 @@ export async function requireContext(): Promise<Ctx> {
       return redirect("/verificar-email");
     case "nofamily":
       return redirect("/criar-familia");
+    case "privacy":
+      return redirect("/privacidade/aceitar");
+    case "deletion":
+      return redirect("/exclusao-agendada");
     case "ok":
       return a.ctx;
   }

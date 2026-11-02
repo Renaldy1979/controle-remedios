@@ -273,10 +273,18 @@ const patientInput = z.object({
   notes: optText(500),
   usesPhone: z.boolean(),
   selfMemberId: id.nullable(),
+  dataAuthorized: z.boolean().optional(),
 });
 
 export async function savePatientAction(input: unknown) {
-  return run(async (ctx) => (await import("./patients")).savePatient(ctx, parse(patientInput, input)));
+  return run(async (ctx) => {
+    const i = parse(patientInput, input);
+    const [{ requirePermission }, { UserError }] = await Promise.all([import("./guard"), import("./errors")]);
+    requirePermission(ctx, "patients.manage");
+    // LGPD (docs/13): dado de saúde só entra com a declaração de autorização/responsabilidade de quem cadastra
+    if (!i.id && !i.dataAuthorized) throw new UserError("Confirme que você tem autorização da pessoa, ou que é o responsável por ela, para cadastrar os dados de saúde.");
+    return (await import("./patients")).savePatient(ctx, i);
+  });
 }
 export async function deletePatientAction(patientId: string) {
   return run(async (ctx) => (await import("./patients")).deletePatient(ctx, parse(id, patientId)));

@@ -87,6 +87,22 @@ export async function signUp(page: Page, name: string, email: string) {
   await expect(page.getByRole("heading", { name: "Confirme o seu e-mail" })).toBeVisible();
 }
 
+/**
+ * Depois de entrar, criar a família ou aceitar um convite, a tela de aceite da política (Lote 5B) pode aparecer:
+ * aceita e segue até o painel. Se a pessoa já tinha aceitado, só confere que chegou ao painel.
+ */
+export async function aceitarPrivacidade(page: Page) {
+  // a URL passa por "/" antes de o servidor mandar para a tela de aceite: espera o botão OU o menu do painel, não a URL
+  const aceitar = page.getByRole("button", { name: "Li e aceito" });
+  const menu = page.locator('nav[aria-label="Principal"]:visible').first();
+  await expect(aceitar.or(menu)).toBeVisible({ timeout: 30_000 });
+  if (await aceitar.isVisible()) {
+    await page.locator("body[data-hydrated]").waitFor({ state: "attached" });
+    await aceitar.click();
+    await expect(menu).toBeVisible({ timeout: 30_000 });
+  }
+}
+
 export async function signIn(page: Page, email: string, password = PASSWORD) {
   await open(page, "/login");
   await page.getByLabel("E-mail").fill(email);

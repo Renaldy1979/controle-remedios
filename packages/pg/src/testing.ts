@@ -8,6 +8,7 @@ import { adminUrl, appUrl } from "./env";
 import { runMigrations } from "./migrate";
 import { closeDb, getDb } from "./client";
 import { withFamilia } from "./withFamilia";
+import { ORDEM_EXCLUSAO } from "./purge";
 import * as s from "./schema";
 
 export type Admin = ReturnType<typeof postgres>;
@@ -53,15 +54,8 @@ export async function encerrar(admin?: Admin): Promise<void> {
 /** Telefone fictício aleatório (só dígitos) para não colidir com o seed nem com outras execuções. */
 export const telefoneAleatorio = (): string => "5599" + String(Math.floor(Math.random() * 1e9)).padStart(9, "0");
 
-/** Filhos antes dos pais, para limpar por família. `audit_log` aponta para membros: vai primeiro. */
-const ORDEM_LIMPEZA = [
-  "audit_log", "family_integrations", "ai_usage", "agent_sessions", "outbound_messages", "conversation_state", "api_keys", "message_log", "notifications",
-  "replenishment_steps", "stock_movements", "replenishments", "prescription_views",
-  "prescription_shares", "prescription_items", "prescription_files", "prescriptions", "dose_events", "stock_items",
-  "treatment_phases", "treatments", "care_assignments", "patients", "medications", "first_access_links", "invites",
-  "members", "profiles",
-  "idempotency", "families",
-];
+/** Filhos antes dos pais, para limpar por família (a mesma ordem da exclusão definitiva, em purge.ts). */
+const ORDEM_LIMPEZA: string[] = [...ORDEM_EXCLUSAO];
 
 async function apagarFamilias(admin: Admin, ids: string[]): Promise<void> {
   // tabelas com family_id que ainda não estão na ordem (tabela nova nunca deixa linha órfã): antes dos membros

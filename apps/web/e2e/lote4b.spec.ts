@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { cleanup, open, signUp, testEmail, verifyEmail } from "./support";
+import { cleanup, open, signUp, testEmail, verifyEmail, aceitarPrivacidade } from "./support";
 
 /**
  * Lote 4B, Parte A do roteiro (docs/lotes/L4B-roteiro.md), SEM número real e sem chaves de IA: o simulador atravessa a MESMA fila do
@@ -33,7 +33,7 @@ test("Lote 4B: simulador pela fila e pelo worker, PARAR/REATIVAR, painel do What
     await page.getByRole("button", { name: "Já confirmei" }).click();
     await page.getByLabel("Nome da família").fill("Família L4B ZZ");
     await page.getByRole("button", { name: "Criar a família" }).click();
-    await expect(page).toHaveURL(/\/$/);
+    await aceitarPrivacidade(page);
     await open(page, "/configuracoes/whatsapp");
     await page.getByLabel("Celular com DDD").fill(meuTel);
     await page.getByRole("button", { name: "Gerar código" }).click();

@@ -104,8 +104,11 @@ function PatientDialog({ patient, onClose, onSave }: { patient: PatientVM | null
   const [notes, setNotes] = useState(patient?.note ?? "");
   const [usesPhone, setUsesPhone] = useState(patient?.usesPhone ?? true);
   const [selfId, setSelfId] = useState(patient?.selfMemberId ?? "");
-  const [err, setErr] = useState<{ name?: string; birth?: string }>({});
+  const [authorized, setAuthorized] = useState(false);
+  const [err, setErr] = useState<{ name?: string; birth?: string; auth?: string }>({});
   const [busy, setBusy] = useState(false);
+  // LGPD (docs/13): obrigatória ao cadastrar; para paciente antigo sem a declaração aparece opcional
+  const needsAuth = !patient || patient.dataAuthorized === false;
   const accounts = snap.people.filter((p) => p.active !== false && p.accessState !== "invited");
 
   const submit = async () => {
@@ -117,10 +120,11 @@ function PatientDialog({ patient, onClose, onSave }: { patient: PatientVM | null
       if (!d || d.getTime() > Date.now() || d.getFullYear() < 1900) e.birth = "Use a data no formato dd/mm/aaaa, por exemplo 10/03/1942.";
       else iso = toIso(d);
     }
+    if (!patient && !authorized) e.auth = "Confirme a autorização para cadastrar os dados de saúde.";
     setErr(e);
-    if (e.name || e.birth) return;
+    if (e.name || e.birth || e.auth) return;
     setBusy(true);
-    await onSave({ ...(patient ? { id: patient.id } : {}), name: name.trim(), birthDate: iso, notes: notes.trim(), usesPhone, selfMemberId: selfId || null });
+    await onSave({ ...(patient ? { id: patient.id } : {}), name: name.trim(), birthDate: iso, notes: notes.trim(), usesPhone, selfMemberId: selfId || null, ...(needsAuth ? { dataAuthorized: authorized } : {}) });
     setBusy(false);
   };
 
@@ -154,6 +158,22 @@ function PatientDialog({ patient, onClose, onSave }: { patient: PatientVM | null
             </option>
           ))}
         </SelectField>
+        {needsAuth ? (
+          <div className="flex flex-col gap-1">
+            <Checkbox
+              checked={authorized}
+              onChange={setAuthorized}
+              label="Tenho autorização desta pessoa, ou sou o responsável por ela"
+              description="São dados de saúde. Se ela não consegue decidir sozinha (por exemplo, por causa de demência), marque só se você é o responsável."
+            />
+            {err.auth ? (
+              <p role="alert" className="flex items-center gap-2 font-bold text-ms">
+                <Icon name="error" size={18} />
+                {err.auth}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         {snap.people.some((p) => p.accessState === "invited") ? (
           <p className="flex items-center gap-2 text-cap text-ink2">
             <Icon name="info" size={16} />

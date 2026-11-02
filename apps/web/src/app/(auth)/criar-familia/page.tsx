@@ -12,7 +12,7 @@ export default async function Page() {
   const access = await getAccess();
   if (access.status === "anon" || access.status === "inactive") redirect("/login");
   if (access.status === "unverified") redirect("/verificar-email");
-  if (access.status === "ok") redirect("/");
+  if (access.status !== "nofamily") redirect("/");
   const parts = access.account.name.trim().split(/\s+/);
   const suggestion = parts.length > 1 ? `Família ${parts[parts.length - 1]}` : "";
   return (

@@ -16,6 +16,8 @@ export interface PatientData {
   usesPhone: boolean;
   /** o paciente também é usuário (ex.: Adelino) */
   selfMemberId: string | null;
+  /** Declaração de que tem autorização da pessoa ou é o responsável por ela (LGPD, docs/13). A Server Action a exige ao cadastrar. */
+  dataAuthorized?: boolean;
 }
 
 /** Cria ou edita um paciente. Devolve o id. */
@@ -38,13 +40,16 @@ export async function savePatient(actor: Actor, input: PatientData): Promise<str
       canUsePhone: input.usesPhone,
       selfMemberId: input.selfMemberId,
     };
+    const declaracao = { dataAuthorizedAt: new Date(), dataAuthorizedBy: actor.memberId };
     if (input.id) {
-      const rows = await tx.update(s.patients).set(values).where(and(eq(s.patients.id, input.id), isNull(s.patients.deletedAt))).returning({ id: s.patients.id });
-      if (!rows.length) throw new UserError("Paciente não encontrado.");
+      const [atual] = await tx.select({ authorizedAt: s.patients.dataAuthorizedAt }).from(s.patients).where(and(eq(s.patients.id, input.id), isNull(s.patients.deletedAt)));
+      if (!atual) throw new UserError("Paciente não encontrado.");
+      // quem já declarou não perde a declaração; paciente antigo (sem ela) passa a ter ao marcar
+      await tx.update(s.patients).set({ ...values, ...(input.dataAuthorized && !atual.authorizedAt ? declaracao : {}) }).where(eq(s.patients.id, input.id));
       await audit(tx, actor, "patient.update", "patient", input.id);
       return input.id;
     }
-    const [row] = await tx.insert(s.patients).values({ ...values, familyId: actor.familyId }).returning({ id: s.patients.id });
+    const [row] = await tx.insert(s.patients).values({ ...values, ...declaracao, familyId: actor.familyId }).returning({ id: s.patients.id });
     await audit(tx, actor, "patient.create", "patient", row!.id);
     return row!.id;
   });

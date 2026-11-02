@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import postgres from "postgres";
-import { PASSWORD, PREFIX, cleanup, open, signUp, testEmail, verifyEmail } from "./support";
+import { PASSWORD, PREFIX, cleanup, open, signUp, testEmail, verifyEmail, aceitarPrivacidade } from "./support";
 
 /**
  * Roteiro do Lote 4A de ponta a ponta (docs/lotes/L4A-roteiro.md), SEM número real:
@@ -50,11 +50,12 @@ test("Lote 4A: número, simulador, tomei, estoque, chave de API, convite por Wha
     await page.getByRole("button", { name: "Já confirmei" }).click();
     await page.getByLabel("Nome da família").fill("Família L4A ZZ");
     await page.getByRole("button", { name: "Criar a família" }).click();
-    await expect(page).toHaveURL(/\/$/);
+    await aceitarPrivacidade(page);
 
     await open(page, "/configuracoes/pacientes");
     await page.getByRole("button", { name: "Cadastrar paciente" }).first().click();
     await page.getByLabel("Nome completo").fill("Adelino Souza");
+    await page.getByText("Tenho autorização desta pessoa").click();
     await page.getByRole("dialog").getByRole("button", { name: "Salvar" }).click();
     await toast(page, "Adelino Souza cadastrado");
 
@@ -230,7 +231,7 @@ test("Lote 4A: número, simulador, tomei, estoque, chave de API, convite por Wha
     await expect(rosa).toHaveURL(/\/verificar-email$/);
     await verifyEmail(emailRosa);
     await rosa.getByRole("button", { name: "Já confirmei" }).click();
-    await expect(rosa).toHaveURL(/\/$/); // ativa: entra no portal da família
+    await aceitarPrivacidade(rosa); // ativa: entra no portal da família
     // o link de uso único não vale mais
     await open(rosa, `${url.pathname}${url.search}`);
     await expect(rosa.getByText("Este link não vale mais")).toBeVisible();

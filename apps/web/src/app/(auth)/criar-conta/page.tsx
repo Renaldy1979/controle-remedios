@@ -9,7 +9,7 @@ export const metadata = { title: "Criar conta" };
 export default async function Page() {
   if (dataSourceKind() !== "postgres") redirect("/login");
   const { getAccess } = await import("@/server/pg/access");
-  if ((await getAccess()).status === "ok") redirect("/");
+  if (["ok", "privacy", "deletion"].includes((await getAccess()).status)) redirect("/");
   return (
     <AuthFrame title="Criar conta" subtitle="Você será o(a) administrador(a) da família. Para convidar outras pessoas, use o convite dentro do portal.">
       <SignUpForm />

@@ -142,6 +142,7 @@ export async function buildSnapshot(ctx: Ctx, now: Date = new Date()): Promise<S
         age: p.birthDate ? ageOn(p.birthDate, today) : 0,
         note: p.notes ?? "",
         usesPhone: p.canUsePhone,
+        dataAuthorized: !!p.dataAuthorizedAt,
         phone: p.canUsePhone ? (self?.phoneVerified && canSeePeople ? formatPhone(self.phoneVerified) : "") : "Sem celular",
         birthDate: p.birthDate ?? "",
         selfMemberId: p.selfMemberId ?? null,

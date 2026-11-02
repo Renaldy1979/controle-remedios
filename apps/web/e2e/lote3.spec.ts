@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
-import { PASSWORD, cleanup, open, signUp, testEmail, verifyEmail } from "./support";
+import { PASSWORD, cleanup, open, signUp, testEmail, verifyEmail, aceitarPrivacidade } from "./support";
 
 /**
  * Roteiro do Lote 3 de ponta a ponta (docs/lotes/L3-roteiro.md): anexar receita (foto + PDF) → ver (visualizador, quem viu) →
@@ -49,7 +49,8 @@ async function inviteAndEnter(admin: Page, browser: Browser, name: string, email
   await page.getByLabel("Crie uma senha").fill(PASSWORD);
   await page.getByLabel("Repita a senha").fill(PASSWORD);
   await page.getByRole("button", { name: "Criar senha e entrar" }).click();
-  await expect(page.getByText(`Olá, ${name}`)).toBeVisible();
+    await aceitarPrivacidade(page);
+  await expect(page.getByText(new RegExp(`(Olá|Bom dia|Boa tarde|Boa noite), ${name}`))).toBeVisible();
   return { ctx, page };
 }
 
@@ -76,11 +77,12 @@ test("Lote 3: receitas com fotos e PDF, compartilhar, permissões e reposição 
     await expect(page).toHaveURL(/\/criar-familia$/);
     await page.getByLabel("Nome da família").fill("Família L3 ZZ");
     await page.getByRole("button", { name: "Criar a família" }).click();
-    await expect(page).toHaveURL(/\/$/);
+    await aceitarPrivacidade(page);
 
     await open(page, "/configuracoes/pacientes");
     await page.getByRole("button", { name: "Cadastrar paciente" }).first().click();
     await page.getByLabel("Nome completo").fill("Adelino Souza");
+    await page.getByText("Tenho autorização desta pessoa").click();
     await page.getByRole("dialog").getByRole("button", { name: "Salvar" }).click();
     await toast(page, "Adelino Souza cadastrado");
 

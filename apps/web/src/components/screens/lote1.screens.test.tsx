@@ -188,15 +188,15 @@ describe("Lote 1 — portal logado (origem Postgres)", () => {
 });
 
 describe("Lote 1 — perfis na interface", () => {
-  it("Confirmador não vê Configurações no menu nem seções de administração", () => {
+  it("Confirmador só vê a seção Privacidade e dados em Configurações (nenhuma seção de administração)", () => {
     const snap = lote1Snapshot({
       member: { id: "c", name: "Filha", profileName: "Confirmador", permissions: { "dashboard.view": true, "patients.view": true, "doses.confirm": true } },
       people: [],
       permissionRows: [],
     });
     renderApp(shell("/configuracoes", <SettingsScreen />), { source: fakePg(snap) });
-    expect(screen.queryByRole("link", { name: /Configurações/ })).not.toBeInTheDocument();
-    expect(screen.getByText("Seu perfil não tem ajustes liberados.")).toBeInTheDocument();
+    const opcoes = within(screen.getByRole("navigation", { name: "Opções de Configurações" })).getAllByRole("link");
+    expect(opcoes.map((o) => o.textContent)).toEqual([expect.stringContaining("Privacidade e dados")]);
     expect(screen.queryByRole("button", { name: "Convidar pessoa" })).not.toBeInTheDocument();
   });
 
@@ -300,9 +300,14 @@ describe("Lote 1 — Pacientes, Remédios e Esquemas (cadastros)", () => {
     await userEvent.clear(within(dlg).getByLabelText(/Data de nascimento/));
     await userEvent.type(within(dlg).getByLabelText(/Data de nascimento/), "05/11/1940");
     await userEvent.selectOptions(within(dlg).getByLabelText(/Tem conta no portal/), "a");
+    // LGPD (docs/13): sem a declaração de autorização/responsabilidade não cadastra
+    await userEvent.click(within(dlg).getByRole("button", { name: "Salvar" }));
+    expect(within(dlg).getByText("Confirme a autorização para cadastrar os dados de saúde.")).toBeInTheDocument();
+    expect(savePatient).not.toHaveBeenCalled();
+    await userEvent.click(within(dlg).getByLabelText(/Tenho autorização desta pessoa/));
     await userEvent.click(within(dlg).getByRole("button", { name: "Salvar" }));
     await waitFor(() => expect(savePatient).toHaveBeenCalledTimes(1));
-    expect(savePatient.mock.calls[0]![0]).toMatchObject({ name: "Seu Ademar", birthDate: "1940-11-05", usesPhone: true, selfMemberId: "a" });
+    expect(savePatient.mock.calls[0]![0]).toMatchObject({ name: "Seu Ademar", birthDate: "1940-11-05", usesPhone: true, selfMemberId: "a", dataAuthorized: true });
   });
 
   it("remédio: sem paciente, orienta a cadastrar um; com paciente, pede unidade e gotas por ml", async () => {
@@ -484,7 +489,7 @@ describe("Lote 3 — Configurações em árvore", () => {
     });
     renderApp(shell("/configuracoes", <SettingsScreen />), { source: fakePg(snap) });
     const lista = screen.getByRole("navigation", { name: "Opções de Configurações" });
-    expect(within(lista).getAllByRole("link").map((l) => l.textContent)).toEqual([expect.stringContaining("Estoque")]);
+    expect(within(lista).getAllByRole("link").map((l) => l.textContent)).toEqual([expect.stringContaining("Estoque"), expect.stringContaining("Privacidade e dados")]);
     expect(within(lista).getByText("Compras, ajustes e movimentações")).toBeInTheDocument();
     expect(within(principal()).queryByRole("link", { name: "Perfis" })).not.toBeInTheDocument();
   });

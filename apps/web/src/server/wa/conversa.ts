@@ -16,6 +16,7 @@ import { janelaGrupoMs } from "./fila";
 import {
   candidatasConfirmacao, dosesAbertas, horaLocal, proximasDosesHoje, visaoEstoque, type DoseAberta,
 } from "./queries";
+import { linkDaPolitica, registrarAceiteWhatsapp } from "./aceite";
 import { apagarContexto, gravarContexto, lerContexto, type ConvCtx } from "./state";
 import * as T from "./texts";
 
@@ -63,7 +64,8 @@ export async function remetenteDesconhecido(telefone: string, texto: string): Pr
     if (r.resultado === "verificado" && r.familiaId && r.membroId) {
       const nome = await withFamilia(r.familiaId, async (tx) => (await tx.select({ n: s.members.name }).from(s.members).where(eq(s.members.id, r.membroId!)))[0]?.n ?? "");
       await withFamilia(r.familiaId, (tx) => tx.insert(s.auditLog).values({ familyId: r.familiaId!, actorMemberId: r.membroId, action: "member.phone_verified", entity: "member", entityId: r.membroId, meta: {} }));
-      return { respostas: [T.numeroVerificado({ nome })], intent: "numero_verificado" };
+      await registrarAceiteWhatsapp(r.familiaId, r.membroId);
+      return { respostas: [T.numeroVerificado({ nome, ...(linkDaPolitica() ? { politica: linkDaPolitica()! } : {}) })], intent: "numero_verificado" };
     }
     bloqueado ||= r.resultado === "bloqueado";
     emUso ||= r.resultado === "em_uso";
@@ -78,7 +80,8 @@ export async function remetenteDesconhecido(telefone: string, texto: string): Pr
     if (c.resultado === "verificado" && c.familiaId && c.membroId) {
       const nome = await withFamilia(c.familiaId, async (tx) => (await tx.select({ n: s.members.name }).from(s.members).where(eq(s.members.id, c.membroId!)))[0]?.n ?? "");
       const link = await issueFirstAccessLink(c.familiaId, c.membroId, c.membroId, "member.whatsapp_invite_accepted");
-      return { respostas: [T.conviteAceito({ nome, link: link.url })], intent: "convite_aceito" };
+      await registrarAceiteWhatsapp(c.familiaId, c.membroId);
+      return { respostas: [T.conviteAceito({ nome, link: link.url, ...(linkDaPolitica() ? { politica: linkDaPolitica()! } : {}) })], intent: "convite_aceito" };
     }
     bloqueado ||= c.resultado === "bloqueado";
     emUso ||= c.resultado === "em_uso";

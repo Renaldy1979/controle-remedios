@@ -889,4 +889,76 @@ describe.skipIf(!disponivel)("Postgres + RLS (papel da aplicação)", () => {
       expect(await admin`select id, permissions from profiles where id = ${A.profileId}`).toEqual(antes);
     });
   });
+
+  /* ------------------------------------------------------------ Lote 5B: exclusão agendada e definitiva */
+  describe("exclusão da família (LGPD)", () => {
+    it("lista só as famílias com exclusão agendada vencida; família com exclusão agendada deixa de ser resolvida pelo WhatsApp e pela chave de API", async () => {
+      const { listarFamiliasParaExcluir } = await import("./sistema");
+      const X = await criarFamiliaTeste("X-exclusao");
+      criadas.push(X.id);
+      const tel = telefoneAleatorio();
+      await admin`update members set phone_verified = ${tel}, access_state = 'whatsapp_verified' where id = ${X.memberId}`;
+      const chave = gerarApiKey("familia");
+      await withFamilia(X.id, (tx) => tx.insert(s.apiKeys).values({ familyId: X.id, name: "k", prefix: "cdf_", keyHash: chave.hash, scopes: ["doses.read"], createdByMemberId: X.memberId } as never));
+      expect((await resolverMembroPorTelefone(tel))?.familiaAtiva).toBe(true);
+      expect((await resolverApiKeyPorHash(chave.hash))?.tipo).toBe("familia");
+
+      // pedido há 5 dias: agendada, mas ainda não vence
+      await admin`update families set deleted_at = now() - interval '5 days', deletion_requested_by = ${X.memberId} where id = ${X.id}`;
+      expect(await listarFamiliasParaExcluir(30)).not.toContain(X.id);
+      expect((await resolverMembroPorTelefone(tel))?.familiaAtiva).toBe(false);
+      expect(await resolverApiKeyPorHash(chave.hash)).toBeNull();
+
+      await admin`update families set deleted_at = now() - interval '31 days' where id = ${X.id}`;
+      expect(await listarFamiliasParaExcluir(30)).toContain(X.id);
+      expect(await listarFamiliasParaExcluir(30)).not.toContain(A.id);
+
+      // cancelar a exclusão: volta a ser atendida
+      await admin`update families set deleted_at = null, deletion_requested_by = null where id = ${X.id}`;
+      expect((await resolverMembroPorTelefone(tel))?.familiaAtiva).toBe(true);
+      expect(await listarFamiliasParaExcluir(30)).not.toContain(X.id);
+    });
+
+    it("exclusão definitiva apaga TODAS as linhas da família (toda tabela com family_id), deixa a outra família intacta e registra na auditoria da plataforma", async () => {
+      const { excluirFamiliaDefinitivo, dadosExternosDaFamilia } = await import("./purge");
+      const D = await criarFamiliaTeste("D-apagar");
+      criadas.push(D.id);
+      // arquivo de receita e conta de login: o que está FORA do Postgres tem de ser listado antes de apagar
+      const rx = randomUUID();
+      const appwriteUser = `zz-test-${randomUUID()}`;
+      await withFamilia(D.id, async (tx) => {
+        await tx.insert(s.prescriptions).values({ id: rx, familyId: D.id, patientId: D.patientId, issuedOn: "2026-10-01", uploadedByMemberId: D.memberId });
+        await tx.insert(s.prescriptionFiles).values({ familyId: D.id, prescriptionId: rx, storageFileId: "arq-apagar-1", mime: "image/jpeg", size: 10 });
+        await tx.insert(s.auditLog).values({ familyId: D.id, actorMemberId: D.memberId, action: "teste", entity: "x", meta: {} });
+      });
+      await admin`update members set access_state = 'active', appwrite_user_id = ${appwriteUser}, email = ${`zz-test-${randomUUID().slice(0, 6)}@exemplo.test`}, email_confirmed_at = now() where id = ${D.memberId}`;
+
+      const externos = await dadosExternosDaFamilia(D.id);
+      expect(externos.arquivos).toEqual(["arq-apagar-1"]);
+      expect(externos.usuariosAppwrite).toEqual([appwriteUser]);
+
+      const antesB = (await admin`select (select count(*)::int from patients where family_id = ${B.id}) as p, (select count(*)::int from dose_events where family_id = ${B.id}) as d`)[0]!;
+      const r = await excluirFamiliaDefinitivo(D.id);
+      expect(r.tabelas["families"]).toBe(1);
+
+      const tabelas = (await admin`select table_name from information_schema.columns where table_schema = 'public' and column_name = 'family_id'`).map((t) => t["table_name"] as string);
+      for (const t of tabelas.filter((x) => x !== "platform_audit_log")) {
+        const [n] = await admin.unsafe(`select count(*)::int as n from "${t}" where family_id = $1`, [D.id]);
+        expect(n!["n"], `${t} ainda tem linhas da família excluída`).toBe(0);
+      }
+      expect((await admin`select count(*)::int as n from families where id = ${D.id}`)[0]!["n"]).toBe(0);
+      expect((await admin`select (select count(*)::int from patients where family_id = ${B.id}) as p, (select count(*)::int from dose_events where family_id = ${B.id}) as d`)[0]).toEqual(antesB);
+      const [aud] = await admin`select method, route, masked_phone from platform_audit_log where family_id = ${D.id} order by at desc limit 1`;
+      expect(aud).toMatchObject({ method: "JOB", route: "family.purge", masked_phone: null });
+    });
+  });
+
+  describe("migração 0012: colunas do consentimento", () => {
+    it("members, patients e families ganharam as colunas novas, nulas por padrão", async () => {
+      const cols = await admin`select table_name, column_name, is_nullable from information_schema.columns where table_schema = 'public' and
+        (table_name, column_name) in (('members','privacy_accepted_at'),('members','privacy_version'),('patients','data_authorized_at'),('patients','data_authorized_by'),('families','deletion_requested_by'))`;
+      expect(cols.length).toBe(5);
+      expect(cols.every((c) => c["is_nullable"] === "YES")).toBe(true);
+    });
+  });
 });

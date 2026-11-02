@@ -31,7 +31,7 @@ export interface DepsAgendador {
 }
 
 /** Um ciclo do líder. Devolve false se esta instância não é a líder. */
-export async function cicloAgendador(d: DepsAgendador, estado: { trava: TravaConsultiva | null; ultimaLimpeza: number; ultimoMonitor: number }): Promise<boolean> {
+export async function cicloAgendador(d: DepsAgendador, estado: { trava: TravaConsultiva | null; ultimaLimpeza: number; ultimoMonitor: number; ultimaExclusao?: number }): Promise<boolean> {
   const agora = d.agora?.() ?? new Date();
   if (estado.trava && !(await estado.trava.aindaMinha())) {
     await estado.trava.liberar();
@@ -51,6 +51,11 @@ export async function cicloAgendador(d: DepsAgendador, estado: { trava: TravaCon
     estado.ultimaLimpeza = agora.getTime();
     await limparMemoriaDoAgente(agora);
   }
+  // exclusão definitiva das famílias cujo pedido passou de 30 dias (LGPD): a cada 6 h, só o líder
+  if (!d.somenteFamilia && agora.getTime() - (estado.ultimaExclusao ?? 0) >= 6 * 3600_000) {
+    estado.ultimaExclusao = agora.getTime();
+    await (await import("../pg/exclusao")).excluirFamiliasVencidas().catch((e) => logWa({ etapa: "exclusao_erro", erro: e instanceof Error ? e.name : "erro" }));
+  }
   return true;
 }
 
@@ -68,7 +73,7 @@ export interface Agendador {
 
 export function iniciarAgendador(d: DepsAgendador): Agendador {
   const relogio = d.relogio ?? relogioReal;
-  const estado = { trava: null as TravaConsultiva | null, ultimaLimpeza: 0, ultimoMonitor: 0 };
+  const estado = { trava: null as TravaConsultiva | null, ultimaLimpeza: 0, ultimoMonitor: 0, ultimaExclusao: 0 };
   let parando = false;
   const laco = (async () => {
     while (!parando) {

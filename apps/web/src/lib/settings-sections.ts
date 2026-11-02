@@ -10,6 +10,7 @@ export const SECTIONS = [
   { id: "perfis", label: "Perfis", icon: "admin_panel_settings", help: "O que cada perfil pode fazer", permission: "profiles.manage" },
   { id: "avisos", label: "Avisos", icon: "notifications", help: "Quando e para quem avisar", permission: "settings.manage" },
   { id: "whatsapp", label: "WhatsApp", icon: "chat", help: "Número de cada pessoa e chaves de API", permission: "members.manage" },
+  { id: "privacidade", label: "Privacidade e dados", icon: "shield_lock", help: "Política, exportar e excluir os dados da família", permission: "dashboard.view" },
   { id: "simulador", label: "Simulador de WhatsApp", icon: "forum", help: "Testar a conversa sem enviar mensagem real", permission: "settings.manage", simulatorOnly: true },
 ] as const satisfies ReadonlyArray<{ id: string; label: string; icon: string; help: string; permission: PermissionKey; simulatorOnly?: boolean }>;
 

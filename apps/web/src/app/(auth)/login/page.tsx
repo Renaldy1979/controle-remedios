@@ -12,7 +12,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
   if (dataSourceKind() !== "postgres") return <LoginScreen />;
   const { getAccess } = await import("@/server/pg/access");
   const access = await getAccess();
-  if (access.status === "ok") redirect("/");
+  if (access.status === "ok" || access.status === "privacy" || access.status === "deletion") redirect("/");
   if (access.status === "unverified") redirect("/verificar-email");
   if (access.status === "nofamily") redirect("/criar-familia");
   const q = await searchParams;

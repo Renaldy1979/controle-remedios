@@ -24,6 +24,8 @@ export interface PatientVM {
   /** o paciente também tem conta (usuário) */
   selfMemberId?: string | null;
   selfMemberName?: string;
+  /** Lote 5B: quem cadastrou declarou ter autorização da pessoa ou ser o responsável por ela */
+  dataAuthorized?: boolean;
 }
 
 export type AccessState = "invited" | "whatsapp_verified" | "active";
@@ -444,6 +446,8 @@ export interface PatientInput {
   notes: string;
   usesPhone: boolean;
   selfMemberId: string | null;
+  /** Lote 5B: declaração de autorização/responsabilidade. Obrigatória para cadastrar; para quem já existe sem ela, vale ao marcar. */
+  dataAuthorized?: boolean;
 }
 
 export interface MedicationInput {

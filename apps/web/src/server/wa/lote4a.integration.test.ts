@@ -591,6 +591,35 @@ describe.skipIf(!up)("Lote 4A — WhatsApp: API, conversa e fila no Postgres", (
       expect(await movimentosDeDose(b.doses[0]!)).toBe(0);
     });
 
+    it("acesso cruzado (Lote 5B): nenhuma rota de leitura da API devolve dado de outra família, com chave de plataforma ou de família", async () => {
+      const a = await novaFamilia("CruzA");
+      const b = await novaFamilia("CruzB");
+      const chaveA = (await criarChaveFamilia(a.admin, "zz-test cruz")).chave;
+      const rotas: Array<[string, (r: NextRequest, c: { params: Promise<Record<string, string>> }) => Promise<Response>]> = [
+        ["/doses/proximas", h.dosesProximas], ["/doses", h.dosesDoDia], ["/estoque", h.estoqueVisao], ["/reposicoes", h.reposicoesListar],
+        ["/pacientes", h.pacientesListar], ["/remedios", h.remediosListar], ["/receitas", h.receitasListar],
+      ];
+      for (const [caminho, rota] of rotas) {
+        // A pela plataforma (telefone de A) e A pela chave da família (telefone de A): só dado de A
+        for (const headers of [bearer(cpl, a.adminPhone!), bearer(chaveA, a.adminPhone!)]) {
+          const r = await rota(req("GET", caminho, headers), semParams);
+          const texto = JSON.stringify((await lerJson(r)).dados ?? {});
+          for (const alheio of [b.familyId, b.patientId, b.medId, `CruzB`, ...b.doses]) {
+            expect(texto, `${caminho} vazou ${String(alheio).slice(0, 12)}`).not.toContain(alheio);
+          }
+        }
+        // a chave da família A com o telefone de uma pessoa da família B: recusada, sem dado algum
+        const cruzada = await rota(req("GET", caminho, bearer(chaveA, b.adminPhone!)), semParams);
+        expect([401, 403, 404]).toContain(cruzada.status);
+        expect(JSON.stringify((await lerJson(cruzada)).dados ?? {})).not.toContain("CruzB");
+      }
+      // escrever na dose da família B com a chave da família A também falha
+      const dose = b.doses[0]!;
+      const escrita = await h.dosesConfirmar(req("POST", `/doses/${dose}/confirmar`, bearer(chaveA, a.adminPhone!), {}), { params: Promise.resolve({ id: dose }) });
+      expect(escrita.status).toBe(422);
+      expect(await movimentosDeDose(dose)).toBe(0);
+    });
+
     it("erros no formato { erro: { codigo, mensagem } } e auditoria da plataforma sem telefone completo", async () => {
       const f = await novaFamilia("Aud");
       const r = await h.dosesProximas(req("GET", "/doses/proximas", bearer(cpl, f.adminPhone!)), semParams);

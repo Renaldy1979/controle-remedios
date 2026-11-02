@@ -1,4 +1,4 @@
-﻿# MedCuidar — guia para qualquer agente Claude
+# MedCuidar — guia para qualquer agente Claude
 
 Sistema multifamília para controlar remédios de idosos: lembretes e confirmação de doses pelo WhatsApp, estoque com previsão de término, receitas com histórico e fluxo de reposição. Primeiro uso real: os sogros do dono (Adelino e Maria; Maria tem Alzheimer e não usa celular).
 
@@ -9,6 +9,7 @@ Sistema multifamília para controlar remédios de idosos: lembretes e confirmaç
 3. `docs/03-arquitetura-e-integracoes.md` — como as peças conversam
 4. `docs/04-plano-de-orquestracao.md` — quem faz o quê, em que ordem, dono de cada pasta
 5. `docs/05-design-handoff.md` + `design/design.md` — tokens e telas (quando existir)
+6. `docs/13-seguranca-privacidade.md` — LGPD, exportar/excluir a família, cabeçalhos e login (Lote 5B)
 
 Se um documento e o código divergirem, **pare e avise** em vez de decidir sozinho. Mudanças de contrato (dados, tipos, API) são feitas no documento primeiro.
 

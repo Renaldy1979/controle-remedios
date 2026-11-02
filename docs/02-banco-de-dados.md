@@ -69,3 +69,9 @@ Situação (derivada, regra no domínio): 1) tem substituta → `superseded`; 2)
 - `forecastDepletion(stockItem, treatment, phases, from)` → data estimada de término, percorrendo as fases futuras e a quantidade por dia de cada uma; retorna também `daysLeft` e `confidence` (baixa para colírio/estimativa).
 - `lowStockStatus(daysLeft, thresholdDays)` → `ok|attention|critical`.
 - `resolveResponsible(patient, datetime)` → membros que recebem o lembrete.
+
+## Privacidade e exclusão (Lote 5B, ver docs/13-seguranca-privacidade.md)
+**families**: `deleted_at` = data do pedido de **exclusão agendada** (a rotina diária apaga tudo 30 dias depois; até lá a família fica bloqueada e o Administrador pode cancelar), `deletion_requested_by` (id do membro, sem FK).
+**members**: `privacy_accepted_at`, `privacy_version` (aceite da política vigente; sem o aceite o portal pede antes de usar).
+**patients**: `data_authorized_at`, `data_authorized_by` (quem cadastrou declarou ter autorização da pessoa ou ser o responsável por ela).
+Funções (SECURITY DEFINER): `list_families_due_for_deletion(dias)`; `resolve_member_by_phone` e `resolve_api_key` tratam família com exclusão agendada como inativa. Exclusão definitiva: `excluirFamiliaDefinitivo` (`packages/pg/src/purge.ts`) apaga todas as tabelas com `family_id` e deixa um registro sem dado pessoal em `platform_audit_log`.

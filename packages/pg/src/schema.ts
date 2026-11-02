@@ -48,7 +48,10 @@ export const families = pgTable("families", {
   /** FamilySettings (@medcuidar/shared/familySettingsSchema), validado na API. */
   settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
   active: boolean("active").notNull().default(true),
+  /** Lote 5B: exclusão agendada. Preenchido = data do pedido; a rotina diária apaga tudo 30 dias depois (docs/13). */
   deletedAt: ts("deleted_at"),
+  /** Quem pediu a exclusão (sem FK: o membro é apagado junto). */
+  deletionRequestedBy: uuid("deletion_requested_by"),
   createdAt: createdAt(),
 });
 
@@ -93,6 +96,9 @@ export const members = pgTable("members", {
   whatsappOptOutAt: ts("whatsapp_opt_out_at"),
   /** Forma do número (com ou sem o 9 do celular BR) que o WhatsApp aceitou no último envio/recebimento. Só dígitos; nulo = usar `phone_verified`. */
   whatsappSendNumber: text("whatsapp_send_number"),
+  /** Lote 5B: aceite da política de privacidade e a versão aceita (docs/13). */
+  privacyAcceptedAt: ts("privacy_accepted_at"),
+  privacyVersion: text("privacy_version"),
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex("members_phone_verified_uq").on(t.phoneVerified).where(sql`${t.phoneVerified} is not null`),
@@ -119,6 +125,9 @@ export const patients = pgTable("patients", {
   selfMemberId: uuid("self_member_id").references(() => members.id),
   reminderRecipientsMode: recipientsModeEnum("reminder_recipients_mode").notNull().default("all_members"),
   active: boolean("active").notNull().default(true),
+  /** Lote 5B: quem cadastrou declarou ter autorização da pessoa ou ser o responsável por ela. */
+  dataAuthorizedAt: ts("data_authorized_at"),
+  dataAuthorizedBy: uuid("data_authorized_by").references(() => members.id),
   deletedAt: ts("deleted_at"),
   createdAt: createdAt(),
 }, (t) => [

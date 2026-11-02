@@ -197,7 +197,10 @@ export const telefoneVerificar = rotaRemetente(async ({ telefone, corpo }) => {
   if (v.resultado === "verificado" && v.familiaId && v.membroId) {
     const nome = await withFamilia(v.familiaId, async (tx) => (await tx.select({ n: s.members.name }).from(s.members).where(eq(s.members.id, v.membroId!)))[0]?.n ?? "");
     await withFamilia(v.familiaId, (tx) => tx.insert(s.auditLog).values({ familyId: v.familiaId!, actorMemberId: v.membroId, action: "member.phone_verified", entity: "member", entityId: v.membroId, meta: {} }));
-    return { resp: json({ verificado: true, respostas: [numeroVerificado({ nome })] }), familiaId: v.familiaId };
+    const { registrarAceiteWhatsapp, linkDaPolitica } = await import("../wa/aceite");
+    await registrarAceiteWhatsapp(v.familiaId, v.membroId);
+    const politica = linkDaPolitica();
+    return { resp: json({ verificado: true, respostas: [numeroVerificado({ nome, ...(politica ? { politica } : {}) })] }), familiaId: v.familiaId };
   }
   const texto = v.resultado === "bloqueado" ? codigoBloqueado() : v.resultado === "em_uso" ? numeroEmUso() : codigoInvalido();
   return { resp: json({ verificado: false, motivo: v.resultado, respostas: [texto] }, v.resultado === "bloqueado" ? 429 : 200) };

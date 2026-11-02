@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { PASSWORD, cleanup, open, signUp, testEmail, verifyEmail } from "./support";
+import { PASSWORD, cleanup, open, signUp, testEmail, verifyEmail, aceitarPrivacidade } from "./support";
 
 /**
  * Roteiro do Lote 2 de ponta a ponta (docs/lotes/L2-roteiro.md): cadastrar remédio com estoque e esquema → doses do dia →
@@ -30,13 +30,14 @@ test("Lote 2: doses do dia, check, baixa de estoque, desfazer e aviso no sino", 
     await expect(page).toHaveURL(/\/criar-familia$/);
     await page.getByLabel("Nome da família").fill("Família L2 ZZ");
     await page.getByRole("button", { name: "Criar a família" }).click();
-    await expect(page).toHaveURL(/\/$/);
+    await aceitarPrivacidade(page);
   });
 
   await test.step("cadastrar o paciente e um remédio com 60 comprimidos de estoque", async () => {
     await open(page, "/configuracoes/pacientes");
     await page.getByRole("button", { name: "Cadastrar paciente" }).first().click();
     await page.getByLabel("Nome completo").fill("Adelino Souza");
+    await page.getByText("Tenho autorização desta pessoa").click();
     await page.getByRole("dialog").getByRole("button", { name: "Salvar" }).click();
     await toast(page, "Adelino Souza cadastrado");
 
@@ -118,7 +119,8 @@ test("Lote 2: doses do dia, check, baixa de estoque, desfazer e aviso no sino", 
     await fp.getByLabel("Crie uma senha").fill(PASSWORD);
     await fp.getByLabel("Repita a senha").fill(PASSWORD);
     await fp.getByRole("button", { name: "Criar senha e entrar" }).click();
-    await expect(fp.getByText("Olá, Filha Teste")).toBeVisible();
+    await aceitarPrivacidade(fp);
+    await expect(fp.getByText(/(Olá|Bom dia|Boa tarde|Boa noite), Filha Teste/)).toBeVisible();
     // sem aviso ainda: o sino está sem número
     await expect(fp.getByRole("link", { name: "Avisos: nenhum novo" }).first()).toBeVisible();
   });

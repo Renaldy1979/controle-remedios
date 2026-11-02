@@ -17,6 +17,7 @@ import { ProfilesPanel } from "./settings/ProfilesPanel";
 import { NoticesPanel } from "./settings/NoticesPanel";
 import { WhatsappPanel } from "./settings/WhatsappPanel";
 import { SimulatorPanel } from "./settings/SimulatorPanel";
+import { PrivacyPanel } from "./settings/PrivacyPanel";
 
 export { SECTIONS, type SectionId };
 
@@ -110,6 +111,8 @@ function Panel({ id }: { id: SectionId }) {
       return real ? <NoticesPanelLive /> : <NoticesPanel />;
     case "whatsapp":
       return <WhatsappPanel />;
+    case "privacidade":
+      return <PrivacyPanel />;
     case "simulador":
       return <SimulatorPanel />;
   }

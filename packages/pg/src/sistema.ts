@@ -134,6 +134,12 @@ export async function ativarMembroPorEmail(
   return m ? { membroId: m.member_id, familiaId: m.family_id } : null;
 }
 
+/** Famílias com exclusão agendada há `dias` dias ou mais (só ids). A rotina diária apaga essas (docs/13). */
+export async function listarFamiliasParaExcluir(dias = 30, db: Db = getDb()): Promise<string[]> {
+  const r = await db.execute<{ family_id: string }>(sql`select * from list_families_due_for_deletion(${dias})`);
+  return r.map((f) => f.family_id);
+}
+
 /**
  * Famílias que o agendador do WhatsApp deve visitar: ativas, com pessoa de número verificado (que não pediu PARAR) e tratamento ativo.
  * Bem menos que `listarFamiliasAtivas` quando há muitas famílias sem WhatsApp.
