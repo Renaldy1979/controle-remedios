@@ -342,6 +342,17 @@ describe.skipIf(!up)("Lote 4A — WhatsApp: API, conversa e fila no Postgres", (
       expect((await admin`select count(*)::int as n from dose_events where family_id = ${f.familyId} and status = 'taken'`)[0]!["n"]).toBe(total);
     });
 
+    it("doses pendentes de até 48 h atrás também entram no 'tomei' do WhatsApp (não só as das últimas 12 h), e 'Todas' limpa o atraso", async () => {
+      const f = await novaFamilia("Atraso48");
+      const tel = f.adminPhone!;
+      const amanha = new Date(T1410.getTime() + 24 * 3600_000); // as 3 doses de DAY têm 16 h, 24 h e 32 h
+      const r = await conversa({ telefone: tel, messageId: `a-${randomUUID()}`, texto: "tomei", now: amanha });
+      expect(r.respostas[0]!.opcoes).toHaveLength(4); // 3 doses + "Todas (as 3 pendentes)"
+      expect(r.respostas[0]!.texto).toContain("*4* — Todas (as 3 pendentes)");
+      await conversa({ telefone: tel, messageId: `a-${randomUUID()}`, texto: "4", now: amanha });
+      expect((await admin`select count(*)::int as n from dose_events where family_id = ${f.familyId} and status = 'taken'`)[0]!["n"]).toBe(3);
+    });
+
     it("'1' sem nenhuma pergunta recente não é adivinhado", async () => {
       const f = await novaFamilia("Um");
       const r = await conversa({ telefone: f.adminPhone!, messageId: `u-${randomUUID()}`, texto: "1", now: T0610 });

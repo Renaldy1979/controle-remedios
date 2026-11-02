@@ -67,9 +67,12 @@ export async function dosesAbertas(
   }));
 }
 
-/** Candidatas a "tomei": já na hora (ou até 1 h antes) e até 12 h atrás. */
+/**
+ * Candidatas a "tomei": já na hora (ou até 1 h antes) e até 48 h atrás. Era 12 h e deixava doses antigas fora do WhatsApp (só o portal
+ * as mostrava); a mesma janela de 48 h já valia para confirmar doses de uma lista.
+ */
 export function janelaConfirmacao(now: Date): { de: Date; ate: Date } {
-  return { de: new Date(now.getTime() - 12 * 3600_000), ate: new Date(now.getTime() + 60 * 60_000) };
+  return { de: new Date(now.getTime() - 48 * 3600_000), ate: new Date(now.getTime() + 60 * 60_000) };
 }
 
 export async function candidatasConfirmacao(actor: WaActor, now: Date): Promise<DoseAberta[]> {
