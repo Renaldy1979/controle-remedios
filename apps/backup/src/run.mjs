@@ -41,6 +41,21 @@ async function ping(url, suffix = "") {
   }
 }
 
+/** Informa o portal do resultado da rodada. Só "deu certo?", quando e o tamanho: nunca texto de erro. Falha aqui nunca derruba o backup. */
+async function reportToPortal(cfg, summary) {
+  if (!cfg.reportUrl || !cfg.reportSecret) return;
+  try {
+    await fetch(cfg.reportUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${cfg.reportSecret}` },
+      body: JSON.stringify({ ok: summary.ok, at: summary.at, bytes: summary.db?.bytes ?? null }),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    // o portal também detecta a ausência de backup sozinho (mais de 30 h sem sucesso)
+  }
+}
+
 /**
  * `deps` existe para os testes trocarem o pg_dump, as contagens e o Appwrite.
  * Devolve o resumo; em caso de erro registra a falha, avisa o monitor e relança.
@@ -85,6 +100,7 @@ export async function backupOnce(cfg, storage, { now = new Date(), log = console
     await rm(tmp, { recursive: true, force: true });
     await storage.putBuffer(LAST_RUN, Buffer.from(JSON.stringify(summary))).catch(() => {});
     await ping(cfg.pingUrl, summary.ok ? "" : "/fail");
+    await reportToPortal(cfg, summary);
   }
 }
 

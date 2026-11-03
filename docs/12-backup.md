@@ -70,7 +70,7 @@ Outros comandos úteis (`node src/cli.mjs <comando>`):
 
 ## 5. Aviso quando falhar (grátis)
 
-Crie uma conta em **healthchecks.io** (plano gratuito), um check com período de 1 dia e tolerância de 3 h, e ponha o endereço de ping em `BACKUP_HEALTHCHECK_URL`. O serviço avisa o início, o sucesso e a falha; se nenhum aviso chegar no prazo, o healthchecks manda e-mail para você. (Um aviso dentro do portal e no WhatsApp entra no Lote 5C, junto com o monitoramento.)
+Crie uma conta em **healthchecks.io** (plano gratuito), um check com período de 1 dia e tolerância de 3 h, e ponha o endereço de ping em `BACKUP_HEALTHCHECK_URL`. O serviço avisa o início, o sucesso e a falha; se nenhum aviso chegar no prazo, o healthchecks manda e-mail para você. O aviso dentro do portal (sino dos Administradores) e o monitor externo estão em `docs/14-operacao.md`.
 
 ## 6. Emergência: restaurar tudo
 

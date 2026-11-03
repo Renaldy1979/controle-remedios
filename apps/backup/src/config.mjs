@@ -30,6 +30,9 @@ export function loadConfig(env = process.env) {
     tz: env.BACKUP_TZ || "America/Sao_Paulo",
     retentionDays: days,
     pingUrl: env.BACKUP_HEALTHCHECK_URL || null,
+    // aviso ao portal (sino dos administradores): endereço completo de /api/internal/backup-report e o segredo combinado
+    reportUrl: env.BACKUP_REPORT_URL && env.BACKUP_REPORT_SECRET ? env.BACKUP_REPORT_URL : null,
+    reportSecret: env.BACKUP_REPORT_SECRET || null,
     pgDumpBin: env.PG_DUMP_BIN || "pg_dump",
     pgRestoreBin: env.PG_RESTORE_BIN || "pg_restore",
   };

@@ -143,6 +143,28 @@ describe("rodada de backup (armazenamento local e dump de mentira)", () => {
     expect((await storage.list("db/")).length).toBe(0);
     expect(JSON.parse((await storage.getBuffer(LAST_RUN)).toString("utf8"))).toMatchObject({ ok: false, error: "pg_dump quebrou" });
   });
+
+  it("informa o portal do resultado (sem texto de erro) e o aviso que falha não derruba o backup", async () => {
+    const storage = createStorage({ kind: "local", dir });
+    const chamadas = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = async (url, init) => { chamadas.push({ url, init }); return { ok: true }; };
+    try {
+      const cfg = { ...cfgBase(), reportUrl: "https://portal.exemplo/api/internal/backup-report", reportSecret: "segredo-do-relatorio" };
+      await backupOnce(cfg, storage, { now: new Date("2026-10-30T06:00:00Z"), log: () => {}, deps: deps() });
+      await expect(backupOnce(cfg, storage, { now: new Date(), log: () => {}, deps: deps({ dumpDatabase: async () => { throw new Error("senha=abc123"); } }) })).rejects.toThrow();
+      expect(chamadas).toHaveLength(2);
+      expect(chamadas[0].init.headers.authorization).toBe("Bearer segredo-do-relatorio");
+      expect(JSON.parse(chamadas[0].init.body)).toMatchObject({ ok: true });
+      expect(JSON.parse(chamadas[1].init.body)).toMatchObject({ ok: false });
+      expect(chamadas[1].init.body).not.toContain("abc123");
+
+      globalThis.fetch = async () => { throw new Error("portal fora do ar"); };
+      await expect(backupOnce(cfg, storage, { now: new Date("2026-10-31T06:00:00Z"), log: () => {}, deps: deps() })).resolves.toMatchObject({ ok: true });
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
 });
 
 describe("fotos de receita", () => {

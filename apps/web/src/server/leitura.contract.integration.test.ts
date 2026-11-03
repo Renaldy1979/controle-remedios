@@ -177,6 +177,8 @@ const ACOES: Record<string, Classe> = {
 /** Rotas de `app/api` que não são `/api/v1` (as do `/api/v1` são classificadas por `handler`, abaixo). */
 const ROTAS_FORA_DO_V1: Record<string, Classe> = {
   "get /api/health": "sistema",
+  // o serviço de backup informa a rodada (segredo próprio em tempo constante; sem perfil nem família)
+  "post /api/internal/backup-report": "sistema",
   "get /api/rx-file/{fileId}": "leitura",
   // exportação dos dados da família: só o Administrador (exportFamilyData recusa os demais; prova em lote5b.integration.test.ts)
   "get /api/family-export": "leitura",

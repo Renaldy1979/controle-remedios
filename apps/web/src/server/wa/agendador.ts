@@ -31,7 +31,7 @@ export interface DepsAgendador {
 }
 
 /** Um ciclo do líder. Devolve false se esta instância não é a líder. */
-export async function cicloAgendador(d: DepsAgendador, estado: { trava: TravaConsultiva | null; ultimaLimpeza: number; ultimoMonitor: number; ultimaExclusao?: number }): Promise<boolean> {
+export async function cicloAgendador(d: DepsAgendador, estado: { trava: TravaConsultiva | null; ultimaLimpeza: number; ultimoMonitor: number; ultimaExclusao?: number; ultimaConferenciaBackup?: number }): Promise<boolean> {
   const agora = d.agora?.() ?? new Date();
   if (estado.trava && !(await estado.trava.aindaMinha())) {
     await estado.trava.liberar();
@@ -50,6 +50,11 @@ export async function cicloAgendador(d: DepsAgendador, estado: { trava: TravaCon
   if (agora.getTime() - estado.ultimaLimpeza >= 10 * 60_000) {
     estado.ultimaLimpeza = agora.getTime();
     await limparMemoriaDoAgente(agora);
+  }
+  // backup noturno: sem sucesso há mais de 30 h => avisa os administradores (o serviço de backup informa cada rodada)
+  if (!d.somenteFamilia && agora.getTime() - (estado.ultimaConferenciaBackup ?? 0) >= 10 * 60_000) {
+    estado.ultimaConferenciaBackup = agora.getTime();
+    await (await import("../ops/backup-status")).conferirBackup(agora).catch((e) => logWa({ etapa: "backup_conferencia_erro", erro: e instanceof Error ? e.name : "erro" }));
   }
   // exclusão definitiva das famílias cujo pedido passou de 30 dias (LGPD): a cada 6 h, só o líder
   if (!d.somenteFamilia && agora.getTime() - (estado.ultimaExclusao ?? 0) >= 6 * 3600_000) {

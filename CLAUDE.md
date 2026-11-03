@@ -10,6 +10,7 @@ Sistema multifamília para controlar remédios de idosos: lembretes e confirmaç
 4. `docs/04-plano-de-orquestracao.md` — quem faz o quê, em que ordem, dono de cada pasta
 5. `docs/05-design-handoff.md` + `design/design.md` — tokens e telas (quando existir)
 6. `docs/13-seguranca-privacidade.md` — LGPD, exportar/excluir a família, cabeçalhos e login (Lote 5B)
+7. `docs/14-operacao.md` — monitoramento, versões marcadas, atualizar e voltar atrás (Lote 5C)
 
 Se um documento e o código divergirem, **pare e avise** em vez de decidir sozinho. Mudanças de contrato (dados, tipos, API) são feitas no documento primeiro.
 
