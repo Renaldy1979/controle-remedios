@@ -74,6 +74,17 @@ Depois de qualquer rollback: `/api/health?completo=1` e o roteiro curto.
 2. As filhas conferem o portal quando voltar; o histórico de doses não é perdido (as confirmações atrasadas podem ser lançadas depois no portal, em "Doses do dia").
 3. Só o WhatsApp caiu: o portal funciona normalmente; reconectar o número (QR Code) na Evolution Go (`docs/11-whatsapp-direto.md`).
 
+## 7. Atualizar a Evolution Go
+
+A Evolution Go não se atualiza sozinha: use sempre **tag fixa** (hoje `evoapicloud/evolution-go:0.7.3`), nunca `latest`.
+
+1. Confira em <https://hub.docker.com/r/evoapicloud/evolution-go/tags> e nas releases do GitHub se há tag estável (sem `-beta`) mais nova, e **leia as notas**.
+2. No EasyPanel: serviço da Evolution → *Source* → nova tag → Deploy. Não mexa em Environment, Mounts nem Domains.
+3. Confira o log (sem `Client outdated`) e, no portal, Configurações › WhatsApp › **Consultar agora** e um "oi".
+4. Para voltar atrás, troque a tag para a anterior.
+
+Histórico: em 02/11/2026 o WhatsApp recusou a versão de cliente da 0.7.2 (`Client outdated (405)`) e a 0.7.2 também vazava conexões do Postgres (`too many clients`). Ambos corrigidos na 0.7.3 (12/11/2026). Se o Postgres da Evolution voltar a estourar, veja as conexões com `pg_stat_activity` antes de reiniciar.
+
 ## Limites conhecidos
 - Sem domínio, o monitor externo depende do endereço do EasyPanel; se ele mudar, atualize o monitor.
 - O aviso de backup é no sino do portal (não por WhatsApp), porque um WhatsApp desconectado é justamente um dos motivos de alerta.
