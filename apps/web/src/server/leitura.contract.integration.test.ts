@@ -167,6 +167,8 @@ const ACOES: Record<string, Classe> = {
   "server/pg/auth-actions.ts#acceptInvite": "autenticacao",
   "server/pg/auth-actions.ts#acceptInviteExisting": "autenticacao",
   "server/pg/auth-actions.ts#chooseFamily": "autenticacao",
+  // Lote 5E: sair da família é da PRÓPRIA pessoa (prova em lote5e.integration.test.ts)
+  "server/pg/auth-actions.ts#leaveFamilyAction": "propria",
   "server/wa/first-access-actions.ts#linkFirstAccess": "autenticacao",
   "server/pg/auth-actions.ts#resendInviteEmail": "autenticacao",
   "server/wa/first-access-actions.ts#completeFirstAccess": "autenticacao",

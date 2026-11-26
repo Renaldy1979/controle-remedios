@@ -109,7 +109,7 @@ test("Lote 5E-A: uma conta, várias famílias", async ({ page, browser }) => {
 
   await test.step("sair e entrar de novo lembra a última família", async () => {
     await open(p, "/conta");
-    await p.locator("#conteudo").getByRole("button", { name: "Sair" }).click();
+    await p.locator("#conteudo").getByRole("button", { name: "Sair", exact: true }).click();
     await expect(p).toHaveURL(/\/login$/);
     await p.getByLabel("E-mail").fill(emailPessoa);
     await p.getByLabel("Senha", { exact: true }).fill(PASSWORD);
@@ -126,6 +126,26 @@ test("Lote 5E-A: uma conta, várias famílias", async ({ page, browser }) => {
     await expect(familyList(p).getByRole("button")).toHaveCount(2);
     await expect(familyList(p)).not.toContainText("Família Dora ZZ");
     await choose(p, "Família Paula ZZ");
+  });
+
+  await test.step("única Administradora não consegue sair da própria família", async () => {
+    await open(p, "/conta");
+    await p.getByRole("button", { name: "Sair desta família" }).click();
+    await p.getByRole("dialog").getByRole("button", { name: "Sair da família" }).click();
+    await expect(p.getByText(/único\(a\) Administrador\(a\) desta família/)).toBeVisible();
+  });
+
+  await test.step("reativada na família da Dora, ela mesma sai e continua nas dela", async () => {
+    await open(page, "/configuracoes/pessoas");
+    await page.getByRole("button", { name: "Reativar Paula Convidada" }).click();
+    await expect(page.getByText("Paula Convidada foi reativada(o)").first()).toBeVisible();
+    await open(p, "/escolher-familia");
+    await choose(p, "Família Dora ZZ");
+    await open(p, "/conta");
+    await p.getByRole("button", { name: "Sair desta família" }).click();
+    await p.getByRole("dialog").getByRole("button", { name: "Sair da família" }).click();
+    await expect(familyList(p)).toBeVisible({ timeout: 30_000 });
+    await expect(familyList(p)).not.toContainText("Família Dora ZZ");
   });
 
   await other.close();

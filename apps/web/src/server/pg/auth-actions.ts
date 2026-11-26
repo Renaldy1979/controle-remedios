@@ -13,7 +13,7 @@ import { clearSession, currentAccount, sessionSecret, writeSession } from "../au
 import { bloqueadoPor, enderecoDoCliente, registrarFalha, registrarSucesso } from "../auth/throttle";
 import { appUrl } from "../env";
 import { audit } from "./audit";
-import { isUniqueViolation } from "./errors";
+import { UserError, isUniqueViolation } from "./errors";
 import { createFamilyWithAdmin } from "./families";
 import { proveAccount } from "./existing-account";
 import { vinculoUtilizavel } from "./family-choice";
@@ -150,6 +150,23 @@ export async function chooseFamily(form: FormData): Promise<void> {
   const allowed = (await listarVinculosDaConta(account.id)).filter(vinculoUtilizavel).some((v) => v.familiaId === familyId);
   if (!allowed) redirect("/escolher-familia");
   await writeFamilyChoice(familyId);
+  redirect("/");
+}
+
+/** A própria pessoa sai da família ATIVA (docs/15, seção 5). A família vem da sessão, nunca do cliente. */
+export async function leaveFamilyAction(): Promise<FormState> {
+  const { getContext } = await import("./access");
+  const ctx = await getContext();
+  if (!ctx) redirect("/login");
+  const { leaveFamily } = await import("./members");
+  try {
+    await leaveFamily(ctx);
+  } catch (e) {
+    if (e instanceof UserError) return { error: e.message };
+    console.error("[sair-familia]", (e as Error).name);
+    return { error: "Não foi possível sair agora. Tente de novo." };
+  }
+  // o painel escolhe: a única família que restou, a lista para escolher ou "acesso desativado" com a opção de criar uma
   redirect("/");
 }
 

@@ -38,11 +38,15 @@ Qualquer conta com e-mail confirmado pode criar famílias, mesmo já participand
 ### 4.4 Primeiro acesso de quem veio pelo WhatsApp
 A tela oferece **Criar meu acesso** (como hoje) ou **Já tenho conta**. No segundo caminho a pessoa entra e o vínculo é ligado à conta (o link prova o número; a senha prova a conta). A ativação automática por e-mail (`activate_member_by_email`) **continua valendo só para conta sem nenhum vínculo**.
 
-## 5. Proteções obrigatórias
+## 5. Ativar, desativar e sair: sempre por família
+Regra do dono (26/11/2026): **cada vínculo vive sozinho.** A mesma pessoa pode ser dona de uma família e filha, cuidadora ou outro perfil em outra; o que acontece numa família nunca muda as outras, nem o login.
+
 | Ação numa família | Regra |
 |---|---|
-| Desativar pessoa | Encerra **só o vínculo**. Não bloqueia o login nem derruba sessões; o acesso já é negado a cada requisição pelo banco. |
+| Desativar pessoa (feito por um Administrador) | Encerra **só o vínculo** naquela família. Não bloqueia o login nem derruba sessões; o acesso já é negado a cada requisição pelo banco. |
 | Reativar pessoa | Reativa só o vínculo. |
+| **Sair desta família** (a própria pessoa, em Minha conta) | Também encerra só o vínculo, inclusive na família que ela criou, e ela continua nas outras. **O único Administrador ativo não sai:** antes passa o perfil Administrador para outra pessoa (Configurações › Pessoas) ou pede a exclusão da família. Quem saiu volta se um Administrador reativar. Duas saídas/desativações simultâneas nunca deixam a família sem Administrador (trava por família). |
+| Sem nenhum vínculo ativo | O login continua; a pessoa vê "Acesso desativado" e pode criar uma família nova. |
 | Excluir a família (30 dias) | O login no Appwrite só é apagado se a conta **não tiver vínculo em outra família** (função segura no banco que responde só sim/não). |
 | Exportar dados | Somente da família ativa. |
 

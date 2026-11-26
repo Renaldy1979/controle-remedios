@@ -2,7 +2,7 @@
 
 Contrato: `docs/15-uma-conta-varias-familias.md`. O WhatsApp continua como antes (um número em uma família só); a parte dele é o 5E-B.
 
-Você vai usar duas contas: **a sua** (administrador da sua família) e **uma segunda** com outro e-mail seu, que chamaremos de "Paula". Para a segunda, use uma janela anônima.
+O caso real: sua esposa usa o MedCuidar **para ela mesma** (uma família só dela) e também é **filha** na família dos pais dela. São famílias distintas, com um único login. Aqui o roteiro usa duas contas: **a sua** (administrador da família de teste dos pais) e **a da sua esposa** ("Paula" nos passos; numa janela anônima). Se preferir não usar o e-mail real dela agora, use um segundo e-mail seu.
 
 ## Parte 0 — Publicar (uma vez)
 1. Backup manual antes de migrar: no console do `medcuidar-backup`, `node src/cli.mjs once` (esperado: `backup concluído`).
@@ -33,8 +33,13 @@ Você vai usar duas contas: **a sua** (administrador da sua família) e **uma se
 16. **Reative** e confirme que a sua família volta a aparecer para ela.
 17. Exclusão de família: **não teste na sua família real.** Se quiser, peça a exclusão da "Família Paula Teste" e confira que a tela de exclusão oferece **Minhas famílias**; depois cancele.
 
+## Parte 4b — Sair por conta própria
+18. Como Paula, na **sua** família (onde ela é Cuidadora): Minha conta › **Sair desta família** → confirmar. Esperado: ela sai só da sua; as dela continuam.
+19. Como Paula, na família dela (onde é a única Administradora): **Sair desta família**. Esperado: recusa explicando que precisa passar o perfil Administrador antes ou pedir a exclusão.
+20. Reative a Paula na sua família (Configurações › Pessoas › Reativar) para seguir usando.
+
 ## Parte 5 — Convite pelo WhatsApp para quem já tem conta (opcional)
-18. Se tiver um segundo número livre (que não esteja verificado em nenhuma família): convide-o por código de WhatsApp, envie o código, abra o link de primeiro acesso e use **Já tenho conta no MedCuidar**.
+21. Se tiver um segundo número livre (que não esteja verificado em nenhuma família): convide-o por código de WhatsApp, envie o código, abra o link de primeiro acesso e use **Já tenho conta no MedCuidar**.
 
 ## Registro
 Preencha `docs/lotes/L5E-A-validacao.md`. O 5E-B (WhatsApp) só começa com **validado**.

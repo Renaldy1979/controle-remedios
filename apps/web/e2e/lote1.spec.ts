@@ -57,7 +57,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
 
   await test.step("sair e entrar de novo; senha errada mostra erro claro", async () => {
     await open(page, "/conta");
-    await page.locator("#conteudo").getByRole("button", { name: "Sair" }).click();
+    await page.locator("#conteudo").getByRole("button", { name: "Sair", exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
     await signIn(page, emailA, "senha-errada-1");
     await expect(page.getByText("E-mail ou senha incorretos.")).toBeVisible();
@@ -220,7 +220,7 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     // o login continua valendo (docs/15), mas sem nenhuma família não há o que abrir
     await expect(dp).toHaveURL(/\/escolher-familia$/);
     await expect(dp.getByText(/Seu acesso foi desativado/)).toBeVisible();
-    await dp.getByRole("button", { name: "Sair" }).click();
+    await dp.getByRole("button", { name: "Sair", exact: true }).click();
     await expect(dp).toHaveURL(/\/login$/);
     await signIn(dp, emailB);
     await expect(dp.getByText("Seu acesso foi desativado.", { exact: false })).toBeVisible();

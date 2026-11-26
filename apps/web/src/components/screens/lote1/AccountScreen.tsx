@@ -8,7 +8,8 @@ import { TextField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
 import { formatPhone, normalizePhone } from "@/lib/phone";
-import { signOut } from "@/server/pg/auth-actions";
+import { leaveFamilyAction, signOut } from "@/server/pg/auth-actions";
+import { ConfirmDialog } from "@/components/ui/Dialog";
 
 /** Minha conta: e-mail, perfil e o WhatsApp (fica PENDENTE; a validação real chega no Lote 4). */
 export function AccountScreen() {
@@ -20,6 +21,7 @@ export function AccountScreen() {
   const [phone, setPhone] = useState(account?.phonePending ? formatPhone(account.phonePending) : "");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   if (!account) return null;
 
   const verified = !!account.phoneVerified;
@@ -66,8 +68,26 @@ export function AccountScreen() {
             <ButtonLink href="/criar-familia" variant="secondary" icon="add">
               Criar outra família
             </ButtonLink>
+            <Button variant="ghost" icon="logout" onClick={() => setLeaving(true)}>
+              Sair desta família
+            </Button>
           </div>
         </section>
+      ) : null}
+
+      {leaving ? (
+        <ConfirmDialog
+          title={`Sair da ${snap.family.name}?`}
+          description="Você deixa de ver esta família e de receber os avisos dela. Seu login e as suas outras famílias continuam iguais. Para voltar, um(a) Administrador(a) desta família precisa reativar você."
+          confirmLabel="Sair da família"
+          icon="logout"
+          onClose={() => setLeaving(false)}
+          onConfirm={async () => {
+            setLeaving(false);
+            const r = await leaveFamilyAction();
+            if (r?.error) toast({ message: r.error, error: true });
+          }}
+        />
       ) : null}
 
       {real ? <WhatsappNumberCard /> : null}

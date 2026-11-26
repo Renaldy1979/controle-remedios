@@ -9,7 +9,8 @@
 - **Troca de família e isolamento (passos 9 a 13):** ☐ sim ☐ não
 - **Criar outra família (passo 14):** ☐ sim ☐ não
 - **Desativar e reativar sem atingir as outras (passos 15 e 16):** ☐ sim ☐ não
-- **Primeiro acesso do WhatsApp com conta existente (passo 18):** ☐ sim ☐ não ☐ não testei
+- **Sair por conta própria e recusa do único Administrador (passos 18 a 20):** ☐ sim ☐ não
+- **Primeiro acesso do WhatsApp com conta existente (passo 21):** ☐ sim ☐ não ☐ não testei
 - **Status:** ☐ validado ☐ validado com ajustes ☐ não validado
 
 ## O que passou

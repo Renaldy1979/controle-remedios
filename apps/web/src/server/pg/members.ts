@@ -62,6 +62,9 @@ async function otherActiveAdmins(tx: Tx, exceptMemberId: string): Promise<number
   return rows.length;
 }
 
+/** Mudanças que podem tirar o último Administrador (desativar, sair) passam uma de cada vez por família. */
+const lockAdmins = (tx: Tx, familyId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`admins:${familyId}`}, 0))`);
+
 const loadMember = async (tx: Tx, id: string) => {
   const [m] = await tx
     .select({ m: s.members, profileName: s.profiles.name })
@@ -259,6 +262,7 @@ export async function deactivateMember(actor: Actor, memberId: string): Promise<
   requirePermission(actor, "members.manage");
   if (memberId === actor.memberId) throw new UserError("Você não pode desativar a si mesmo.");
   await withFamilia(actor.familyId, async (tx) => {
+    await lockAdmins(tx, actor.familyId);
     const { m, profileName } = await loadMember(tx, memberId);
     if (m.accessState === "invited") throw new UserError("Essa pessoa ainda não entrou. Use Cancelar convite.");
     if (profileName === ADMIN && !isAdmin(actor)) throw new UserError("Só um Administrador pode desativar outro Administrador.");
@@ -267,6 +271,26 @@ export async function deactivateMember(actor: Actor, memberId: string): Promise<
     }
     await tx.update(s.members).set({ active: false, removedAt: new Date() }).where(eq(s.members.id, memberId));
     await audit(tx, actor, "member.deactivate", "member", memberId, { profile: profileName });
+  });
+}
+
+/** Mensagem para o único Administrador que tenta sair (docs/15, seção 5). */
+export const LAST_ADMIN_LEAVING =
+  "Você é o(a) único(a) Administrador(a) desta família. Antes de sair, passe o perfil Administrador para outra pessoa em Configurações › Pessoas, ou peça a exclusão da família em Configurações › Privacidade e dados.";
+
+/**
+ * A própria pessoa sai desta família (inclusive da que criou) e continua nas outras (docs/15, seção 5). O vínculo fica desativado,
+ * como em "Desativar": registros guardados, login intacto, e outro Administrador pode reativar. O único Administrador ativo não sai:
+ * precisa passar o perfil antes (ou pedir a exclusão da família).
+ */
+export async function leaveFamily(actor: Actor): Promise<void> {
+  await withFamilia(actor.familyId, async (tx) => {
+    await lockAdmins(tx, actor.familyId);
+    const { m, profileName } = await loadMember(tx, actor.memberId);
+    if (!m.active || m.removedAt) throw new UserError("Você já não participa desta família.");
+    if (profileName === ADMIN && (await otherActiveAdmins(tx, actor.memberId)) === 0) throw new UserError(LAST_ADMIN_LEAVING);
+    await tx.update(s.members).set({ active: false, removedAt: new Date() }).where(eq(s.members.id, actor.memberId));
+    await audit(tx, actor, "member.leave", "member", actor.memberId, { profile: profileName });
   });
 }
 

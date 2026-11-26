@@ -188,6 +188,57 @@ describe.skipIf(!up)("Lote 5E — uma conta em várias famílias", () => {
     expect((await getAccess()).status).toBe("inactive");
   });
 
+  it("sair da própria família (passando antes o Administrador) e ficar só na outra; o único Administrador não sai", async () => {
+    const { a, b, person } = await caregiverWithOwnFamily();
+    const own = { ...b.adm };
+    // única Administradora da própria família: recusado, nada muda
+    await expect(members.leaveFamily(own)).rejects.toThrow(/único\(a\) Administrador/);
+    expect((await listarVinculosDaConta(person.id)).filter((v) => v.ativo)).toHaveLength(2);
+    // passa o Administrador para outra pessoa e sai
+    const heir = await withFamilia(b.familyId, async (tx) => {
+      const [p] = await tx.select().from(s.profiles).where(eq(s.profiles.name, "Administrador"));
+      const [m] = await tx.insert(s.members).values({ familyId: b.familyId, profileId: p!.id, name: "Herdeira", email: newEmail("herdeira"), accessState: "active", appwriteUserId: `zz-test-${randomUUID()}`, emailConfirmedAt: new Date() }).returning({ id: s.members.id });
+      return m!.id;
+    });
+    await members.leaveFamily(own);
+    session.account = person;
+    session.preferred = b.familyId; // a preferência ainda aponta para a que ela deixou
+    const r = await getAccess();
+    expect(r.status === "ok" && r.ctx.familyId).toBe(a.familyId);
+    expect(r.status === "ok" && r.ctx.familyCount).toBe(1);
+    const [aud] = await admin`select action from audit_log where family_id = ${b.familyId} and action = 'member.leave'`;
+    expect(aud).toBeTruthy();
+    // a herdeira segue administrando e pode reativar quem saiu
+    const heirActor = { ...b.adm, memberId: heir, member: { ...b.adm.member, id: heir } };
+    await members.reactivateMember(heirActor, b.adm.memberId);
+    expect((await listarVinculosDaConta(person.id)).filter((v) => v.ativo)).toHaveLength(2);
+  });
+
+  it("cuidadora sai da família da outra pessoa e fica só na dela", async () => {
+    const { a, b, person, memberInA } = await caregiverWithOwnFamily();
+    const asCaregiver = { familyId: a.familyId, memberId: memberInA, timezone: TZ, member: { id: memberInA, name: person.name, profileName: "Cuidadora", permissions: permsOf("Cuidadora") } };
+    await members.leaveFamily(asCaregiver);
+    await expect(members.leaveFamily(asCaregiver)).rejects.toThrow(/já não participa/);
+    session.account = person;
+    session.preferred = a.familyId;
+    const r = await getAccess();
+    expect(r.status === "ok" && r.ctx.familyId).toBe(b.familyId);
+  });
+
+  it("dois Administradores saindo ao mesmo tempo: um sai, o outro fica (a família nunca fica sem Administrador)", async () => {
+    const f = await family("Corrida");
+    const second = await withFamilia(f.familyId, async (tx) => {
+      const [p] = await tx.select().from(s.profiles).where(eq(s.profiles.name, "Administrador"));
+      const [m] = await tx.insert(s.members).values({ familyId: f.familyId, profileId: p!.id, name: "Segunda", email: newEmail("segunda"), accessState: "active", appwriteUserId: `zz-test-${randomUUID()}`, emailConfirmedAt: new Date() }).returning({ id: s.members.id });
+      return m!.id;
+    });
+    const other = { ...f.adm, memberId: second, member: { ...f.adm.member, id: second } };
+    const results = await Promise.allSettled([members.leaveFamily(f.adm), members.leaveFamily(other)]);
+    expect(results.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+    const [n] = await admin`select count(*)::int as n from members m join profiles p on p.id = m.profile_id where m.family_id = ${f.familyId} and p.name = 'Administrador' and m.active`;
+    expect(n!["n"]).toBe(1);
+  });
+
   it("excluir uma família só apaga o login de quem não participa de outra", async () => {
     const { a, person } = await caregiverWithOwnFamily();
     const external = await dadosExternosDaFamilia(a.familyId);
