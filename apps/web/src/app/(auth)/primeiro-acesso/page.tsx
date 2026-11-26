@@ -3,7 +3,8 @@ import { eq } from "drizzle-orm";
 import { resolverLinkPrimeiroAcesso, sha256, withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { AuthFrame, FormNotice } from "@/components/screens/auth/AuthFrame";
-import { FirstAccessForm } from "@/components/screens/auth/AuthForms";
+import { FirstAccessForm, LinkAccountForm } from "@/components/screens/auth/AuthForms";
+import { currentAccount } from "@/server/auth/session";
 import { ButtonLink } from "@/components/ui/Button";
 import { dataSourceKind } from "@/server/env";
 
@@ -37,6 +38,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   return (
     <AuthFrame title="Primeiro acesso" subtitle="Defina seu e-mail e sua senha para usar o portal.">
       <FirstAccessForm token={t} name={info?.name ?? ""} familyName={info?.family ?? ""} profileName={info?.profile ?? ""} />
+      <LinkAccountForm token={t} loggedAs={(await currentAccount())?.email ?? ""} />
     </AuthFrame>
   );
 }

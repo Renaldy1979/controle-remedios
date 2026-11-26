@@ -2,13 +2,15 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { eq } from "drizzle-orm";
-import { ativarMembroPorEmail, resolverMembroPorAppwriteUser, withFamilia } from "@medcuidar/pg";
+import { ativarMembroPorEmail, listarVinculosDaConta, withFamilia, type VinculoDaConta } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { familySettingsSchema, permissionMapSchema, type FamilySettings } from "@medcuidar/shared";
 import type { Member } from "@/data/types";
 import { DELETION_GRACE_DAYS, PRIVACY_VERSION } from "@/lib/privacy";
 import type { AuthAccount } from "../auth/appwrite";
 import { currentAccount } from "../auth/session";
+import { escolherVinculo, vinculoUtilizavel } from "./family-choice";
+import { preferredFamily } from "./family-cookie";
 
 export interface Ctx {
   /** Sempre vem do cadastro de membro da pessoa logada (resolve_member_by_appwrite_user), nunca do cliente. */
@@ -20,6 +22,8 @@ export interface Ctx {
   memberId: string;
   profileId: string;
   member: Member;
+  /** Quantas famílias a conta pode usar (mais de uma = o menu oferece "Trocar de família"). */
+  familyCount: number;
 }
 
 export type Access =
@@ -28,8 +32,10 @@ export type Access =
   | { status: "unverified"; account: AuthAccount }
   /** e-mail confirmado, ainda sem família (primeira entrada) */
   | { status: "nofamily"; account: AuthAccount }
-  /** desativada, ou família inativa */
-  | { status: "inactive" }
+  /** todos os vínculos estão desativados (ou as famílias, inativas) */
+  | { status: "inactive"; account: AuthAccount }
+  /** participa de várias famílias e ainda não escolheu uma */
+  | { status: "choose"; account: AuthAccount; families: VinculoDaConta[] }
   /** logada, mas ainda não aceitou a versão vigente da política de privacidade */
   | { status: "privacy"; familyId: string; memberId: string }
   /** a família tem exclusão agendada (30 dias): só o Administrador cancela */
@@ -37,17 +43,20 @@ export type Access =
   | { status: "ok"; ctx: Ctx };
 
 /**
- * Quem está pedindo: valida a sessão NO Appwrite, acha o membro pelo id do usuário do Appwrite
- * (função segura do banco) e relê perfil e permissões do Postgres a cada requisição.
+ * Quem está pedindo: valida a sessão NO Appwrite, lista os vínculos da conta (função segura do banco), escolhe a família
+ * ativa e relê perfil e permissões do Postgres a cada requisição.
  */
 export const getAccess = cache(async (): Promise<Access> => {
   const account = await currentAccount();
   if (!account) return { status: "anon" };
-  let found = await resolverMembroPorAppwriteUser(account.id);
-  // primeiro acesso por WhatsApp: com o e-mail já confirmado no Appwrite, o membro `whatsapp_verified` vira `active`
-  if (!found && account.emailVerified && (await ativarMembroPorEmail(account.email, account.id))) found = await resolverMembroPorAppwriteUser(account.id);
-  if (!found) return account.emailVerified ? { status: "nofamily", account } : { status: "unverified", account };
-  if (!found.ativo || found.estadoAcesso !== "active") return { status: "inactive" };
+  let memberships = await listarVinculosDaConta(account.id);
+  // primeiro acesso por WhatsApp (conta SEM nenhum vínculo): com o e-mail já confirmado, o membro `whatsapp_verified` vira `active`
+  if (memberships.length === 0 && account.emailVerified && (await ativarMembroPorEmail(account.email, account.id))) memberships = await listarVinculosDaConta(account.id);
+  if (memberships.length === 0) return account.emailVerified ? { status: "nofamily", account } : { status: "unverified", account };
+  const usable = memberships.filter(vinculoUtilizavel);
+  if (usable.length === 0) return { status: "inactive", account };
+  const found = escolherVinculo(usable, await preferredFamily());
+  if (!found) return { status: "choose", account, families: usable };
 
   const row = await withFamilia(found.familiaId, async (tx) => {
     const [r] = await tx
@@ -58,7 +67,7 @@ export const getAccess = cache(async (): Promise<Access> => {
       .where(eq(s.members.id, found.membroId));
     return r;
   });
-  if (!row || !row.member.active || row.member.removedAt || !row.family.active) return { status: "inactive" };
+  if (!row || !row.member.active || row.member.removedAt || !row.family.active) return { status: "inactive", account };
 
   const permissions = permissionMapSchema.safeParse(row.profile.permissions);
   const member: Member = {
@@ -87,6 +96,7 @@ export const getAccess = cache(async (): Promise<Access> => {
       memberId: row.member.id,
       profileId: row.profile.id,
       member,
+      familyCount: usable.length,
     },
   };
 });
@@ -103,7 +113,8 @@ export async function requireContext(): Promise<Ctx> {
     case "anon":
       return redirect("/login");
     case "inactive":
-      return redirect("/login?erro=inativo");
+    case "choose":
+      return redirect("/escolher-familia");
     case "unverified":
       return redirect("/verificar-email");
     case "nofamily":

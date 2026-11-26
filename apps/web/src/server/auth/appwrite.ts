@@ -25,6 +25,28 @@ export async function createUser(email: string, password: string | undefined, na
   return new Users(admin()).create({ userId: ID.unique(), email, password, name });
 }
 
+export interface AccountInfo {
+  id: string;
+  email: string;
+  emailVerified: boolean;
+}
+
+const info = (u: { $id: string; email: string; emailVerification: boolean }): AccountInfo => ({ id: u.$id, email: u.email, emailVerified: u.emailVerification === true });
+
+export async function accountById(userId: string): Promise<AccountInfo | null> {
+  try {
+    return info(await new Users(admin()).get({ userId }));
+  } catch (e) {
+    if (appwriteCode(e) === 404 || appwriteCode(e) === 400) return null;
+    throw e;
+  }
+}
+
+export async function accountByEmail(email: string): Promise<AccountInfo | null> {
+  const found = await new Users(admin()).list({ queries: [Query.equal("email", [email.toLowerCase()]), Query.limit(1)] });
+  return found.users[0] ? info(found.users[0]) : null;
+}
+
 export async function deleteUser(userId: string): Promise<void> {
   try {
     await new Users(admin()).delete({ userId });

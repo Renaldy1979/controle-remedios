@@ -66,7 +66,7 @@ const actorOf = (familyId: string, memberId: string, profileName: string, name =
 });
 const ctxOf = (a: DoseActor): Ctx => ({
   familyId: a.familyId, familyName: "Família Teste", timezone: TZ, settings: a.settings as Ctx["settings"],
-  account: { id: "x", email: "x@exemplo.test", name: a.member.name, emailVerified: true }, memberId: a.memberId, profileId: "p", member: a.member,
+  account: { id: "x", email: "x@exemplo.test", name: a.member.name, emailVerified: true }, familyCount: 1, memberId: a.memberId, profileId: "p", member: a.member,
 });
 
 async function membro(familyId: string, profileName: string, nome: string, extra: Partial<typeof s.members.$inferInsert> = {}): Promise<DoseActor> {

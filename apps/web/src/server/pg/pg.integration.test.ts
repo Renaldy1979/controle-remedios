@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import {
-  consumirConviteWhatsapp, hashConviteCodigo, resolverLinkPrimeiroAcesso, resolverMembroPorAppwriteUser, sha256, withFamilia,
+  consumirConviteWhatsapp, hashConviteCodigo, listarVinculosDaConta, resolverLinkPrimeiroAcesso, sha256, withFamilia,
 } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { bancoDisponivel, conectarAdmin, encerrar, limparFamilias, limparFamiliasAntigasDeTeste, prepararBanco, telefoneAleatorio, type Admin } from "@medcuidar/pg-testing";
@@ -28,8 +28,6 @@ if (!up) console.warn("[web] Postgres local indisponível: testes de integraçã
 
 const auth = {
   sendInviteEmail: vi.fn(async (_email: string, _url: string) => {}),
-  revokeSessions: vi.fn(async (_id: string) => {}),
-  setEnabled: vi.fn(async (_id: string, _on: boolean) => {}),
 };
 const deps = { auth, baseUrl: "https://staging.exemplo.test" };
 
@@ -49,7 +47,7 @@ async function novaFamilia(nome: string, criadas: string[]): Promise<Fam> {
   const admin: Actor = { familyId, memberId, timezone: "America/Sao_Paulo", member: { id: memberId, name: `Admin ${nome}`, profileName: "Administrador", permissions: ALL } };
   const ctxOf = (a: Actor): Ctx => ({
     familyId, familyName: `Família ${nome}`, timezone: "America/Sao_Paulo", settings: familySettingsSchema.parse({}),
-    account: { id: "x", email: "x@exemplo.test", name: a.member.name, emailVerified: true }, memberId: a.memberId, profileId: "p", member: a.member,
+    account: { id: "x", email: "x@exemplo.test", name: a.member.name, emailVerified: true }, familyCount: 1, memberId: a.memberId, profileId: "p", member: a.member,
   });
   return { familyId, admin, ctxOf };
 }
@@ -103,16 +101,10 @@ describe.skipIf(!up)("Lote 1 — regras do portal no Postgres", () => {
 
     it("o login resolve o membro pelo id do Appwrite e a família vem do banco", async () => {
       const m = await membroAtivo(A, "Familiar");
-      const r = await resolverMembroPorAppwriteUser(m.appwriteUserId);
+      const [r] = await listarVinculosDaConta(m.appwriteUserId);
       expect(r).toMatchObject({ membroId: m.memberId, familiaId: A.familyId, ativo: true, estadoAcesso: "active" });
     });
 
-    it("a mesma conta do Appwrite não cria duas famílias", async () => {
-      const id = `zz-test-${randomUUID()}`;
-      const first = await createFamilyWithAdmin({ appwriteUserId: id, name: "Dup", email: `zz-test-${randomUUID().slice(0, 6)}@exemplo.test`, familyName: "Família Dup" });
-      criadas.push(first.familyId);
-      await expect(createFamilyWithAdmin({ appwriteUserId: id, name: "Dup", email: `zz-test-${randomUUID().slice(0, 6)}@exemplo.test`, familyName: "Outra" })).rejects.toBeInstanceOf(UserError);
-    });
   });
 
   describe("permissões recusadas no servidor", () => {
@@ -122,7 +114,7 @@ describe.skipIf(!up)("Lote 1 — regras do portal no Postgres", () => {
         () => members.inviteByEmail(c, { kind: "email", name: "X", email: "x@exemplo.test", profileName: "Familiar" }, deps),
         () => members.inviteByWhatsapp(c, { kind: "whatsapp", name: "X", phone: telefoneAleatorio(), profileName: "Familiar" }),
         () => members.updateMember(c, A.admin.memberId, { name: "X", profileName: "Administrador" }),
-        () => members.deactivateMember(c, A.admin.memberId, deps),
+        () => members.deactivateMember(c, A.admin.memberId),
         () => patients.savePatient(c, { name: "P", birthDate: "", notes: "", usesPhone: true, selfMemberId: null }),
         () => meds.createMedication(c, { patientId: randomUUID(), name: "M", alternatives: [], route: "tablet", controlUnit: "unit" }),
         () => meds.saveScheme(c, randomUUID(), { firstTime: "08:00", phases: [{ everyHours: 8, fromDay: 1, toDay: null, perDose: 1 }] }),
@@ -141,7 +133,7 @@ describe.skipIf(!up)("Lote 1 — regras do portal no Postgres", () => {
 
     it("Familiar não administra pessoas, mas o Administrador sim", async () => {
       const f = await membroAtivo(A, "Familiar");
-      await expect(members.deactivateMember(f, A.admin.memberId, deps)).rejects.toBeInstanceOf(ForbiddenError);
+      await expect(members.deactivateMember(f, A.admin.memberId)).rejects.toBeInstanceOf(ForbiddenError);
       await expect(patients.savePatient(f, { name: "P", birthDate: "", notes: "", usesPhone: true, selfMemberId: null })).rejects.toBeInstanceOf(ForbiddenError);
     });
 
@@ -279,28 +271,22 @@ describe.skipIf(!up)("Lote 1 — regras do portal no Postgres", () => {
   });
 
   describe("desativar e reativar", () => {
-    it("derruba as sessões do Appwrite e bloqueia o login; reativar libera", async () => {
-      auth.revokeSessions.mockClear();
-      auth.setEnabled.mockClear();
+    it("desativar tira o acesso ao vínculo na hora; reativar devolve (o login não é tocado, docs/15)", async () => {
       const m = await membroAtivo(A, "Familiar");
-      await members.deactivateMember(A.admin, m.memberId, deps);
-      expect(auth.revokeSessions).toHaveBeenCalledWith(m.appwriteUserId);
-      expect(auth.setEnabled).toHaveBeenCalledWith(m.appwriteUserId, false);
-      const r = await resolverMembroPorAppwriteUser(m.appwriteUserId);
-      expect(r?.ativo).toBe(false);
-      await members.reactivateMember(A.admin, m.memberId, deps);
-      expect(auth.setEnabled).toHaveBeenLastCalledWith(m.appwriteUserId, true);
-      expect((await resolverMembroPorAppwriteUser(m.appwriteUserId))?.ativo).toBe(true);
+      await members.deactivateMember(A.admin, m.memberId);
+      expect((await listarVinculosDaConta(m.appwriteUserId))[0]?.ativo).toBe(false);
+      await members.reactivateMember(A.admin, m.memberId);
+      expect((await listarVinculosDaConta(m.appwriteUserId))[0]?.ativo).toBe(true);
     });
 
     it("não desativa a si mesmo", async () => {
-      await expect(members.deactivateMember(A.admin, A.admin.memberId, deps)).rejects.toThrow(/a si mesmo/);
+      await expect(members.deactivateMember(A.admin, A.admin.memberId)).rejects.toThrow(/a si mesmo/);
     });
 
     it("um segundo Administrador pode desativar o primeiro, e a pessoa desativada perde o acesso na hora", async () => {
       const solo = await novaFamilia("Solo", criadas);
       const segundo = await membroAtivo(solo, "Administrador");
-      await members.deactivateMember(segundo, solo.admin.memberId, deps);
+      await members.deactivateMember(segundo, solo.admin.memberId);
       const row = await admin`select active, removed_at from members where id = ${solo.admin.memberId}`;
       expect(row[0]).toMatchObject({ active: false });
       expect(row[0]!["removed_at"]).not.toBeNull();
@@ -309,7 +295,7 @@ describe.skipIf(!up)("Lote 1 — regras do portal no Postgres", () => {
     it("quem não é Administrador não desativa um Administrador", async () => {
       const f = await membroAtivo(A, "Familiar");
       const fam = { ...f, member: { ...f.member, permissions: { ...f.member.permissions, "members.manage": true } } } as Actor;
-      await expect(members.deactivateMember(fam, A.admin.memberId, deps)).rejects.toThrow(/Administrador/);
+      await expect(members.deactivateMember(fam, A.admin.memberId)).rejects.toThrow(/Administrador/);
     });
 
     it("não muda o próprio perfil", async () => {
@@ -441,7 +427,7 @@ describe.skipIf(!up)("Lote 1 — regras do portal no Postgres", () => {
       await expect(meds.deleteMedication(B.admin, ma)).rejects.toThrow(/não encontrado/i);
       await expect(meds.saveScheme(B.admin, ma, { firstTime: "08:00", phases: [{ everyHours: 8, fromDay: 1, toDay: null, perDose: 1 }] })).rejects.toThrow(/não encontrado/i);
       await expect(meds.createMedication(B.admin, { patientId: pa, name: "X", alternatives: [], route: "tablet", controlUnit: "unit" })).rejects.toThrow(/Paciente não encontrado/);
-      await expect(members.deactivateMember(B.admin, A.admin.memberId, deps)).rejects.toThrow(/não encontrada/i);
+      await expect(members.deactivateMember(B.admin, A.admin.memberId)).rejects.toThrow(/não encontrada/i);
       await expect(patients.savePatient(B.admin, { name: "Ligar", birthDate: "", notes: "", usesPhone: true, selfMemberId: A.admin.memberId })).rejects.toThrow(/não está na família/);
       await expect(profiles.setPermission(B.admin, "confirm", "Familiar", true)).resolves.toBeUndefined(); // o perfil "Familiar" da B é outro
 

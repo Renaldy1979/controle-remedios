@@ -7,6 +7,9 @@ import * as s from "@medcuidar/pg/schema";
 import { appwriteCode, createUser, deleteUser, sendVerification, signInWithPassword } from "../auth/appwrite";
 import { writeSession } from "../auth/session";
 import { audit } from "../pg/audit";
+import { proveAccount } from "../pg/existing-account";
+import { writeFamilyChoice } from "../pg/family-cookie";
+import { linkMemberToAccount } from "../pg/link-account";
 import { isUniqueViolation } from "../pg/errors";
 
 export type FirstAccessState = { error?: string; values?: Record<string, string> };
@@ -55,7 +58,7 @@ export async function completeFirstAccess(_: FirstAccessState, form: FormData): 
     await sendVerification(session.secret).catch((e) => console.error("[primeiro-acesso] verificação não enviada", appwriteCode(e) ?? ""));
   } catch (e) {
     if (userId) await deleteUser(userId).catch(() => {});
-    if (appwriteCode(e) === 409) return { error: "Já existe uma conta com esse e-mail. Use outro e-mail ou peça ajuda a quem administra a família.", values: keep };
+    if (appwriteCode(e) === 409) return { error: "Já existe uma conta com esse e-mail. Use a opção “Já tenho conta”, logo abaixo.", values: keep };
     if (appwriteCode(e) === 429) return { error: "Muitas tentativas. Aguarde um pouco e tente de novo.", values: keep };
     if (isUniqueViolation(e)) return { error: "Esse e-mail já é de outra pessoa nesta família.", values: keep };
     if ((e as Error).message === "link_gasto") return { error: ERRO_LINK };
@@ -63,4 +66,20 @@ export async function completeFirstAccess(_: FirstAccessState, form: FormData): 
     return { error: "Não foi possível concluir agora. Tente de novo.", values: keep };
   }
   redirect("/verificar-email");
+}
+
+/** Quem já tem conta: o link prova o número, a senha (ou a sessão aberta) prova a conta. */
+export async function linkFirstAccess(_: FirstAccessState, form: FormData): Promise<FirstAccessState> {
+  const token = fd(form, "t");
+  const keep = { email: fd(form, "email") };
+  const link = token ? await resolverLinkPrimeiroAcesso(sha256(token)) : null;
+  if (!link || link.estadoAcesso !== "whatsapp_verified") return { error: ERRO_LINK };
+  const proven = await proveAccount(fd(form, "email"), fd(form, "senha"));
+  if (!proven.ok) return { error: proven.error, values: keep };
+  const result = await linkMemberToAccount({ familyId: link.familiaId, memberId: link.membroId, tokenHash: sha256(token), from: "whatsapp_verified" }, proven.account);
+  if (result === "already_member") return { error: "Sua conta já participa dessa família. Fale com quem administra a família.", values: keep };
+  if (result === "email_taken") return { error: "Esse e-mail já é de outra pessoa nesta família.", values: keep };
+  if (result !== "ok") return { error: ERRO_LINK };
+  await writeFamilyChoice(link.familiaId);
+  redirect("/");
 }

@@ -21,9 +21,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ u
   const account = await currentAccount();
   if (!account) redirect("/login");
   if (account.emailVerified) {
-    // quem veio do convite de WhatsApp vira `active` ao confirmar o e-mail; os demais seguem para criar a família
-    const { ativarMembroPorEmail } = await import("@medcuidar/pg");
-    redirect((await ativarMembroPorEmail(account.email, account.id)) ? "/" : "/criar-familia");
+    // o painel decide: ativa quem veio do convite de WhatsApp, pede a escolha da família ou leva a criar uma
+    redirect("/");
   }
   return (
     <AuthFrame title="Confirme o seu e-mail" subtitle="Falta só isso para criar a sua família.">

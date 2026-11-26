@@ -2,19 +2,23 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { ativarMembroPorEmail, consumirLinkPrimeiroAcesso, resolverLinkPrimeiroAcesso, resolverMembroPorAppwriteUser, sha256, withFamilia } from "@medcuidar/pg";
+import { consumirLinkPrimeiroAcesso, listarVinculosDaConta, resolverLinkPrimeiroAcesso, sha256, withFamilia } from "@medcuidar/pg";
 import * as s from "@medcuidar/pg/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import {
-  accountOfSession, appwriteCode, confirmVerification, createUser, finishRecovery, revokeUserSessions, sendInviteEmail, sendRecovery,
+  accountById, accountOfSession, appwriteCode, confirmVerification, createUser, finishRecovery, revokeUserSessions, sendInviteEmail, sendRecovery,
   sendVerification, sessionFromMagicUrl, setUserName, setUserPassword, signInWithPassword,
 } from "../auth/appwrite";
 import { clearSession, currentAccount, sessionSecret, writeSession } from "../auth/session";
 import { bloqueadoPor, enderecoDoCliente, registrarFalha, registrarSucesso } from "../auth/throttle";
 import { appUrl } from "../env";
 import { audit } from "./audit";
-import { UserError, isUniqueViolation } from "./errors";
+import { isUniqueViolation } from "./errors";
 import { createFamilyWithAdmin } from "./families";
+import { proveAccount } from "./existing-account";
+import { vinculoUtilizavel } from "./family-choice";
+import { writeFamilyChoice } from "./family-cookie";
+import { isExistingAccount, linkMemberToAccount } from "./link-account";
 
 /** Estado devolvido aos formulários das telas de entrada (useActionState). */
 export type FormState = { error?: string; ok?: string; values?: Record<string, string> };
@@ -37,11 +41,6 @@ export async function signIn(_: FormState, form: FormData): Promise<FormState> {
   if (espera > 0) return { error: `Muitas tentativas erradas. Aguarde ${espera} min e tente de novo.`, values: keep };
   try {
     const session = await signInWithPassword(p.data.email, p.data.password);
-    const account = await accountOfSession(session.secret);
-    const member = account ? await resolverMembroPorAppwriteUser(account.id) : null;
-    if (member && !member.ativo) {
-      return { error: "Seu acesso foi desativado. Fale com quem administra a família.", values: keep };
-    }
     registrarSucesso(p.data.email);
     await writeSession(session.secret, form.get("lembrar") ? session.expire : undefined);
   } catch (e) {
@@ -106,8 +105,8 @@ export async function checkEmailConfirmed(): Promise<FormState> {
   const account = await currentAccount();
   if (!account) redirect("/login");
   if (!account.emailVerified) return { error: "Ainda não vimos a confirmação. Abra o link do e-mail e tente de novo." };
-  // quem veio do convite de WhatsApp vira `active` aqui; os demais seguem para criar a família
-  redirect((await ativarMembroPorEmail(account.email, account.id)) ? "/" : "/criar-familia");
+  // o painel decide: ativa quem veio do convite de WhatsApp, pede a escolha da família ou leva a criar uma
+  redirect("/");
 }
 
 /** Só confirma no clique do botão (prévias de e-mail e antivírus abririam o link e gastariam o token). */
@@ -123,22 +122,34 @@ export async function confirmEmail(_: FormState, form: FormData): Promise<FormSt
   }
 }
 
-// ---------- primeira entrada: criar a família ----------
+// ---------- criar uma família (a primeira ou mais uma, docs/15) ----------
 
 export async function createFamily(_: FormState, form: FormData): Promise<FormState> {
   const account = await currentAccount();
   if (!account) redirect("/login");
   if (!account.emailVerified) redirect("/verificar-email");
-  if (await resolverMembroPorAppwriteUser(account.id)) redirect("/");
   const p = z.string().trim().min(2, "Dê um nome para a família.").max(80).safeParse(fd(form, "nomeFamilia"));
   if (!p.success) return { error: firstIssue(p.error), values: { nomeFamilia: fd(form, "nomeFamilia") } };
   try {
-    await createFamilyWithAdmin({ appwriteUserId: account.id, name: account.name || account.email, email: account.email, familyName: p.data });
+    const created = await createFamilyWithAdmin({ appwriteUserId: account.id, name: account.name || account.email, email: account.email, familyName: p.data });
+    await writeFamilyChoice(created.familyId);
   } catch (e) {
-    if (e instanceof UserError) redirect("/");
     console.error("[criar-familia]", (e as Error).name);
     return { error: "Não foi possível criar a família. Tente de novo.", values: { nomeFamilia: p.data } };
   }
+  redirect("/");
+}
+
+// ---------- escolher a família ----------
+
+/** Só aceita uma família em que a conta logada tem vínculo utilizável. */
+export async function chooseFamily(form: FormData): Promise<void> {
+  const account = await currentAccount();
+  if (!account) redirect("/login");
+  const familyId = fd(form, "familia");
+  const allowed = (await listarVinculosDaConta(account.id)).filter(vinculoUtilizavel).some((v) => v.familiaId === familyId);
+  if (!allowed) redirect("/escolher-familia");
+  await writeFamilyChoice(familyId);
   redirect("/");
 }
 
@@ -170,8 +181,9 @@ export async function resetPassword(_: FormState, form: FormData): Promise<FormS
 const INVITE_ERROR = "Este convite não vale mais. Peça um novo a quem administra a família.";
 
 /**
- * O convidado abre o link do e-mail (Magic URL do Appwrite + token do convite), define a senha e entra com o perfil
- * escolhido. O e-mail fica confirmado porque só quem recebeu o e-mail tem o link.
+ * CONTA NOVA: o convidado abre o link do e-mail (Magic URL do Appwrite + token do convite), define a senha e entra com o
+ * perfil escolhido. O e-mail fica confirmado porque só quem recebeu o e-mail tem o link. Quem já tem conta usa
+ * `acceptInviteExisting`: aqui a senha NUNCA é trocada numa conta que já é de alguém.
  */
 export async function acceptInvite(_: FormState, form: FormData): Promise<FormState> {
   const pw = password.safeParse(fd(form, "senha"));
@@ -184,6 +196,10 @@ export async function acceptInvite(_: FormState, form: FormData): Promise<FormSt
 
   const link = await resolverLinkPrimeiroAcesso(sha256(token));
   if (!link || link.estadoAcesso !== "invited" || !link.email) return { error: INVITE_ERROR };
+
+  const target = await accountById(userId);
+  if (!target || target.email.toLowerCase() !== link.email.toLowerCase()) return { error: INVITE_ERROR };
+  if (await isExistingAccount(target)) return { error: "Você já tem uma conta com este e-mail. Atualize a página para entrar com a sua senha." };
 
   let session;
   try {
@@ -225,11 +241,29 @@ export async function acceptInvite(_: FormState, form: FormData): Promise<FormSt
 
     const fresh = await signInWithPassword(link.email, pw.data);
     await writeSession(fresh.secret, fresh.expire);
+    await writeFamilyChoice(link.familiaId);
   } catch (e) {
-    if (isUniqueViolation(e)) return { error: "Este e-mail já pertence a outra família. Fale com quem administra a família." };
+    if (isUniqueViolation(e)) return { error: "Esta conta já participa dessa família. Fale com quem administra a família." };
     console.error("[aceitar-convite]", appwriteCode(e) ?? (e as Error).name);
     return { error: "Não foi possível concluir. Peça um novo e-mail de convite." };
   }
+  redirect("/");
+}
+
+/** CONTA EXISTENTE: entra com a senha que já tem (ou usa a sessão aberta) e aceita. Não muda senha, nome nem sessões. */
+export async function acceptInviteExisting(_: FormState, form: FormData): Promise<FormState> {
+  const token = fd(form, "t");
+  const link = token ? await resolverLinkPrimeiroAcesso(sha256(token)) : null;
+  if (!link || link.estadoAcesso !== "invited" || !link.email) return { error: INVITE_ERROR };
+  const proven = await proveAccount(link.email, fd(form, "senha"));
+  if (!proven.ok) return { error: proven.error };
+  if (proven.account.email.toLowerCase() !== link.email.toLowerCase()) {
+    return { error: "Este convite é para outro e-mail. Saia desta conta e entre com o e-mail que recebeu o convite." };
+  }
+  const result = await linkMemberToAccount({ familyId: link.familiaId, memberId: link.membroId, tokenHash: sha256(token), from: "invited" }, proven.account);
+  if (result === "already_member") return { error: "Sua conta já participa dessa família. Fale com quem administra a família." };
+  if (result !== "ok") return { error: INVITE_ERROR };
+  await writeFamilyChoice(link.familiaId);
   redirect("/");
 }
 

@@ -13,8 +13,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     const ctx = await requireContext();
     await prepareDaySafe(ctx); // doses de hoje (idempotente), atraso/esquecida e aviso de estoque baixo
     const initial = await buildSnapshot(ctx);
+    // a chave remonta a origem de dados ao trocar de família: nada do navegador atravessa a troca
     return (
-      <DataShell initial={initial}>
+      <DataShell key={ctx.familyId} initial={initial}>
         <AppShell>{children}</AppShell>
       </DataShell>
     );

@@ -306,7 +306,7 @@ export async function buildSnapshot(ctx: Ctx, now: Date = new Date()): Promise<S
     todayLabel,
     todayDate: ddmmyyyy(today),
     member: ctx.member,
-    family: { name: ctx.familyName, canSwitch: false },
+    family: { id: ctx.familyId, name: ctx.familyName, canSwitch: ctx.familyCount > 1 },
     patients,
     people,
     medications: medsVM,

@@ -360,7 +360,8 @@ export interface Snapshot {
   /** dd/mm/aaaa */
   todayDate: string;
   member: Member;
-  family: { name: string; canSwitch: boolean };
+  /** `id` só na origem real: serve para a aba perceber que a família ativa mudou em outra aba. */
+  family: { id?: string; name: string; canSwitch: boolean };
   patients: PatientVM[];
   people: PersonVM[];
   medications: MedicationVM[];
@@ -518,7 +519,7 @@ export interface Actions {
   /** devolve o resultado do convite (com o código, no WhatsApp), ou null se falhou */
   inviteMember(input: MemberInput): Maybe<InviteResult | null>;
   updateMember(id: string, input: MemberInput): Done;
-  /** na origem real, "remover" = desativar (derruba as sessões); é reversível */
+  /** na origem real, "remover" = desativar o vínculo nesta família; é reversível */
   removeMember(id: string): Done;
   reactivateMember(id: string): Done;
   resendInvite(memberId: string): Maybe<InviteResult | null>;

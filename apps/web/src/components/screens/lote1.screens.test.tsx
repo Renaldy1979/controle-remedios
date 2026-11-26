@@ -272,12 +272,12 @@ describe("Lote 1 — Pessoas (convites e estados)", () => {
     expect(within(res).getByText(/Reenviar/)).toBeInTheDocument();
   });
 
-  it("desativar pede confirmação e explica que derruba as sessões", async () => {
+  it("desativar pede confirmação e explica que vale só para esta família", async () => {
     const removeMember = vi.fn(async () => undefined);
     open({ removeMember });
     await userEvent.click(screen.getByRole("button", { name: "Desativar Filha" }));
     const dlg = screen.getByRole("dialog");
-    expect(within(dlg).getByText(/sessões abertas são encerradas/)).toBeInTheDocument();
+    expect(within(dlg).getByText(/acesso a esta família.*outras famílias.*não são afetados/)).toBeInTheDocument();
     await userEvent.click(within(dlg).getByRole("button", { name: "Desativar pessoa" }));
     await waitFor(() => expect(removeMember).toHaveBeenCalledWith("a"));
   });

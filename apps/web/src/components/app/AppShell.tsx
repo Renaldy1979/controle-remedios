@@ -175,6 +175,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         ) : null}
         <div className="mt-auto flex flex-col gap-3 border-t border-bd pt-4">
           {kind === "postgres" ? <p className="truncate px-3 text-cap font-bold text-ink2">{snap.family.name}</p> : null}
+          {kind === "postgres" && snap.family.canSwitch ? (
+            <Link href="/escolher-familia" prefetch={false} className="flex min-h-touch items-center gap-2 rounded-md px-3 font-bold text-ink2 hover:bg-sf2">
+              <Icon name="swap_horiz" size={22} />
+              Trocar de família
+            </Link>
+          ) : null}
           <div className="flex items-center gap-3">
             <Avatar name={member.name} role="admin" size={40} />
             <div className="min-w-0 flex-1">
@@ -228,6 +234,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Bell snap={snap} kind={kind} />
           </div>
         </header>
+
+        {/* Quem participa de várias famílias vê sempre em qual está (no desktop o nome fica no menu lateral) */}
+        {kind === "postgres" && snap.family.canSwitch ? (
+          <Link href="/escolher-familia" prefetch={false} className="flex min-h-touch items-center gap-2 border-b border-bd bg-sf2 px-4 text-cap font-bold desk:hidden">
+            <Icon name="groups" size={20} />
+            <span className="min-w-0 flex-1 truncate">{snap.family.name}</span>
+            <span className="flex-none text-br">Trocar</span>
+          </Link>
+        ) : null}
 
         {/* Header desktop */}
         <header className="hidden h-[72px] items-center justify-between border-b border-bd bg-sf px-8 desk:flex">

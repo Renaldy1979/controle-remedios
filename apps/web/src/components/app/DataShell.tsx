@@ -45,12 +45,16 @@ function RemoteShell({ children, initial }: { children: ReactNode; initial: Snap
 
   // atualização periódica e ao voltar para a aba (outras pessoas também confirmam doses)
   useEffect(() => {
-    const tick = () => document.visibilityState === "visible" && void source.refresh();
+    const tick = () => document.visibilityState === "visible" && !source.leaveIfFamilyChanged() && void source.refresh();
+    // duas janelas lado a lado não disparam "visibilitychange": o foco também confere a família
+    const onFocus = () => void source.leaveIfFamilyChanged();
     const iv = setInterval(tick, REFRESH_MS);
     document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", onFocus);
     return () => {
       clearInterval(iv);
       document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", onFocus);
     };
   }, [source]);
 

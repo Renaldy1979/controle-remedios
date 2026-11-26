@@ -62,6 +62,8 @@ Chaves `uuid` (`gen_random_uuid()`), datas `timestamptz` (UTC), `date` para data
 | `outbound_messages`, `conversation_state` | fila de saída do WhatsApp e contexto da conversa (migração 0006, seção 6.3). A saída ganhou `send_attempts`, `failed_at` e `error_summary` na 0008 |
 | `whatsapp_inbound`, `whatsapp_runtime`, `ai_usage`, `agent_sessions` | WhatsApp direto no portal (migração 0008, seção 6.4) |
 
+Login em várias famílias (migração 0013, `docs/15`): `members.appwrite_user_id` é único por família, não no sistema.
+
 Integridade entre famílias: as FKs são simples (não compostas). O RLS impede escrever `family_id` alheio; um id de outra família numa FK exigiria conhecê-lo e a API valida o escopo do recurso. Se isso virar risco, passar a FKs compostas `(family_id, id)` numa migração.
 
 ## 4. RLS
@@ -75,7 +77,9 @@ Integridade entre famílias: as FKs são simples (não compostas). O RLS impede 
 | SQL | TS (`@medcuidar/pg`) | Para quê |
 |---|---|---|
 | `resolve_member_by_phone(tel)` | `resolverMembroPorTelefone` | telefone **verificado** → membro e família (sem passo "qual família") |
-| `resolve_member_by_appwrite_user(id)` | `resolverMembroPorAppwriteUser` | sessão do Appwrite Auth → membro e família |
+| `resolve_member_by_appwrite_user(id)` | `listarVinculosDaConta` | sessão do Appwrite Auth → todos os vínculos da conta (docs/15) |
+| `appwrite_user_has_other_family(id, família)` | `contaTemOutraFamilia` | a exclusão de uma família só apaga o login de quem não está em outra |
+| `list_appwrite_users_of_inactive_members()` | `listarContasDeVinculosInativos` | ajuste único do Lote 5E |
 | `resolve_api_key(hash)` | `resolverApiKeyPorHash` | chave `cdf_` (família) ou `cpl_` (plataforma); ignora revogadas; marca `last_used_at` |
 | `consume_whatsapp_invite(tel, hash)` | `consumirConviteWhatsapp` | convite por WhatsApp (ver seção 4.1) |
 | `resolve_first_access_link(hash)` / `consume_first_access_link(hash)` | `resolverLinkPrimeiroAcesso` / `consumirLinkPrimeiroAcesso` | link de primeiro acesso: resolver (só leitura) e consumir (uso único, atômico) |

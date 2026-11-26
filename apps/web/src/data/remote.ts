@@ -1,4 +1,5 @@
 import type { ActionResult } from "@/server/pg/actions";
+import { familyChangeDetector } from "@/lib/family-tab";
 import * as srv from "@/server/pg/actions";
 import type { Actions, AttachDraft, ConnectionStatus, DataSource, DoseHistoryFilters, DoseHistoryResult, InviteResult, NotificationSettingsVM, Snapshot } from "./types";
 
@@ -21,6 +22,14 @@ export class RemoteDataSource implements DataSource {
   private listeners = new Set<() => void>();
   private queue: Promise<unknown> = Promise.resolve();
   private status: ConnectionStatus = { offline: false, dataAsOf: hhmm() };
+  private familyChanged = familyChangeDetector();
+
+  /** Outra aba trocou de família: recarrega no início e NÃO executa nada (a gravação iria para a família errada). */
+  leaveIfFamilyChanged(): boolean {
+    if (!this.familyChanged()) return false;
+    window.location.assign("/");
+    return true;
+  }
 
   constructor(
     initial: Snapshot,
@@ -70,6 +79,7 @@ export class RemoteDataSource implements DataSource {
 
   /** Executa uma ação; `false` = falhou (aviso já mostrado). */
   private async exec<T>(fn: () => Promise<ActionResult<T>>, onOk?: (data: T | undefined) => void): Promise<boolean> {
+    if (this.leaveIfFamilyChanged()) return false;
     const r = await this.enqueue(async () => {
       try {
         return await fn();

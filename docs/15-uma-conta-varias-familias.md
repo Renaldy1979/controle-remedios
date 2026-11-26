@@ -1,6 +1,6 @@
 # 15 — Uma conta, várias famílias (Lote 5E)
 
-Contrato do Lote 5E. Pedido e decisões do dono em 26/11/2026. **Onde este documento conflitar com os anteriores sobre login, convite, vínculo ou número de WhatsApp, vale este.** Ainda não implementado.
+Contrato do Lote 5E. Pedido e decisões do dono em 26/11/2026. **Onde este documento conflitar com os anteriores sobre login, convite, vínculo ou número de WhatsApp, vale este.** Situação: **5E-A (portal, seções 3 a 5) implementado**, aguardando validação do dono (`docs/lotes/L5E-A-roteiro.md`); 5E-B ainda não implementado.
 
 ## 1. Problema
 Hoje um login pertence a uma única família (`members_appwrite_user_uq`) e um número verificado existe uma única vez no sistema (`members_phone_verified_uq`). Quem é cuidadora numa família precisaria de outro e-mail e senha para ter a própria.
@@ -19,11 +19,12 @@ Hoje um login pertence a uma única família (`members_appwrite_user_uq`) e um n
 
 ## 4. Portal
 ### 4.1 Família ativa
-- Cookie httpOnly `mc_familia` com o id da família escolhida. Ele é **só preferência**: a cada requisição o servidor confere que está na lista de vínculos utilizáveis da conta logada. Valor desconhecido é ignorado.
+- Cookie httpOnly `mc_familia` com o id da família escolhida (vale 1 ano). Ele é **só preferência**: a cada requisição o servidor confere que está na lista de vínculos utilizáveis da conta logada. Valor desconhecido é ignorado.
 - Um vínculo utilizável: entra direto. Vários e nenhuma escolha válida: tela **Escolher família** (nome da família e o perfil da pessoa nela). Menu: **Trocar de família**; o nome da família ativa fica sempre visível.
 - Vínculos desativados, removidos ou de família inativa não aparecem. Sem nenhum utilizável: a tela de acesso desativado também oferece **Criar minha família**.
 - Aceite de privacidade e exclusão agendada continuam **por vínculo/família**. Uma família com exclusão agendada não impede o uso das outras.
 - Toda troca de família recarrega os dados (nenhum cache do navegador atravessa a troca).
+- **Aba antiga:** como o cookie vale para o navegador inteiro, o servidor grava também `mc_familia_aba` (o mesmo id, legível pela página; não dá acesso a nada). A aba que percebe a mudança, ao voltar ao foco ou antes de gravar pela origem de dados, recarrega em vez de agir. Limite: formulários que chamam o servidor fora dessa origem dependem da recarga no foco.
 
 ### 4.2 Criar a própria família
 Qualquer conta com e-mail confirmado pode criar famílias, mesmo já participando de outras, e vira Administrador da nova. A nova começa vazia: nada é copiado.
@@ -45,7 +46,7 @@ A tela oferece **Criar meu acesso** (como hoje) ou **Já tenho conta**. No segun
 | Excluir a família (30 dias) | O login no Appwrite só é apagado se a conta **não tiver vínculo em outra família** (função segura no banco que responde só sim/não). |
 | Exportar dados | Somente da família ativa. |
 
-**Ajuste único na publicação:** contas bloqueadas no Appwrite por desativações antigas precisam ser liberadas (comando idempotente, que mostra apenas contagens).
+**Ajuste único na publicação:** contas bloqueadas no Appwrite por desativações antigas são liberadas **automaticamente na subida do portal** (`server/ops/unblock-accounts.ts`): idempotente, marca `contas_5e` em `whatsapp_runtime` quando todas dão certo, repete no próximo início se alguma falhar e registra apenas contagens.
 
 ## 6. WhatsApp
 ### 6.1 Número

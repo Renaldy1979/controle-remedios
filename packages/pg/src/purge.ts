@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { getDb, type Db, type Tx } from "./client";
 import { auditarPlataforma } from "./plataforma";
 import * as s from "./schema";
+import { contaTemOutraFamilia } from "./sistema";
 import { withFamilia } from "./withFamilia";
 
 /**
@@ -20,9 +21,12 @@ export const ORDEM_EXCLUSAO = [
 
 export type DadosExternos = { arquivos: string[]; usuariosAppwrite: string[] };
 
-/** O que a família tem FORA do Postgres: arquivos de receita (bucket do Appwrite) e contas de login. Lido antes de apagar. */
+/**
+ * O que a família tem FORA do Postgres: arquivos de receita (bucket do Appwrite) e as contas de login que SÓ existem por causa
+ * dela (quem participa de outra família mantém a conta, docs/15). Lido antes de apagar.
+ */
 export async function dadosExternosDaFamilia(familiaId: string, db: Db = getDb()): Promise<DadosExternos> {
-  return withFamilia(familiaId, async (tx) => {
+  const dados = await withFamilia(familiaId, async (tx) => {
     const arquivos = await tx.select({ id: s.prescriptionFiles.storageFileId }).from(s.prescriptionFiles);
     const usuarios = await tx.select({ id: s.members.appwriteUserId }).from(s.members);
     return {
@@ -30,6 +34,9 @@ export async function dadosExternosDaFamilia(familiaId: string, db: Db = getDb()
       usuariosAppwrite: [...new Set(usuarios.map((u) => u.id).filter((x): x is string => !!x))],
     };
   }, db);
+  const soDesta: string[] = [];
+  for (const conta of dados.usuariosAppwrite) if (!(await contaTemOutraFamilia(conta, familiaId, db))) soDesta.push(conta);
+  return { arquivos: dados.arquivos, usuariosAppwrite: soDesta };
 }
 
 async function apagarTudo(tx: Tx, familiaId: string): Promise<Record<string, number>> {

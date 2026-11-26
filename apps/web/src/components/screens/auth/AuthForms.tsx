@@ -227,3 +227,75 @@ export function FirstAccessForm({ token, name, familyName, profileName }: { toke
     </form>
   );
 }
+
+/** Convite para quem JÁ tem conta (docs/15): entra com a senha atual e aceita. Nenhuma senha nova. */
+export function AcceptExistingInvite({ token, familyName, profileName, email, loggedAs }: { token: string; familyName: string; profileName: string; email: string; loggedAs: string }) {
+  const [state, action, pending] = useActionState(auth.acceptInviteExisting, initial);
+  const sameAccount = !!loggedAs && loggedAs.toLowerCase() === email.toLowerCase();
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="rounded-lg border border-bd bg-sf p-4">
+        Você foi convidado(a) para a <strong>{familyName}</strong> com o perfil <strong>{profileName}</strong>.{" "}
+        {sameAccount ? "Sua conta continua a mesma." : "Você já tem uma conta: entre com a sua senha atual para aceitar."}
+      </p>
+      {loggedAs && !sameAccount ? (
+        <>
+          <FormNotice kind="error">
+            Você está na conta <span className="break-all">{loggedAs}</span>, e o convite é para <span className="break-all">{email}</span>. Saia e abra o link do convite de novo.
+          </FormNotice>
+          <form action={auth.signOut}>
+            <Button type="submit" variant="secondary" icon="logout" full>
+              Sair desta conta
+            </Button>
+          </form>
+        </>
+      ) : (
+        <form action={action} className="flex flex-col gap-4">
+          {state.error ? <FormNotice kind="error">{state.error}</FormNotice> : null}
+          <input type="hidden" name="t" value={token} />
+          {sameAccount ? null : (
+            <>
+              <p>
+                Conta: <strong className="break-all">{email}</strong>
+              </p>
+              <Passwords autoComplete="current-password" />
+              <Link href="/esqueci-senha" className={linkClass}>
+                Esqueci minha senha
+              </Link>
+            </>
+          )}
+          <Button type="submit" size="lg" icon="group_add" loading={pending} loadingText="Entrando…">
+            {sameAccount ? "Aceitar convite" : "Entrar e aceitar"}
+          </Button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+/** Primeiro acesso de quem já usa o MedCuidar em outra família: liga este acesso à conta que já existe. */
+export function LinkAccountForm({ token, loggedAs }: { token: string; loggedAs: string }) {
+  const [state, action, pending] = useActionState(firstAccess.linkFirstAccess, {} as firstAccess.FirstAccessState);
+  return (
+    <details className="rounded-lg border border-bd bg-sf p-4" open={!!loggedAs || !!state.error}>
+      <summary className="flex min-h-touch cursor-pointer items-center font-bold text-br">Já tenho conta no MedCuidar</summary>
+      <form action={action} className="mt-3 flex flex-col gap-4">
+        {state.error ? <FormNotice kind="error">{state.error}</FormNotice> : null}
+        <input type="hidden" name="t" value={token} />
+        {loggedAs ? (
+          <p>
+            Você está na conta <strong className="break-all">{loggedAs}</strong>.
+          </p>
+        ) : (
+          <>
+            <TextField label="E-mail da sua conta" name="email" type="email" autoComplete="email" inputMode="email" required defaultValue={state.values?.["email"]} />
+            <Passwords label="Sua senha atual" autoComplete="current-password" />
+          </>
+        )}
+        <Button type="submit" variant="secondary" icon="link" loading={pending} loadingText="Entrando…">
+          Usar minha conta
+        </Button>
+      </form>
+    </details>
+  );
+}

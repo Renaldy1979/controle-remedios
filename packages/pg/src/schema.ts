@@ -78,7 +78,7 @@ export const members = pgTable("members", {
   accessState: accessStateEnum("access_state").notNull().default("invited"),
   /** E-mail confirmado (Appwrite). Só existe em `active`. O `email` em si pode estar pré-preenchido em qualquer estado. */
   emailConfirmedAt: timestamp("email_confirmed_at", { withTimezone: true }),
-  /** Id do usuário no Appwrite Auth (login e-mail/senha). Só existe em `active`. */
+  /** Id do usuário no Appwrite Auth (a PESSOA). Só existe em `active`. A mesma conta pode ter um vínculo em várias famílias (docs/15). */
   appwriteUserId: text("appwrite_user_id"),
   roleLabel: text("role_label"),
   active: boolean("active").notNull().default(true),
@@ -102,7 +102,8 @@ export const members = pgTable("members", {
   createdAt: createdAt(),
 }, (t) => [
   uniqueIndex("members_phone_verified_uq").on(t.phoneVerified).where(sql`${t.phoneVerified} is not null`),
-  uniqueIndex("members_appwrite_user_uq").on(t.appwriteUserId).where(sql`${t.appwriteUserId} is not null`),
+  uniqueIndex("members_family_appwrite_user_uq").on(t.familyId, t.appwriteUserId).where(sql`${t.appwriteUserId} is not null`),
+  index("members_appwrite_user_idx").on(t.appwriteUserId).where(sql`${t.appwriteUserId} is not null`),
   uniqueIndex("members_family_email_uq").on(t.familyId, sql`lower(${t.email})`).where(sql`${t.email} is not null`),
   index("members_phone_pending_idx").on(t.phonePending).where(sql`${t.phonePending} is not null`),
   index("members_family_idx").on(t.familyId),

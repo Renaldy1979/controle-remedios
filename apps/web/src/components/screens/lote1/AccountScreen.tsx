@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useActions, useDataKind, useSnapshot } from "@/data";
 import { WhatsappNumberCard } from "@/components/screens/settings/WhatsappNumberCard";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { StatusChip } from "@/components/ui/Chip";
 import { TextField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
@@ -52,6 +52,23 @@ export function AccountScreen() {
           <dd className="font-bold">{snap.family.name}</dd>
         </dl>
       </section>
+
+      {real ? (
+        <section aria-label="Famílias" className="flex flex-col gap-3 rounded-lg border border-bd bg-sf p-4">
+          <h2 className="font-display text-t2 font-bold">Famílias</h2>
+          <p className="text-ink2">Com o mesmo e-mail e senha você pode participar de várias famílias e ter a sua própria.</p>
+          <div className="flex flex-wrap gap-2">
+            {snap.family.canSwitch ? (
+              <ButtonLink href="/escolher-familia" variant="secondary" icon="swap_horiz">
+                Trocar de família
+              </ButtonLink>
+            ) : null}
+            <ButtonLink href="/criar-familia" variant="secondary" icon="add">
+              Criar outra família
+            </ButtonLink>
+          </div>
+        </section>
+      ) : null}
 
       {real ? <WhatsappNumberCard /> : null}
       {!real ? <section aria-label="WhatsApp" className="flex flex-col gap-4 rounded-lg border border-bd bg-sf p-4">

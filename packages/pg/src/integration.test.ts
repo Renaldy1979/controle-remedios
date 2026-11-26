@@ -9,7 +9,7 @@ import { getDb } from "./client";
 import { tentarTravaConsultiva } from "./lock";
 import { withFamilia, withPlataforma } from "./withFamilia";
 import {
-  consumirConviteWhatsapp, consumirLinkPrimeiroAcesso, resolverApiKeyPorHash, resolverLinkPrimeiroAcesso, resolverMembroPorAppwriteUser, resolverMembroPorTelefone, verificarTelefonePendente,
+  consumirConviteWhatsapp, consumirLinkPrimeiroAcesso, resolverApiKeyPorHash, contaTemOutraFamilia, listarVinculosDaConta, resolverLinkPrimeiroAcesso, resolverMembroPorTelefone, verificarTelefonePendente,
 } from "./sistema";
 import {
   gerarApiKey, gerarTokenPrimeiroAcesso, hashCodigoVerificacao, hashConviteCodigo, sha256, VALIDADE_CONVITE_MS,
@@ -433,13 +433,19 @@ describe.skipIf(!disponivel)("Postgres + RLS (papel da aplicação)", () => {
       expect((await resolverMembroPorTelefone(tel))?.membroId).toBe(dono);
     });
 
-    it("resolverMembroPorAppwriteUser e resolverApiKeyPorHash", async () => {
+    it("listarVinculosDaConta (uma conta em várias famílias, única dentro de cada uma) e resolverApiKeyPorHash", async () => {
       const aw = `aw_${randomUUID()}`;
       const ativo = { accessState: "active" as const, emailConfirmedAt: new Date() };
       const m = await novoMembro(A, { appwriteUserId: aw, email: `${randomUUID()}@teste.test`, ...ativo });
-      expect(await resolverMembroPorAppwriteUser(aw)).toEqual({ membroId: m, familiaId: A.id, ativo: true, estadoAcesso: "active" });
-      expect(await resolverMembroPorAppwriteUser("inexistente")).toBeNull();
-      expect(await sqlstate(() => novoMembro(B, { appwriteUserId: aw, email: `${randomUUID()}@teste.test`, ...ativo }))).toBe("23505");
+      expect(await listarVinculosDaConta(aw)).toMatchObject([{ membroId: m, familiaId: A.id, ativo: true, estadoAcesso: "active" }]);
+      expect(await listarVinculosDaConta("inexistente")).toEqual([]);
+      expect(await contaTemOutraFamilia(aw, A.id)).toBe(false);
+      // a mesma conta não entra duas vezes na MESMA família…
+      expect(await sqlstate(() => novoMembro(A, { appwriteUserId: aw, email: `${randomUUID()}@teste.test`, ...ativo }))).toBe("23505");
+      // …mas participa de outra (docs/15)
+      const emB = await novoMembro(B, { appwriteUserId: aw, email: `${randomUUID()}@teste.test`, ...ativo });
+      expect((await listarVinculosDaConta(aw)).map((v) => v.membroId).sort()).toEqual([m, emB].sort());
+      expect(await contaTemOutraFamilia(aw, A.id)).toBe(true);
 
       const kf = gerarApiKey("familia");
       const kp = gerarApiKey("plataforma");

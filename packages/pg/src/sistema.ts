@@ -21,15 +21,32 @@ export async function resolverMembroPorTelefone(telefone: string, db: Db = getDb
   return m ? { membroId: m.member_id, familiaId: m.family_id, ativo: m.active, familiaAtiva: m.family_active, estadoAcesso: m.access_state } : null;
 }
 
-export type MembroPorLogin = { membroId: string; familiaId: string; ativo: boolean; estadoAcesso: EstadoAcesso };
+export type VinculoDaConta = {
+  membroId: string; familiaId: string; ativo: boolean; estadoAcesso: EstadoAcesso;
+  familiaNome: string; perfilNome: string; criadoEm: Date;
+};
 
-/** Usuário do Appwrite Auth (login por e-mail/senha) → membro e família. */
-export async function resolverMembroPorAppwriteUser(appwriteUserId: string, db: Db = getDb()): Promise<MembroPorLogin | null> {
-  const r = await db.execute<{ member_id: string; family_id: string; active: boolean; access_state: EstadoAcesso }>(
+/** Usuário do Appwrite Auth (login por e-mail/senha) → TODOS os vínculos dele, um por família (docs/15). Ordenados pelo nome da família. */
+export async function listarVinculosDaConta(appwriteUserId: string, db: Db = getDb()): Promise<VinculoDaConta[]> {
+  const r = await db.execute<{ member_id: string; family_id: string; active: boolean; access_state: EstadoAcesso; family_name: string; profile_name: string; created_at: string | Date }>(
     sql`select * from resolve_member_by_appwrite_user(${appwriteUserId})`,
   );
-  const m = r[0];
-  return m ? { membroId: m.member_id, familiaId: m.family_id, ativo: m.active, estadoAcesso: m.access_state } : null;
+  return r.map((m) => ({
+    membroId: m.member_id, familiaId: m.family_id, ativo: m.active, estadoAcesso: m.access_state,
+    familiaNome: m.family_name, perfilNome: m.profile_name, criadoEm: new Date(m.created_at),
+  }));
+}
+
+/** A conta tem vínculo em alguma OUTRA família? (A exclusão definitiva só apaga o login de quem não tem.) */
+export async function contaTemOutraFamilia(appwriteUserId: string, familiaId: string, db: Db = getDb()): Promise<boolean> {
+  const r = await db.execute<{ tem: boolean }>(sql`select appwrite_user_has_other_family(${appwriteUserId}, ${familiaId}::uuid) as tem`);
+  return r[0]?.tem === true;
+}
+
+/** Contas ligadas a vínculos desativados (ajuste único do Lote 5E: desbloquear o que as desativações antigas bloquearam). */
+export async function listarContasDeVinculosInativos(db: Db = getDb()): Promise<string[]> {
+  const r = await db.execute<{ appwrite_user_id: string }>(sql`select * from list_appwrite_users_of_inactive_members()`);
+  return r.map((x) => x.appwrite_user_id);
 }
 
 export type ApiKeyResolvida =

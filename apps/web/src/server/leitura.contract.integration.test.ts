@@ -165,6 +165,9 @@ const ACOES: Record<string, Classe> = {
   "server/pg/auth-actions.ts#forgotPassword": "autenticacao",
   "server/pg/auth-actions.ts#resetPassword": "autenticacao",
   "server/pg/auth-actions.ts#acceptInvite": "autenticacao",
+  "server/pg/auth-actions.ts#acceptInviteExisting": "autenticacao",
+  "server/pg/auth-actions.ts#chooseFamily": "autenticacao",
+  "server/wa/first-access-actions.ts#linkFirstAccess": "autenticacao",
   "server/pg/auth-actions.ts#resendInviteEmail": "autenticacao",
   "server/wa/first-access-actions.ts#completeFirstAccess": "autenticacao",
   // Lote 5B (LGPD): aceitar a política é da PRÓPRIA pessoa; pedir a exclusão é do Administrador; cancelar só age quando a família já
@@ -248,7 +251,7 @@ interface Fam {
 
 const ctxOf = (familyId: string, memberId: string, profileName: string, nome: string, permissions: PermissionMap): Ctx => ({
   familyId, familyName: "Família Teste", timezone: TZ, settings,
-  account: { id: "x", email: "x@exemplo.test", name: nome, emailVerified: true }, memberId, profileId: "p",
+  account: { id: "x", email: "x@exemplo.test", name: nome, emailVerified: true }, familyCount: 1, memberId, profileId: "p",
   member: { id: memberId, name: nome, profileName, permissions },
 });
 

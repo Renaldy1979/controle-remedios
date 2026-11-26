@@ -115,7 +115,7 @@ export function UsersPanel() {
         <p className="mt-2 flex items-center gap-2 text-cap text-ink2">
           <Icon name="info" size={16} />
           {real
-            ? "Desativar tira o acesso na hora e encerra as sessões da pessoa. Dá para reativar depois."
+            ? "Desativar tira na hora o acesso a esta família. Dá para reativar depois."
             : "Quem está na escala de cuidado (cuidadoras e Seu João) só sai depois de digitar REMOVER."}
         </p>
       </section>
@@ -149,7 +149,7 @@ export function UsersPanel() {
           title={`${real ? "Desativar" : "Remover"} ${removing.name}?`}
           description={
             real
-              ? `${removing.name} perde o acesso agora e as sessões abertas são encerradas. Os registros dela(e) continuam guardados e dá para reativar depois.`
+              ? `${removing.name} perde agora o acesso a esta família. O login e outras famílias dela(e) não são afetados. Os registros continuam guardados e dá para reativar depois.`
               : ON_SCHEDULE.has(removing.name)
                 ? `${removing.name} está na escala de doses. Sem essa pessoa, alguns horários ficam sem responsável.`
                 : `${removing.name} deixa de receber avisos da família.`

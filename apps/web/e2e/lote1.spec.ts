@@ -211,15 +211,19 @@ test("Lote 1: do cadastro à segunda família isolada", async ({ page, browser }
     }
   });
 
-  await test.step("desativar a filha derruba a sessão dela na hora", async () => {
+  await test.step("desativar a filha tira o acesso dela na hora", async () => {
     await open(page, "/configuracoes/pessoas");
     await page.getByRole("button", { name: "Desativar Filha Teste" }).click();
     await page.getByRole("button", { name: "Desativar pessoa" }).click();
     await toast(page, "Filha Teste foi desativada(o)");
     await dp.goto("/");
-    await expect(dp).toHaveURL(/\/login/);
+    // o login continua valendo (docs/15), mas sem nenhuma família não há o que abrir
+    await expect(dp).toHaveURL(/\/escolher-familia$/);
+    await expect(dp.getByText(/Seu acesso foi desativado/)).toBeVisible();
+    await dp.getByRole("button", { name: "Sair" }).click();
+    await expect(dp).toHaveURL(/\/login$/);
     await signIn(dp, emailB);
-    await expect(dp.getByText(/E-mail ou senha incorretos|desativado/)).toBeVisible();
+    await expect(dp.getByText("Seu acesso foi desativado.", { exact: false })).toBeVisible();
     await daughter.close();
 
     // reativar devolve o acesso

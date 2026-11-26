@@ -40,8 +40,8 @@ async function run<T>(fn: (ctx: import("./access").Ctx) => Promise<T>): Promise<
 const parse = <S extends z.ZodTypeAny>(schema: S, v: unknown): z.infer<S> => schema.parse(v);
 
 async function deps() {
-  const [{ sendInviteEmail, revokeUserSessions, setUserEnabled }, { appUrl }] = await Promise.all([import("../auth/appwrite"), import("../env")]);
-  return { auth: { sendInviteEmail, revokeSessions: revokeUserSessions, setEnabled: setUserEnabled }, baseUrl: appUrl() };
+  const [{ sendInviteEmail }, { appUrl }] = await Promise.all([import("../auth/appwrite"), import("../env")]);
+  return { auth: { sendInviteEmail }, baseUrl: appUrl() };
 }
 
 export async function loadSnapshotAction(): Promise<ActionResult> {
@@ -226,10 +226,10 @@ export async function updateMemberAction(memberId: string, input: unknown) {
 }
 
 export async function removeMemberAction(memberId: string) {
-  return run(async (ctx) => (await import("./members")).deactivateMember(ctx, parse(id, memberId), await deps()));
+  return run(async (ctx) => (await import("./members")).deactivateMember(ctx, parse(id, memberId)));
 }
 export async function reactivateMemberAction(memberId: string) {
-  return run(async (ctx) => (await import("./members")).reactivateMember(ctx, parse(id, memberId), await deps()));
+  return run(async (ctx) => (await import("./members")).reactivateMember(ctx, parse(id, memberId)));
 }
 export async function revokeInviteAction(memberId: string) {
   return run(async (ctx) => (await import("./members")).revokeInvite(ctx, parse(id, memberId)));

@@ -13,8 +13,6 @@ import { stampLabel } from "./stamp";
 /** O que o servidor precisa do Appwrite. Injetado para que as regras possam ser testadas sem rede. */
 export interface AuthPort {
   sendInviteEmail(email: string, url: string): Promise<void>;
-  revokeSessions(appwriteUserId: string): Promise<void>;
-  setEnabled(appwriteUserId: string, enabled: boolean): Promise<void>;
 }
 export interface Deps {
   auth: AuthPort;
@@ -253,11 +251,14 @@ export async function updateMember(actor: Actor, memberId: string, patch: Member
   });
 }
 
-/** Desativa: some das listas de quem recebe avisos, perde o acesso e as sessões do Appwrite são derrubadas. Reversível. */
-export async function deactivateMember(actor: Actor, memberId: string, deps: Deps): Promise<void> {
+/**
+ * Desativa o VÍNCULO nesta família: some das listas de avisos e perde o acesso na hora (o banco é conferido a cada
+ * requisição). O login e as sessões NÃO são tocados: a mesma conta pode participar de outras famílias (docs/15). Reversível.
+ */
+export async function deactivateMember(actor: Actor, memberId: string): Promise<void> {
   requirePermission(actor, "members.manage");
   if (memberId === actor.memberId) throw new UserError("Você não pode desativar a si mesmo.");
-  const appwriteUserId = await withFamilia(actor.familyId, async (tx) => {
+  await withFamilia(actor.familyId, async (tx) => {
     const { m, profileName } = await loadMember(tx, memberId);
     if (m.accessState === "invited") throw new UserError("Essa pessoa ainda não entrou. Use Cancelar convite.");
     if (profileName === ADMIN && !isAdmin(actor)) throw new UserError("Só um Administrador pode desativar outro Administrador.");
@@ -266,25 +267,17 @@ export async function deactivateMember(actor: Actor, memberId: string, deps: Dep
     }
     await tx.update(s.members).set({ active: false, removedAt: new Date() }).where(eq(s.members.id, memberId));
     await audit(tx, actor, "member.deactivate", "member", memberId, { profile: profileName });
-    return m.appwriteUserId;
   });
-  // depois do commit: o acesso já está negado pelo banco; agora derruba as sessões e bloqueia o login no Appwrite
-  if (appwriteUserId) {
-    await deps.auth.revokeSessions(appwriteUserId);
-    await deps.auth.setEnabled(appwriteUserId, false);
-  }
 }
 
-export async function reactivateMember(actor: Actor, memberId: string, deps: Deps): Promise<void> {
+export async function reactivateMember(actor: Actor, memberId: string): Promise<void> {
   requirePermission(actor, "members.manage");
-  const appwriteUserId = await withFamilia(actor.familyId, async (tx) => {
-    const { m, profileName } = await loadMember(tx, memberId);
+  await withFamilia(actor.familyId, async (tx) => {
+    const { profileName } = await loadMember(tx, memberId);
     if (profileName === ADMIN && !isAdmin(actor)) throw new UserError("Só um Administrador pode reativar outro Administrador.");
     await tx.update(s.members).set({ active: true, removedAt: null }).where(eq(s.members.id, memberId));
     await audit(tx, actor, "member.reactivate", "member", memberId, { profile: profileName });
-    return m.appwriteUserId;
   });
-  if (appwriteUserId) await deps.auth.setEnabled(appwriteUserId, true);
 }
 
 /**
