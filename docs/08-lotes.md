@@ -89,6 +89,12 @@ Para familiares que só precisam acompanhar (visão de relatório): **veem e nã
 - **Produção:** definir o ambiente real, versão marcada (tag), backup antes de cada migração e passo de volta (rollback).
 - Opcional: domínio próprio e e-mail autenticado (Brevo).
 
+### 5E — Uma conta, várias famílias (pedido de 26/11/2026; entra **antes** do 5D)
+Contrato: `docs/15-uma-conta-varias-familias.md`. Só começa com o 5C validado.
+- **5E-A (portal):** um login para várias famílias, escolher e trocar de família, criar a própria, convite sem nova senha e proteções ao desativar pessoa ou excluir família.
+- **5E-B (WhatsApp):** um número atendendo todas as famílias da pessoa, com pergunta quando houver dúvida.
+- Ordem: 5C → 5E-A → 5E-B → 5D. Cada parte tem roteiro e validação próprios.
+
 ### 5D — Piloto com a família (2 semanas)
 - Limpeza dos dados de teste e **congelamento da versão**.
 - Cadastro real dos sogros: pacientes, remédios, esquemas, **estoque contado fisicamente** e receitas fotografadas.

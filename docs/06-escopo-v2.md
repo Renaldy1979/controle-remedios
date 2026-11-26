@@ -25,6 +25,8 @@ Referência de padrão: o projeto `controle-financeiro` do dono (Next.js + Postg
   Receitas, compartilhamento e administração exigem `active`, mesmo que o perfil as permita.
 - **Convite por WhatsApp:** código de uso único, expira em 24 h, vale só se vier do número esperado, guardado como hash, com limite de tentativas. O sistema envia ao número verificado um **link de primeiro acesso** (uso único, expira em 24 h) para definir e-mail e senha. O login do portal é sempre o e-mail (o admin pode pré-preencher). "Reenviar link de acesso" disponível ao admin e ao próprio usuário pelo WhatsApp. Desativar um usuário revoga a sessão do Appwrite e a resposta do WhatsApp.
 
+> **Atualização (26/11/2026, Lote 5E):** uma conta pode participar de várias famílias, e o mesmo número verificado pode atender todas as famílias da mesma pessoa. O contrato é `docs/15-uma-conta-varias-familias.md`, que vale sobre este documento nesses pontos.
+
 ## 3. Autenticação e WhatsApp
 - **Login:** e-mail e senha no **Appwrite Auth** (convite por e-mail, redefinição de senha). O Appwrite também guarda o bucket de receitas e anexos.
 - **Validação do WhatsApp (depois do login):** o usuário informa o número no portal; o número fica **pendente**. O portal mostra um código de 6 dígitos (vale 15 min, guardado só como hash, limite de tentativas). **O dono do número envia o código ao WhatsApp do sistema.** Só então o número passa a **verificado**. Trocar o número invalida o verificado.
